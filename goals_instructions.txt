@@ -1,0 +1,15 @@
+The goal here is to make this project uses both skills of data engineer (where we do stuffs like creating pipelines for data ingestion, transformation, and load and make data usable through ETL/ELT) and data scientist for analyzing the historical data of stocks or crypto assets
+So our case is historical analysis rather than real time analysis so we have to choose the better sources, as well as better storage for historical analysis like data lakes and compatible data engines for processing datas for example duckdb and many more
+After doing the ingestion/extraction we load the data in storage and then we transform the data like cleaning, or removing nulls or making standardarized iso formats if necessary and many more, then we can choose different orchestration tools for creating nad designing workflows and many more
+
+Note
+So i choosed the elt even though its industry risk for personal data information risk to directly dump into storage but since i am using publically available data for my project its fine  
+
+Challenges 
+1 first finding different datas from different data sources
+2 every data sources provides data in their own different formats so we have to manage that 
+3 find the perfect storage for it 
+4 find the best computational data engine 
+5 find suitable orchestrator and also compatible for data workflows and pipelines of tasks 
+6 Incremental updates on data engineering 
+7 After we get the usable data finding the best algorithm out of many 
