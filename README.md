@@ -49,8 +49,15 @@ Project involves both  **Data Engineering** and **Data Science** to analyze fina
     python -m venv venv
     source venv/bin/activate  # On Windows: venv\Scripts\activate
     ```
+3.  **Configure Environment:**
+    Rename `.env.example` to `.env` and add API keys.
 
-3. **Run the pipeline:**
+4. **Run the pipeline:**
     ```bash
-    python orchestration/main.py
+    python orchestration/sample_orchestration.py
     ```
+
+### Running with Docker
+```bash
+docker-compose up --build
+```
