@@ -1,2 +1,9 @@
 .env
-venv
+.venv
+venv/
+__pycache__/
+
+#data folders
+data/raw/*
+data/processed/*
+data/analytics/*
