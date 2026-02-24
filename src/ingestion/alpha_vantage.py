@@ -9,7 +9,7 @@ load_dotenv()
 
 class AlphaVantageClient:
     def __init__(self):
-        with open("configs/settings.yaml", "r") as f:
+        with open("configs/settings.yml", "r") as f:
             self.config = yaml.safe_load(f)
         self.api_key = os.getenv("ALPHAVANTAGE_API_KEY")
         if not self.api_key:
