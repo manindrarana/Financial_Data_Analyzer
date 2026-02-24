@@ -44,7 +44,7 @@ providers:
   
   bybit:
     category: "linear"
-    interval: "60" # 60 for 1hr, D for daily, W for weekly
+    interval: "W" # 60 for 1hr, D for daily, W for weekly
     limit: 1000
 
 

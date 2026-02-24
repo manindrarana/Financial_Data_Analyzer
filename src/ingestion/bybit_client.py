@@ -90,6 +90,25 @@ class BybitClient:
 
         df = pd.concat(all_data)
         df.drop_duplicates(subset=["timestamp"], inplace=True)
+            
+        for col in ["open", "high", "low", "close", "volume"]:
+            df[col] = df[col].astype(float)
+            
+        df["date"] = pd.to_datetime(df["timestamp"], unit="ms")
+        
+        df = df.sort_values(by="date").reset_index(drop=True)
+        
+        df = df[["date", "open", "high", "low", "close", "volume"]]
+
+        timestamp_str = datetime.now().strftime("%Y-%m-%d")
+        readable_interval = "1h" if interval == "60" else ("1d" if interval == "D" else interval)
+        
+        filename = f"{symbol}_{readable_interval}_{timestamp_str}.parquet"
+        file_path = os.path.join(self.raw_path, filename)
+        
+        df.to_parquet(file_path, index=False)
+        print(f"Success! Saved total {len(df)} rows covering {df['date'].min()} to {df['date'].max()}")
+        return file_path
 
 if __name__ == "__main__":
     client = BybitClient()
