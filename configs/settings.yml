@@ -10,7 +10,7 @@ paths:
   models: "data/models"
 
 ingestion:
-  active_providers: "alphavantage"
+  active_provider: "alphavantage"
   target_tickers: 
     - "AAPL"
     - "GOOGL"
