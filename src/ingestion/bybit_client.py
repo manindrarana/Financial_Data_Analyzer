@@ -34,12 +34,22 @@ class BybitClient:
         category = provider_config["category"]
         limit = provider_config.get("limit", 200)
 
+        start_date_str = self.config["ingestion"]["settings"]["start_date"]
+        start_ts = int(datetime.strptime(start_date_str, "%Y-%m-%d").timestamp() * 1000)
+        end_ts = int(datetime.now().timestamp() * 1000)
+        
+        print(f"Time Range: {start_date_str} to Now ({start_ts} to {end_ts})")
+
+        all_data = []
+        cursor_end = end_ts 
+
         try:
             response = self.session.get_kline(
                 category=category,
                 symbol=symbol,
                 interval=interval,
-                limit=limit
+                limit=limit,
+                end=cursor_end
             )
             
             raw_list = response.get('result', {}).get('list', [])
