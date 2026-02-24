@@ -1,0 +1,32 @@
+app:
+  name: "Financial Data Analyzer"
+  version: "1.0.0"
+  env: "development"
+
+paths:
+  raw_data: "data/raw"
+  processed_data: "data/processed"
+  database: "data/analytics/financial_data.duckdb"
+  models: "data/models"
+
+ingestion:
+  active_providers: "alphavantage"
+  target_tickers: 
+    - "AAPL"
+    - "GOOGL"
+    - "MSFT"
+    - "AMZN"
+    - "TSLA"
+    - "META"
+    - "NVDA"
+    - "IBM"
+  settings:
+      output_size: "compact"
+      data_type: "csv"
+
+providers:
+  alphavantage:
+    base_url: "https://www.alphavantage.co/query"
+    function: "TIME_SERIES_DAILY"
+   #yfinance, and other apislater
+
