@@ -10,23 +10,20 @@ paths:
   models: "data/models"
 
 ingestion:
-  active_provider: "alphavantage"
+  active_provider: 
+  - "yfinance"
+  #- "binance or bybit for crypto"
+
   target_tickers: 
     - "AAPL"
     - "GOOGL"
     - "MSFT"
-    - "AMZN"
-    - "TSLA"
-    - "META"
-    - "NVDA"
-    - "IBM"
+
   settings:
-    output_size: "compact"
-    data_type: "csv"
+    start_date: "2024-01-01"
 
 providers:
-  alphavantage:
-    base_url: "https://www.alphavantage.co/query"
-    function: "TIME_SERIES_DAILY"
-   #yfinance, and other apislater
+  yfinance:
+    interval: "1wk"
+
 
