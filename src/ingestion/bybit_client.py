@@ -22,3 +22,58 @@ class BybitClient:
             api_key=api_key,
             api_secret=api_secret
         )
+    
+    def fetch_data(self, symbol: str):
+        """
+        Fetches candlestick data from Bybit.
+        """
+        print(f"Fetching Bybit data for {symbol}...")
+        
+        provider_config = self.config["providers"]["bybit"]
+        interval = provider_config["interval"]
+        category = provider_config["category"]
+        limit = provider_config.get("limit", 200)
+
+        try:
+            response = self.session.get_kline(
+                category=category,
+                symbol=symbol,
+                interval=interval,
+                limit=limit
+            )
+            
+            raw_list = response.get('result', {}).get('list', [])
+            
+            if not raw_list:
+                print(f"No data found for {symbol}")
+                return None
+            
+            columns = ["timestamp", "open", "high", "low", "close", "volume", "turnover"]
+            df = pd.DataFrame(raw_list, columns=columns)
+            
+            for col in ["open", "high", "low", "close", "volume"]:
+                df[col] = df[col].astype(float)
+            
+            df["date"] = pd.to_datetime(pd.to_numeric(df["timestamp"]), unit="ms")
+            
+            df = df.sort_values(by="date").reset_index(drop=True)
+            
+            df = df[["date", "open", "high", "low", "close", "volume"]]
+
+            timestamp_str = datetime.now().strftime("%Y-%m-%d")
+            readable_interval = "1h" if interval == "60" else ("1d" if interval == "D" else interval)
+            
+            filename = f"{symbol}_{readable_interval}_{timestamp_str}.parquet"
+            file_path = os.path.join(self.raw_path, filename)
+            
+            df.to_parquet(file_path, index=False)
+            print(f"Success! Saved {len(df)} rows to {file_path}")
+            return file_path
+
+        except Exception as e:
+            print(f"Error fetching {symbol}: {e}")
+            return None
+
+if __name__ == "__main__":
+    client = BybitClient()
+    client.fetch_data("BTCUSDT")
