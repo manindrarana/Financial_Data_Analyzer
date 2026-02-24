@@ -12,18 +12,39 @@ paths:
 ingestion:
   active_provider: 
   - "yfinance"
-  #- "binance or bybit for crypto"
+  - "bybit"
 
-  target_tickers: 
+  targets:
+    yfinance: 
     - "AAPL"
     - "GOOGL"
     - "MSFT"
+    - "AMZN"
+    - "TSLA"
+    - "META"
+    bybit:
+    - "BTCUSDT"
+    - "ETHUSDT"
+    - "SOLUSDT"
+    - "ADAUSDT"
+    - "XRPUSDT"
+    - "LTCUSDT"
+    - "DOGEUSDT"
+    - "DOTUSDT"
+    - "AVAXUSDT"
+    - "MATICUSDT"
+    - "PEPUSDT "
 
   settings:
-    start_date: "2012-01-01"
+    start_date: "2019-01-01"
 
 providers:
   yfinance:
     interval: "1wk"
+  
+  bybit:
+    category: "linear"
+    interval: "1h"
+    limit: 1000
 
 
