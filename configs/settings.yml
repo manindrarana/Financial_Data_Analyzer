@@ -10,23 +10,41 @@ paths:
   models: "data/models"
 
 ingestion:
-  active_provider: "alphavantage"
-  target_tickers: 
+  active_provider: 
+  - "yfinance"
+  - "bybit"
+
+  targets:
+    yfinance: 
     - "AAPL"
     - "GOOGL"
     - "MSFT"
     - "AMZN"
     - "TSLA"
     - "META"
-    - "NVDA"
-    - "IBM"
+    bybit:
+    - "BTCUSDT"
+    - "ETHUSDT"
+    - "SOLUSDT"
+    - "ADAUSDT"
+    - "XRPUSDT"
+    - "LTCUSDT"
+    - "DOGEUSDT"
+    - "DOTUSDT"
+    - "AVAXUSDT"
+    - "MATICUSDT"
+    - "PEPUSDT "
+
   settings:
-    output_size: "compact"
-    data_type: "csv"
+    start_date: "2019-01-01"
 
 providers:
-  alphavantage:
-    base_url: "https://www.alphavantage.co/query"
-    function: "TIME_SERIES_DAILY"
-   #yfinance, and other apislater
+  yfinance:
+    interval: "1wk"
+  
+  bybit:
+    category: "linear"
+    interval: "D" # 60 for 1hr, D for daily, W for weekly
+    limit: 1000
+
 
