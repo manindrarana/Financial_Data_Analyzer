@@ -21,8 +21,8 @@ ingestion:
     - "NVDA"
     - "IBM"
   settings:
-      output_size: "compact"
-      data_type: "csv"
+    output_size: "compact"
+    data_type: "csv"
 
 providers:
   alphavantage:
