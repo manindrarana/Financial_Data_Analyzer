@@ -4,6 +4,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import yfinance as yf
+from src.utils import get_logger
 
 class YahooFinanceClient:
     def __init__(self):
