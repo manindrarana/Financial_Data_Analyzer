@@ -5,9 +5,12 @@ from datetime import datetime
 from dotenv import load_dotenv
 from pybit.unified_trading import HTTP
 import time 
+from src.utils import get_logger
 
 class BybitClient:
     def __init__(self):
+        self.logger = get_logger(__name__)
+        
         with open("configs/settings.yml", "r") as f:
             self.config = yaml.safe_load(f)
             
@@ -28,7 +31,7 @@ class BybitClient:
         """
         Fetches candlestick data from Bybit.
         """
-        print(f"Fetching Bybit data for {symbol}...")
+        self.logger.info(f"Fetching Bybit data for {symbol}...")
         
         provider_config = self.config["providers"]["bybit"]
         interval = provider_config["interval"]
@@ -39,11 +42,11 @@ class BybitClient:
         start_ts = int(datetime.strptime(start_date_str, "%Y-%m-%d").timestamp() * 1000)
         end_ts = int(datetime.now().timestamp() * 1000)
         
-        print(f"Time Range: {start_date_str} to Now ({start_ts} to {end_ts})")
+        self.logger.info(f"Time Range: {start_date_str} to Now ({start_ts} to {end_ts})")
 
         all_data = []
         cursor_end = end_ts 
-        print(f"Strategy: Fetching backwards from Now to {start_date_str}")
+        self.logger.info(f"Strategy: Fetching backwards from Now to {start_date_str}")
         
         
         while cursor_end > start_ts:
@@ -59,7 +62,7 @@ class BybitClient:
                 raw_list = response.get('result', {}).get('list', [])
                 
                 if not raw_list:
-                    print("No more data returned.")
+                    self.logger.info("No more data returned.")
                     break
                 
                 columns = ["timestamp", "open", "high", "low", "close", "volume", "turnover"]
@@ -69,7 +72,7 @@ class BybitClient:
                 batch_df = batch_df[batch_df["timestamp"] >= start_ts]
                 
                 if batch_df.empty:
-                    print("Reached start date boundary.")
+                    self.logger.info("Reached start date boundary.")
                     break
                 
                 all_data.append(batch_df)
@@ -77,15 +80,15 @@ class BybitClient:
                 min_ts = batch_df["timestamp"].min()
                 cursor_end = min_ts - 1
                 
-                print(f"Fetched {len(batch_df)} rows. Oldest: {datetime.fromtimestamp(min_ts/1000)}")
+                self.logger.info(f"Fetched {len(batch_df)} rows. Oldest: {datetime.fromtimestamp(min_ts/1000)}")
                 time.sleep(0.1)
 
             except Exception as e:
-                print(f"Error in loop: {e}")
+                self.logger.error(f"Error in loop: {e}")
                 break
 
         if not all_data:
-             print(f"No data found for {symbol}")
+             self.logger.warning(f"No data found for {symbol}")
              return None
 
         df = pd.concat(all_data)
@@ -107,7 +110,7 @@ class BybitClient:
         file_path = os.path.join(self.raw_path, filename)
         
         df.to_parquet(file_path, index=False)
-        print(f"Success! Saved total {len(df)} rows covering {df['date'].min()} to {df['date'].max()}")
+        self.logger.info(f"Success! Saved total {len(df)} rows covering {df['date'].min()} to {df['date'].max()}")
         return file_path
 
 if __name__ == "__main__":
