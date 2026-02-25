@@ -36,7 +36,7 @@ ingestion:
     - "PEPUSDT "
 
   settings:
-    start_date: "2019-01-01"
+    start_date: "2012-01-01"
 
 providers:
   yfinance:

@@ -8,6 +8,7 @@ from src.utils import get_logger
 
 class YahooFinanceClient:
     def __init__(self):
+        self.logger = get_logger(__name__)
         with open("configs/settings.yml", "r") as f:
             self.config = yaml.safe_load(f)
             
@@ -18,7 +19,7 @@ class YahooFinanceClient:
         """
         Fetches historical data from Yahoo Finance and saves as Parquet.
         """
-        print(f"Fetching data for {ticker} using yfinance...")
+        self.logger.info(f"Fetching data for {ticker} using yfinance...")
         
         config_start_date = self.config["ingestion"]["settings"]["start_date"]
         interval = self.config["providers"]["yfinance"]["interval"] 
@@ -28,14 +29,14 @@ class YahooFinanceClient:
             limit_date = (datetime.now() - timedelta(days=700)).strftime("%Y-%m-%d")
             
             if config_start_date < limit_date:
-                print(f"Adjusting start_date for 1h data: {config_start_date} -> {limit_date}")
+                self.logger.warning(f"Adjusting start_date for 1h data: {config_start_date} -> {limit_date}")
                 start_date = limit_date
         
         try:
             df = yf.download(ticker, start=start_date, interval=interval, progress=False)
             
             if df.empty:
-                print(f"No data found for {ticker}")
+                self.logger.warning(f"No data found for {ticker}")
                 return None
 
             if isinstance(df.columns, pd.MultiIndex):
@@ -55,11 +56,11 @@ class YahooFinanceClient:
             
             df.to_parquet(file_path, index=False)
             
-            print(f"Success! Saved {len(df)} rows to {file_path}")
+            self.logger.info(f"Success! Saved {len(df)} rows to {file_path}")
             return file_path
 
         except Exception as e:
-            print(f"Failed to fetch {ticker}: {e}")
+            self.logger.error(f"Failed to fetch {ticker}: {e}")
             return None
 
 if __name__ == "__main__":
