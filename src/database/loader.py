@@ -25,17 +25,17 @@ class DatabaseLoader:
         self.logger.info("=" * 60)
         self.logger.info("Loading Yahoo Finance data into DuckDB...")
         self.logger.info("=" * 60)
-        
+
+        self.conn.execute("DROP TABLE IF EXISTS yahoo_stocks")
         self.conn.execute("""
-            CREATE TABLE IF NOT EXISTS yahoo_stocks (
+            CREATE TABLE yahoo_stocks (
                 ticker VARCHAR,
                 date DATE,
                 open DOUBLE,
                 high DOUBLE,
                 low DOUBLE,
                 close DOUBLE,
-                volume BIGINT,
-                adj_close DOUBLE
+                volume BIGINT
             )
         """)
         self.logger.info("Created/verified yahoo_stocks table")
@@ -67,8 +67,7 @@ class DatabaseLoader:
                         high,
                         low,
                         close,
-                        volume,
-                        adj_close
+                        volume
                     FROM read_parquet('{file_path}')
                 """)
                 
@@ -189,3 +188,18 @@ class DatabaseLoader:
         """Close database connection"""
         self.conn.close()
         self.logger.info("Database connection closed")
+        
+if __name__ == "__main__":
+    loader = DatabaseLoader()
+    loader.load_all()
+    result = loader.query("""
+        SELECT date, close 
+        FROM yahoo_stocks 
+        WHERE ticker = 'AAPL' 
+        ORDER BY date DESC 
+        LIMIT 5
+    """)
+    for row in result:
+        print(row)
+    
+    loader.close()
