@@ -53,4 +53,37 @@ class DatabaseLoader:
         self.conn.execute("DELETE FROM yahoo_stocks")
         self.logger.info("Cleared existing data from yahoo_stocks table")
         
-         
+        for file in yahoo_files:
+            try:
+                ticker = file.split('_')[0]
+                file_path = os.path.join(self.raw_path, file)
+                
+                self.conn.execute(f"""
+                    INSERT INTO yahoo_stocks 
+                    SELECT 
+                        '{ticker}' as ticker,
+                        date,
+                        open,
+                        high,
+                        low,
+                        close,
+                        volume,
+                        adj_close
+                    FROM read_parquet('{file_path}')
+                """)
+                
+                self.logger.info(f"done loading {ticker} from {file}")
+            except Exception as e:
+                self.logger.error(f"failed to load {file}: {e}")
+                
+        result = self.conn.execute("""
+            SELECT 
+                ticker, 
+                COUNT(*) as row_count,
+                MIN(date) as earliest_date,
+                MAX(date) as latest_date
+            FROM yahoo_stocks 
+            GROUP BY ticker
+            ORDER BY ticker
+        """).fetchall()
+        
