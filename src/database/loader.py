@@ -149,3 +149,34 @@ class DatabaseLoader:
                 self.logger.info(f"Loaded {symbol} from {file}")
             except Exception as e:
                 self.logger.error(f"Failed to load {file}: {e}")
+                
+        result = self.conn.execute("""
+            SELECT 
+                symbol, 
+                COUNT(*) as row_count,
+                MIN(date) as earliest_date,
+                MAX(date) as latest_date
+            FROM bybit_crypto 
+            GROUP BY symbol
+            ORDER BY symbol
+        """).fetchall()
+        
+        self.logger.info("Bybit Crypto Data Summary:")
+        for row in result:
+            self.logger.info(f"  {row[0]}: {row[1]} rows ({row[2]} to {row[3]})")
+        
+        total = self.conn.execute("SELECT COUNT(*) FROM bybit_crypto").fetchone()[0]
+        self.logger.info(f"Total rows in bybit_crypto: {total}")
+        
+    def load_all(self):
+        """Load all data from raw Parquet files into DuckDB"""
+        self.logger.info("*" * 60)
+        self.logger.info("Starting Database Load Process")
+        self.logger.info("*" * 60)
+        
+        self.load_yahoo_data()
+        self.load_bybit_data()
+        
+        self.logger.info("*" * 60)
+        self.logger.info("Database Load Complete")
+        self.logger.info("*" * 60)
