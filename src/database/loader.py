@@ -39,4 +39,18 @@ class DatabaseLoader:
             )
         """)
         self.logger.info("Created/verified yahoo_stocks table")
+        
+        if not os.path.exists(self.raw_path):
+            self.logger.warning(f"Raw data path does not exist: {self.raw_path}")
+            return
+        
+        yahoo_files = [f for f in os.listdir(self.raw_path) 
+                       if f.endswith('.parquet') and 'USDT' not in f]
+        
+        if not yahoo_files:
+            self.logger.warning("No Yahoo Finance parquet files found")
+            return
+        self.conn.execute("DELETE FROM yahoo_stocks")
+        self.logger.info("Cleared existing data from yahoo_stocks table")
+        
          
