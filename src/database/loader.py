@@ -86,4 +86,29 @@ class DatabaseLoader:
             GROUP BY ticker
             ORDER BY ticker
         """).fetchall()
+
+        self.logger.info("Yahoo Finance Data Summary:")
+        for row in result:
+            self.logger.info(f"  {row[0]}: {row[1]} rows ({row[2]} to {row[3]})")
         
+        total = self.conn.execute("SELECT COUNT(*) FROM yahoo_stocks").fetchone()[0]
+        self.logger.info(f"Total rows in yahoo_stocks: {total}")
+    
+    def load_bybit_data(self):
+        """Load all Bybit parquet files into bybit_crypto table"""
+        self.logger.info("=" * 60)
+        self.logger.info("Loading Bybit data into DuckDB...")
+        self.logger.info("=" * 60)
+        
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS bybit_crypto (
+                symbol VARCHAR,
+                date TIMESTAMP,
+                open DOUBLE,
+                high DOUBLE,
+                low DOUBLE,
+                close DOUBLE,
+                volume DOUBLE
+            )
+        """)
+        self.logger.info("Created/verified bybit_crypto table")
