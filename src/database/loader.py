@@ -72,9 +72,9 @@ class DatabaseLoader:
                     FROM read_parquet('{file_path}')
                 """)
                 
-                self.logger.info(f"done loading {ticker} from {file}")
+                self.logger.info(f"Done Loading {ticker} from {file}")
             except Exception as e:
-                self.logger.error(f"failed to load {file}: {e}")
+                self.logger.error(f"Failed to Load {file}: {e}")
                 
         result = self.conn.execute("""
             SELECT 
@@ -112,3 +112,40 @@ class DatabaseLoader:
             )
         """)
         self.logger.info("Created/verified bybit_crypto table")
+        
+        if not os.path.exists(self.raw_path):
+            self.logger.warning(f"Raw data path does not exist: {self.raw_path}")
+            return
+        
+        bybit_files = [f for f in os.listdir(self.raw_path) 
+                       if f.endswith('.parquet') and 'USDT' in f]
+        
+        if not bybit_files:
+            self.logger.warning("No Bybit parquet files found")
+            return
+        
+        self.conn.execute("DELETE FROM bybit_crypto")
+        self.logger.info("Cleared existing data from bybit_crypto table")
+        
+        
+        for file in bybit_files:
+            try:
+                symbol = file.split('_')[0]
+                file_path = os.path.join(self.raw_path, file)
+                
+                self.conn.execute(f"""
+                    INSERT INTO bybit_crypto 
+                    SELECT 
+                        '{symbol}' as symbol,
+                        date,
+                        open,
+                        high,
+                        low,
+                        close,
+                        volume
+                    FROM read_parquet('{file_path}')
+                """)
+                
+                self.logger.info(f"Loaded {symbol} from {file}")
+            except Exception as e:
+                self.logger.error(f"Failed to load {file}: {e}")
