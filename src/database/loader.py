@@ -180,3 +180,12 @@ class DatabaseLoader:
         self.logger.info("*" * 60)
         self.logger.info("Database Load Complete")
         self.logger.info("*" * 60)
+    
+    def query(self, sql: str):
+        """Execute a SQL query and return results"""
+        return self.conn.execute(sql).fetchall()
+    
+    def close(self):
+        """Close database connection"""
+        self.conn.close()
+        self.logger.info("Database connection closed")
