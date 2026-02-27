@@ -30,6 +30,7 @@ class DatabaseLoader:
         self.conn.execute("""
             CREATE TABLE yahoo_stocks (
                 ticker VARCHAR,
+                interval VARCHAR,
                 date DATE,
                 open DOUBLE,
                 high DOUBLE,
@@ -55,13 +56,16 @@ class DatabaseLoader:
         
         for file in yahoo_files:
             try:
-                ticker = file.split('_')[0]
+                parts = file.replace('.parquet', '').split('_')
+                ticker = parts[0]
+                interval = parts[1]
                 file_path = os.path.join(self.raw_path, file)
                 
                 self.conn.execute(f"""
                     INSERT INTO yahoo_stocks 
                     SELECT 
                         '{ticker}' as ticker,
+                        '{interval}' as interval,
                         date,
                         open,
                         high,
@@ -71,7 +75,7 @@ class DatabaseLoader:
                     FROM read_parquet('{file_path}')
                 """)
                 
-                self.logger.info(f"Done Loading {ticker} from {file}")
+                self.logger.info(f"Done Loading {ticker} [{interval}] from {file}")
             except Exception as e:
                 self.logger.error(f"Failed to Load {file}: {e}")
                 
@@ -99,9 +103,11 @@ class DatabaseLoader:
         self.logger.info("Loading Bybit data into DuckDB...")
         self.logger.info("=" * 60)
         
+        self.conn.execute("DROP TABLE IF EXISTS bybit_crypto")
         self.conn.execute("""
-            CREATE TABLE IF NOT EXISTS bybit_crypto (
+            CREATE TABLE bybit_crypto (
                 symbol VARCHAR,
+                interval VARCHAR,
                 date TIMESTAMP,
                 open DOUBLE,
                 high DOUBLE,
@@ -123,19 +129,18 @@ class DatabaseLoader:
             self.logger.warning("No Bybit parquet files found")
             return
         
-        self.conn.execute("DELETE FROM bybit_crypto")
-        self.logger.info("Cleared existing data from bybit_crypto table")
-        
-        
         for file in bybit_files:
             try:
-                symbol = file.split('_')[0]
+                parts = file.replace('.parquet', '').split('_')
+                symbol = parts[0]
+                interval = parts[1]
                 file_path = os.path.join(self.raw_path, file)
                 
                 self.conn.execute(f"""
                     INSERT INTO bybit_crypto 
                     SELECT 
                         '{symbol}' as symbol,
+                        '{interval}' as interval,
                         date,
                         open,
                         high,
@@ -145,7 +150,7 @@ class DatabaseLoader:
                     FROM read_parquet('{file_path}')
                 """)
                 
-                self.logger.info(f"Loaded {symbol} from {file}")
+                self.logger.info(f"Loaded {symbol} [{interval}] from {file}")
             except Exception as e:
                 self.logger.error(f"Failed to load {file}: {e}")
                 
