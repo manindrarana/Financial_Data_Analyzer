@@ -10,3 +10,19 @@ class DataCleaner:
         self.db_path = cfg["paths"]["database"]
         self.conn = duckdb.connect(self.db_path)
         self.logger.info(f"Connected to DuckDB at {self.db_path}")
+    
+    def clean_yahoo(self):
+        self.logger.info("Cleaning yahoo_stocks ...> clean_yahoo_stocks")
+        self.conn.execute("DROP TABLE IF EXISTS clean_yahoo_stocks")
+        self.conn.execute("""
+            CREATE TABLE clean_yahoo_stocks AS
+            SELECT DISTINCT ON (ticker, date)
+                   ticker,
+                   CAST(date AS DATE) AS date,
+                   open, high, low, close, volume
+            FROM yahoo_stocks
+            WHERE open > 0 AND high > 0 AND low > 0 AND close > 0 AND volume >= 0
+              AND date IS NOT NULL
+        """)
+        cnt = self.conn.execute("SELECT COUNT(*) FROM clean_yahoo_stocks").fetchone()[0]
+        self.logger.info(f"Rows in clean_yahoo_stocks: {cnt}")
