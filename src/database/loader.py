@@ -30,6 +30,7 @@ class DatabaseLoader:
         self.conn.execute("""
             CREATE TABLE yahoo_stocks (
                 ticker VARCHAR,
+                interval VARCHAR,
                 date DATE,
                 open DOUBLE,
                 high DOUBLE,
@@ -55,13 +56,16 @@ class DatabaseLoader:
         
         for file in yahoo_files:
             try:
-                ticker = file.split('_')[0]
+                parts = file.replace('.parquet', '').split('_')
+                ticker = parts[0]
+                interval = parts[1]
                 file_path = os.path.join(self.raw_path, file)
                 
                 self.conn.execute(f"""
                     INSERT INTO yahoo_stocks 
                     SELECT 
                         '{ticker}' as ticker,
+                        '{interval}' as interval,
                         date,
                         open,
                         high,
@@ -71,7 +75,7 @@ class DatabaseLoader:
                     FROM read_parquet('{file_path}')
                 """)
                 
-                self.logger.info(f"Done Loading {ticker} from {file}")
+                self.logger.info(f"Done Loading {ticker} [{interval}] from {file}")
             except Exception as e:
                 self.logger.error(f"Failed to Load {file}: {e}")
                 
