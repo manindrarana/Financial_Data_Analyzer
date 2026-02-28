@@ -31,7 +31,7 @@ class DatabaseLoader:
             CREATE TABLE yahoo_stocks (
                 ticker VARCHAR,
                 interval VARCHAR,
-                date DATE,
+                date TIMESTAMP,
                 open DOUBLE,
                 high DOUBLE,
                 low DOUBLE,
