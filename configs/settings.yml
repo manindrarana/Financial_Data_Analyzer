@@ -40,11 +40,11 @@ ingestion:
 
 providers:
   yfinance:
-    interval: "1wk"
+    interval: "1h"
   
   bybit:
     category: "linear"
-    interval: "W" # 60 for 1hr, D for daily, W for weekly
+    interval: "60" # 60 for 1hr, D for daily, W for weekly
     limit: 1000
 
 

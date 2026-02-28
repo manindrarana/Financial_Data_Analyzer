@@ -22,7 +22,7 @@ class DataCleaner:
             SELECT 
                 ticker,
                 interval,
-                CAST(date AS DATE) AS date,
+                CAST(date AS TIMESTAMP) AS date,
                 open, high, low, close, volume
             FROM (
                 SELECT *,
@@ -32,6 +32,7 @@ class DataCleaner:
                   AND date IS NOT NULL
             ) sub
             WHERE rn = 1
+            ORDER BY ticker, interval, date
         """)
         cnt = self.conn.execute("SELECT COUNT(*) FROM clean_yahoo_stocks").fetchone()[0]
         self.logger.info(f"Rows in clean_yahoo_stocks: {cnt}")
@@ -68,6 +69,7 @@ class DataCleaner:
                   AND date IS NOT NULL
             ) sub
             WHERE rn = 1
+            ORDER BY symbol, interval, date
         """)
         cnt = self.conn.execute("SELECT COUNT(*) FROM clean_bybit_crypto").fetchone()[0]
         self.logger.info(f"Rows in clean_bybit_crypto: {cnt}")
