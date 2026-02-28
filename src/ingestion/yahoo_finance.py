@@ -49,6 +49,8 @@ class YahooFinanceClient:
             if 'datetime' in df.columns:
                 df.rename(columns={'datetime': 'date'}, inplace=True)
             
+            df['date'] = pd.to_datetime(df['date'], utc=True).dt.tz_localize(None)
+            
             timestamp = datetime.now().strftime("%Y-%m-%d")
             
             filename = f"{ticker}_{interval}_{timestamp}.parquet"
