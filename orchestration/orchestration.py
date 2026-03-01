@@ -18,3 +18,16 @@ def run_pipeline():
     bybit_targets = config["ingestion"]["targets"].get("bybit", [])
     active_providers = config["ingestion"]["active_provider"]
     
+    logger.info("*** STEP 1: DATA EXTRACTION (APIs ..> Parquet) ***")
+    
+    if "yfinance" in active_providers:
+        yahoo_client = YahooFinanceClient()
+        for ticker in yfinance_targets:
+            yahoo_client.fetch_data(ticker)
+            time.sleep(1)
+            
+    if "bybit" in active_providers:
+        bybit_client = BybitClient()
+        for symbol in bybit_targets:
+            bybit_client.fetch_data(symbol)
+            time.sleep(1)
