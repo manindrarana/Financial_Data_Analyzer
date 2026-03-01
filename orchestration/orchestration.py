@@ -36,3 +36,8 @@ def run_pipeline():
     loader = DatabaseLoader()
     loader.load_all()
     loader.close()
+    
+    logger.info("*** STEP 3: TRANSFORMATION (Cleaning and Ordering) ***")
+    cleaner = DataCleaner()
+    cleaner.run()
+    cleaner.conn.close()
