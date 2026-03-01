@@ -8,3 +8,13 @@ from src.processing.transformation import DataCleaner
 
 
 def run_pipeline():
+    logger = get_logger("Orchestrator")
+    logger.info("Starting Financial Data Pipeline (ELT)...")
+    
+    with open("configs/settings.yml", "r") as f:
+        config = yaml.safe_load(f)
+        
+    yfinance_targets = config["ingestion"]["targets"].get("yfinance", [])
+    bybit_targets = config["ingestion"]["targets"].get("bybit", [])
+    active_providers = config["ingestion"]["active_provider"]
+    
