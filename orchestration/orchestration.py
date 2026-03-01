@@ -31,3 +31,8 @@ def run_pipeline():
         for symbol in bybit_targets:
             bybit_client.fetch_data(symbol)
             time.sleep(1)
+
+    logger.info("*** STEP 2: LOADING (Parquet ..> DuckDB) ***")
+    loader = DatabaseLoader()
+    loader.load_all()
+    loader.close()
