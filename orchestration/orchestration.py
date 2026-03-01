@@ -41,3 +41,8 @@ def run_pipeline():
     cleaner = DataCleaner()
     cleaner.run()
     cleaner.conn.close()
+    
+    logger.info("*** PIPELINE EXECUTED SUCCESSFULLY!!!! ***")
+
+if __name__ == "__main__":
+    run_pipeline()
