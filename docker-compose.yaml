@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  pipeline:
+    build: .
+    container_name: financial_data_pipeline
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

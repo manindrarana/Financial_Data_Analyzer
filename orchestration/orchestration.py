@@ -5,6 +5,8 @@ from src.ingestion.yahoo_finance import YahooFinanceClient
 from src.ingestion.bybit_client import BybitClient
 from src.database.loader import DatabaseLoader
 from src.processing.transformation import DataCleaner
+import schedule
+
 
 
 def run_pipeline():
@@ -45,4 +47,14 @@ def run_pipeline():
     logger.info("*** PIPELINE EXECUTED SUCCESSFULLY!!!! ***")
 
 if __name__ == "__main__":
+    
+    logger = get_logger("Orchestrator_Main")
+    
     run_pipeline()
+    schedule.every().day.at("00:00").do(run_pipeline)
+    
+    logger.info("Pipeline scheduled container will now stay alive and wait for the next run...")
+    
+    while True:
+        schedule.run_pending()
+        time.sleep(60)

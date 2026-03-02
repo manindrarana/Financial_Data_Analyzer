@@ -32,8 +32,8 @@ ingestion:
     - "DOGEUSDT"
     - "DOTUSDT"
     - "AVAXUSDT"
-    - "MATICUSDT"
-    - "PEPUSDT "
+    - "DYDXUSDT"
+    - "PEPEUSDT"
 
   settings:
     start_date: "2012-01-01"
