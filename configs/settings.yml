@@ -32,7 +32,7 @@ ingestion:
     - "DOGEUSDT"
     - "DOTUSDT"
     - "AVAXUSDT"
-    - "DYDXCUSDT"
+    - "DYDXUSDT"
     - "PEPEUSDT"
 
   settings:
