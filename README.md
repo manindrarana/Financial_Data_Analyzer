@@ -54,10 +54,10 @@ Project involves both  **Data Engineering** and **Data Science** to analyze fina
 
 4. **Run the pipeline:**
     ```bash
-    python orchestration/sample_orchestration.py
+    python -m orchestration.orchestration
     ```
 
 ### Running with Docker
 ```bash
-docker-compose up --build
+docker-compose up --build -d
 ```
