@@ -54,9 +54,16 @@ class YahooFinanceClient:
             timestamp = datetime.now().strftime("%Y-%m-%d")
             
             filename = f"{ticker}_{interval}_{timestamp}.parquet"
-            file_path = os.path.join(self.raw_path, filename)
+            s3_bucket = self.config["paths"].get("s3_bucket", "raw-data")
+            file_path = f"s3://{s3_bucket}/{filename}"
             
-            df.to_parquet(file_path, index=False)
+            s3_storage_options = {
+                "client_kwargs": {"endpoint_url": os.getenv("S3_ENDPOINT_URL")},
+                "key": os.getenv("AWS_ACCESS_KEY_ID"),
+                "secret": os.getenv("AWS_SECRET_ACCESS_KEY")
+            }
+            
+            df.to_parquet(file_path, index=False, storage_options=s3_storage_options)
             
             self.logger.info(f"Success! Saved {len(df)} rows to {file_path}")
             return file_path
