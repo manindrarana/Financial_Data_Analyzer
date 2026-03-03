@@ -1,6 +1,31 @@
 version: '3.8'
 
 services:
+  minio:
+    image: minio/minio:latest
+    container_name: datalake
+    env_file:
+      - .env
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+
+  createbuckets:
+    image: minio/mc
+    depends_on:
+      - minio
+    env_file:
+      - .env
+    entrypoint: >
+      /bin/sh -c "
+      echo 'Waiting for MinIO...' && sleep 5;
+      /usr/bin/mc alias set myminio http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
+      /usr/bin/mc mb myminio/raw-data --ignore-existing;
+      "
+
   pipeline:
     build: .
     container_name: financial_data_pipeline
@@ -9,3 +34,9 @@ services:
     volumes:
       - ./data:/app/data
     restart: unless-stopped
+    depends_on:
+      createbuckets:
+        condition: service_completed_successfully
+
+volumes:
+  minio_data:

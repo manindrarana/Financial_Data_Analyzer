@@ -107,10 +107,17 @@ class BybitClient:
         readable_interval = "1h" if interval == "60" else ("1d" if interval == "D" else interval)
         
         filename = f"{symbol}_{readable_interval}_{timestamp_str}.parquet"
-        file_path = os.path.join(self.raw_path, filename)
+        s3_bucket = self.config["paths"].get("s3_bucket", "raw-data")
+        file_path = f"s3://{s3_bucket}/{filename}"
         
-        df.to_parquet(file_path, index=False)
-        self.logger.info(f"Success! Saved total {len(df)} rows covering {df['date'].min()} to {df['date'].max()}")
+        s3_storage_options = {
+            "client_kwargs": {"endpoint_url": os.getenv("S3_ENDPOINT_URL")},
+            "key": os.getenv("AWS_ACCESS_KEY_ID"),
+            "secret": os.getenv("AWS_SECRET_ACCESS_KEY")
+        }
+        
+        df.to_parquet(file_path, index=False, storage_options=s3_storage_options)
+        self.logger.info(f"Success! Saved total {len(df)} rows covering {df['date'].min()} to {df['date'].max()} to file {file_path}")
         return file_path
 
 if __name__ == "__main__":
