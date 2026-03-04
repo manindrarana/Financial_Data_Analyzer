@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import yfinance as yf
 from src.utils import get_logger
+import duckdb
+
 
 class YahooFinanceClient:
     def __init__(self):
@@ -14,6 +16,21 @@ class YahooFinanceClient:
             
         self.raw_path = self.config["paths"]["raw_data"]
         os.makedirs(self.raw_path, exist_ok=True)
+
+    def get_last_fetched_date(self, ticker: str, interval: str):
+        """Query DuckDB for the latest date of fetched data for the given ticker and interval."""
+        db_path = self.config["paths"]["database"]
+        if not os.path.exists(db_path):
+            return None
+        
+        try:
+            conn = duckdb.connect(db_path, read_only=True)
+            query = f"SELECT MAX(date) FROM clean_yahoo_stocks WHERE ticker='{ticker}' AND interval='{interval}'"
+            res = conn.execute(query).fetchone()
+            conn.close()
+            return res[0] if res and res[0] else None
+        except Exception:
+            return None
 
     def fetch_data(self, ticker: str):
         """
