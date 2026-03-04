@@ -26,7 +26,7 @@ def run_pipeline():
         yahoo_client = YahooFinanceClient()
         for ticker in yfinance_targets:
             yahoo_client.fetch_data(ticker)
-            time.sleep(1)
+            time.sleep(15)
             
     if "bybit" in active_providers:
         bybit_client = BybitClient()
