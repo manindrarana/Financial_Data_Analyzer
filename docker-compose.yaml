@@ -12,6 +12,8 @@ services:
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data
+    networks:
+      - custom_net
 
   createbuckets:
     image: minio/mc
@@ -25,6 +27,8 @@ services:
       /usr/bin/mc alias set myminio http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
       /usr/bin/mc mb myminio/raw-data --ignore-existing;
       "
+    networks:
+      - custom_net
 
   pipeline:
     build: .
@@ -37,6 +41,17 @@ services:
     depends_on:
       createbuckets:
         condition: service_completed_successfully
+    networks:
+      - custom_net
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
 
 volumes:
   minio_data:
+
+networks:
+  custom_net:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: 1400
