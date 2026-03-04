@@ -126,10 +126,9 @@ class BybitClient:
         
         df = df[["date", "open", "high", "low", "close", "volume"]]
 
-        timestamp_str = datetime.now().strftime("%Y-%m-%d_%H%M%S")
         readable_interval = "1h" if interval == "60" else ("1d" if interval == "D" else interval)
         
-        filename = f"{symbol}_{readable_interval}_{timestamp_str}.parquet"
+        filename = f"{symbol}_{readable_interval}.parquet"
         s3_bucket = self.config["paths"].get("s3_bucket", "raw-data")
         file_path = f"s3://{s3_bucket}/{filename}"
         
@@ -139,8 +138,18 @@ class BybitClient:
             "secret": os.getenv("AWS_SECRET_ACCESS_KEY")
         }
         
+        try:
+            existing_df = pd.read_parquet(file_path, storage_options=s3_storage_options)
+            self.logger.info(f"Found existing {filename} ({len(existing_df)} rows). Merging...")
+            df = pd.concat([existing_df, df])
+            df.drop_duplicates(subset=['date'], keep='last', inplace=True)
+            df.sort_values(by='date', inplace=True)
+            df.reset_index(drop=True, inplace=True)
+        except Exception:
+            self.logger.info(f"No existing file for {filename}, creating a new one.")
+        
         df.to_parquet(file_path, index=False, storage_options=s3_storage_options)
-        self.logger.info(f"Success! Saved total {len(df)} rows covering {df['date'].min()} to {df['date'].max()} to file {file_path}")
+        self.logger.info(f"Success! Saved total {len(df)} rows to {file_path}")
         return file_path
 
 if __name__ == "__main__":
