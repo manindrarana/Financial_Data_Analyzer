@@ -59,7 +59,7 @@ class YahooFinanceClient:
             df = yf.download(ticker, start=start_date, interval=interval, progress=False)
             
             if df.empty:
-                self.logger.warning(f"No data found for {ticker}")
+                self.logger.warning(f"No new data found for {ticker}")
                 return None
 
             if isinstance(df.columns, pd.MultiIndex):
