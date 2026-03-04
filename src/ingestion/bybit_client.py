@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from pybit.unified_trading import HTTP
 import time 
 from src.utils import get_logger
+import duckdb
 
 class BybitClient:
     def __init__(self):
@@ -26,6 +27,23 @@ class BybitClient:
             api_key=api_key,
             api_secret=api_secret
         )
+        
+    def get_last_fetched_date(self, symbol: str, interval: str):
+        """Query DuckDB for the latest date of fetched data for the given symbol and interval."""
+        db_path = self.config["paths"]["database"]
+        if not os.path.exists(db_path):
+            return None
+            
+        try:
+            import duckdb
+            conn = duckdb.connect(db_path, read_only=True)
+            readable_interval = "1h" if interval == "60" else ("1d" if interval == "D" else interval)
+            query = f"SELECT MAX(date) FROM clean_bybit_crypto WHERE symbol='{symbol}' AND interval='{readable_interval}'"
+            res = conn.execute(query).fetchone()
+            conn.close()
+            return res[0] if res and res[0] else None
+        except Exception:
+            return None
     
     def fetch_data(self, symbol: str):
         """
