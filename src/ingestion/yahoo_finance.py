@@ -41,13 +41,19 @@ class YahooFinanceClient:
         config_start_date = self.config["ingestion"]["settings"]["start_date"]
         interval = self.config["providers"]["yfinance"]["interval"] 
         
-        start_date = config_start_date
-        if interval == "1h":
-            limit_date = (datetime.now() - timedelta(days=700)).strftime("%Y-%m-%d")
-            
-            if config_start_date < limit_date:
-                self.logger.warning(f"Adjusting start_date for 1h data: {config_start_date} -> {limit_date}")
-                start_date = limit_date
+        last_date = self.get_last_fetched_date(ticker, interval)
+        if last_date:
+            start_date = last_date.strftime("%Y-%m-%d")
+            self.logger.info(f"Incremental load: Found existing data up to {last_date}. Resuming from {start_date}")
+        else:
+            self.logger.info(f"Full Refresh: No existing data. Starting from {config_start_date}")
+            start_date = config_start_date
+            if interval == "1h":
+                limit_date = (datetime.now() - timedelta(days=700)).strftime("%Y-%m-%d")
+                
+                if config_start_date < limit_date:
+                    self.logger.warning(f"Adjusting start_date for 1h data: {config_start_date} -> {limit_date}")
+                    start_date = limit_date
         
         try:
             df = yf.download(ticker, start=start_date, interval=interval, progress=False)
@@ -68,7 +74,7 @@ class YahooFinanceClient:
             
             df['date'] = pd.to_datetime(df['date'], utc=True).dt.tz_localize(None)
             
-            timestamp = datetime.now().strftime("%Y-%m-%d")
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
             
             filename = f"{ticker}_{interval}_{timestamp}.parquet"
             s3_bucket = self.config["paths"].get("s3_bucket", "raw-data")
