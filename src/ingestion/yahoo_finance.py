@@ -1,12 +1,13 @@
 import os
 import yaml
+import time
 import pandas as pd
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import yfinance as yf
+import requests
 from src.utils import get_logger
 import duckdb
-
 
 class YahooFinanceClient:
     def __init__(self):
@@ -16,6 +17,11 @@ class YahooFinanceClient:
             
         self.raw_path = self.config["paths"]["raw_data"]
         os.makedirs(self.raw_path, exist_ok=True)
+        
+        self.session = requests.Session()
+        self.session.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        })
 
     def get_last_fetched_date(self, ticker: str, interval: str):
         """Query DuckDB for the latest date of fetched data for the given ticker and interval."""
@@ -55,7 +61,7 @@ class YahooFinanceClient:
                     start_date = limit_date
         
         try:
-            df = yf.download(ticker, start=start_date, interval=interval, progress=False)
+            df = yf.download(ticker, start=start_date, interval=interval, progress=False, session=self.session)
             
             if df.empty:
                 self.logger.warning(f"No new data found for {ticker}")
@@ -70,7 +76,8 @@ class YahooFinanceClient:
             if 'datetime' in df.columns:
                 df.rename(columns={'datetime': 'date'}, inplace=True)
             
-            df['date'] = pd.to_datetime(df['date'], utc=True).dt.tz_localize(None)
+            if df['date'].dt.tz is not None:
+                df['date'] = df['date'].dt.tz_convert('UTC').dt.tz_localize(None)
             
             filename = f"{ticker}_{interval}.parquet"
             s3_bucket = self.config["paths"].get("s3_bucket", "raw-data")
@@ -98,9 +105,12 @@ class YahooFinanceClient:
             return file_path
 
         except Exception as e:
-            self.logger.error(f"Failed to fetch {ticker}: {e}")
+            if "Rate limited" in str(e) or "429" in str(e):
+                self.logger.error(f"RATE LIMITED by Yahoo for {ticker}. Pausing execution for 60 seconds...")
+                time.sleep(60)
+            else:
+                self.logger.error(f"Failed to fetch {ticker}: {e}")
             return None
-
 
 if __name__ == "__main__":
     client = YahooFinanceClient()
