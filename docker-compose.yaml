@@ -34,6 +34,9 @@ services:
     volumes:
       - ./data:/app/data
     restart: unless-stopped
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     depends_on:
       createbuckets:
         condition: service_completed_successfully

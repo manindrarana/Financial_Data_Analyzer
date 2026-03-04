@@ -50,7 +50,6 @@ class YahooFinanceClient:
             start_date = config_start_date
             if interval == "1h":
                 limit_date = (datetime.now() - timedelta(days=700)).strftime("%Y-%m-%d")
-                
                 if config_start_date < limit_date:
                     self.logger.warning(f"Adjusting start_date for 1h data: {config_start_date} -> {limit_date}")
                     start_date = limit_date
@@ -66,7 +65,6 @@ class YahooFinanceClient:
                 df.columns = df.columns.get_level_values(0)
 
             df.reset_index(inplace=True)
-
             df.columns = [c.lower().replace(" ", "_") for c in df.columns]
             
             if 'datetime' in df.columns:
@@ -74,9 +72,7 @@ class YahooFinanceClient:
             
             df['date'] = pd.to_datetime(df['date'], utc=True).dt.tz_localize(None)
             
-            timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-            
-            filename = f"{ticker}_{interval}_{timestamp}.parquet"
+            filename = f"{ticker}_{interval}.parquet"
             s3_bucket = self.config["paths"].get("s3_bucket", "raw-data")
             file_path = f"s3://{s3_bucket}/{filename}"
             
@@ -86,14 +82,25 @@ class YahooFinanceClient:
                 "secret": os.getenv("AWS_SECRET_ACCESS_KEY")
             }
             
+            try:
+                existing_df = pd.read_parquet(file_path, storage_options=s3_storage_options)
+                self.logger.info(f"Found existing {filename} ({len(existing_df)} rows). Merging...")
+                df = pd.concat([existing_df, df])
+                df.drop_duplicates(subset=['date'], keep='last', inplace=True)
+                df.sort_values(by='date', inplace=True)
+                df.reset_index(drop=True, inplace=True)
+            except Exception:
+                self.logger.info(f"No existing file for {filename}, creating a new one.")
+            
             df.to_parquet(file_path, index=False, storage_options=s3_storage_options)
             
-            self.logger.info(f"Success! Saved {len(df)} rows to {file_path}")
+            self.logger.info(f"Success! Saved total {len(df)} rows to {file_path}")
             return file_path
 
         except Exception as e:
             self.logger.error(f"Failed to fetch {ticker}: {e}")
             return None
+
 
 if __name__ == "__main__":
     client = YahooFinanceClient()
