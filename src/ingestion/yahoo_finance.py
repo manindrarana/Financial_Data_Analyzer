@@ -57,7 +57,7 @@ class YahooFinanceClient:
             else:
                 self.logger.info(f"Full Refresh: No existing data. Starting from {config_start_date}")
                 start_date = config_start_date
-                if intervals[0] == "1h":
+                if interval == "1h":
                     limit_date = (datetime.now() - timedelta(days=700)).strftime("%Y-%m-%d")
                     if config_start_date < limit_date:
                         self.logger.warning(f"Adjusting start_date for 1h data: {config_start_date} -> {limit_date}")
@@ -67,9 +67,9 @@ class YahooFinanceClient:
                 df = yf.download(ticker, start=start_date, interval=interval, progress=False, session=self.session)
                 
                 if df.empty:
-                    self.logger.warning(f"No new data found for {ticker}")
-                    return None
-
+                    self.logger.warning(f"No new data found for {ticker} at {interval}")
+                    continue
+                
                 if isinstance(df.columns, pd.MultiIndex):
                     df.columns = df.columns.get_level_values(0)
 
@@ -103,9 +103,7 @@ class YahooFinanceClient:
                     self.logger.info(f"No existing file for {filename}, creating a new one.")
                 
                 df.to_parquet(file_path, index=False, storage_options=s3_storage_options)
-                
                 self.logger.info(f"Success! Saved total {len(df)} rows to {file_path}")
-                return file_path
 
             except Exception as e:
                 if "Rate limited" in str(e) or "429" in str(e):
@@ -113,7 +111,9 @@ class YahooFinanceClient:
                     time.sleep(60)
                 else:
                     self.logger.error(f"Failed to fetch {ticker}: {e}")
-                return None
+                continue
+
+        return True
 
 if __name__ == "__main__":
     client = YahooFinanceClient()
