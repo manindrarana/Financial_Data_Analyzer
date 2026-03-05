@@ -56,22 +56,23 @@ class DatabaseLoader:
         """)
         
         targets = self.config["ingestion"]["targets"].get("yfinance", [])
-        interval = self.config["providers"]["yfinance"]["interval"]
+        intervals = self.config["providers"]["yfinance"].get("intervals", ["1h"])
         
         for ticker in targets:
-            file_path = f"s3://{self.s3_bucket}/{ticker}_{interval}.parquet"
-            try:
-                self.conn.execute(f"""
-                    INSERT INTO yahoo_stocks 
-                    SELECT 
-                        '{ticker}' as ticker,
-                        '{interval}' as interval,
-                        date, open, high, low, close, volume
-                    FROM read_parquet('{file_path}')
-                """)
-                self.logger.info(f"Loaded {ticker} [{interval}] from S3")
-            except Exception as e:
-                self.logger.error(f"Failed to load {file_path}: {e}")
+            for interval in intervals:
+                file_path = f"s3://{self.s3_bucket}/{ticker}_{interval}.parquet"
+                try:
+                    self.conn.execute(f"""
+                        INSERT INTO yahoo_stocks 
+                        SELECT 
+                            '{ticker}' as ticker,
+                            '{interval}' as interval,
+                            date, open, high, low, close, volume
+                        FROM read_parquet('{file_path}')
+                    """)
+                    self.logger.info(f"Loaded {ticker} [{interval}] from S3")
+                except Exception as e:
+                    self.logger.warning(f"Skipped {file_path}: File might not exist yet.")
 
     def load_bybit_data(self):
         """Load configured Bybit parquet files from S3 into bybit_crypto table"""
@@ -94,22 +95,23 @@ class DatabaseLoader:
         """)
         
         targets = self.config["ingestion"]["targets"].get("bybit", [])
-        interval = str(self.config["providers"]["bybit"]["interval"])
+        intervals = self.config["providers"]["bybit"].get("intervals", ["60"])
         
         for symbol in targets:
-            file_path = f"s3://{self.s3_bucket}/{symbol}_{interval}.parquet"
-            try:
-                self.conn.execute(f"""
-                    INSERT INTO bybit_crypto 
-                    SELECT 
-                        '{symbol}' as symbol,
-                        '{interval}' as interval,
-                        date, open, high, low, close, volume
-                    FROM read_parquet('{file_path}')
-                """)
-                self.logger.info(f"Loaded {symbol} [{interval}] from S3")
-            except Exception as e:
-                self.logger.error(f"Failed to load {file_path}: {e}")
+            for interval in intervals:
+                file_path = f"s3://{self.s3_bucket}/{symbol}_{interval}.parquet"
+                try:
+                    self.conn.execute(f"""
+                        INSERT INTO bybit_crypto 
+                        SELECT 
+                            '{symbol}' as symbol,
+                            '{interval}' as interval,
+                            date, open, high, low, close, volume
+                        FROM read_parquet('{file_path}')
+                    """)
+                    self.logger.info(f"Loaded {symbol} [{interval}] from S3")
+                except Exception as e:
+                    self.logger.error(f"Failed to load {file_path}: {e}")
 
     def load_all(self):
         self.load_yahoo_data()
