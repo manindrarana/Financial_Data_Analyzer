@@ -45,72 +45,75 @@ class YahooFinanceClient:
         self.logger.info(f"Fetching data for {ticker} using yfinance...")
         
         config_start_date = self.config["ingestion"]["settings"]["start_date"]
-        interval = self.config["providers"]["yfinance"]["interval"] 
+        intervals = self.config["providers"]["yfinance"]["intervals"] 
         
-        last_date = self.get_last_fetched_date(ticker, interval)
-        if last_date:
-            start_date = last_date.strftime("%Y-%m-%d")
-            self.logger.info(f"Incremental load: Found existing data up to {last_date}. Resuming from {start_date}")
-        else:
-            self.logger.info(f"Full Refresh: No existing data. Starting from {config_start_date}")
-            start_date = config_start_date
-            if interval == "1h":
-                limit_date = (datetime.now() - timedelta(days=700)).strftime("%Y-%m-%d")
-                if config_start_date < limit_date:
-                    self.logger.warning(f"Adjusting start_date for 1h data: {config_start_date} -> {limit_date}")
-                    start_date = limit_date
-        
-        try:
-            df = yf.download(ticker, start=start_date, interval=interval, progress=False, session=self.session)
+        for interval in intervals:
+            self.logger.info(f"Fetching data for {ticker} using yfinance... [{interval}]")
             
-            if df.empty:
-                self.logger.warning(f"No new data found for {ticker}")
-                return None
-
-            if isinstance(df.columns, pd.MultiIndex):
-                df.columns = df.columns.get_level_values(0)
-
-            df.reset_index(inplace=True)
-            df.columns = [c.lower().replace(" ", "_") for c in df.columns]
-            
-            if 'datetime' in df.columns:
-                df.rename(columns={'datetime': 'date'}, inplace=True)
-            
-            if df['date'].dt.tz is not None:
-                df['date'] = df['date'].dt.tz_convert('UTC').dt.tz_localize(None)
-            
-            filename = f"{ticker}_{interval}.parquet"
-            s3_bucket = self.config["paths"].get("s3_bucket", "raw-data")
-            file_path = f"s3://{s3_bucket}/{filename}"
-            
-            s3_storage_options = {
-                "client_kwargs": {"endpoint_url": os.getenv("S3_ENDPOINT_URL")},
-                "key": os.getenv("AWS_ACCESS_KEY_ID"),
-                "secret": os.getenv("AWS_SECRET_ACCESS_KEY")
-            }
+            last_date = self.get_last_fetched_date(ticker, interval)
+            if last_date:
+                start_date = last_date.strftime("%Y-%m-%d")
+                self.logger.info(f"Incremental load: Found existing data up to {last_date}. Resuming from {start_date}")
+            else:
+                self.logger.info(f"Full Refresh: No existing data. Starting from {config_start_date}")
+                start_date = config_start_date
+                if intervals[0] == "1h":
+                    limit_date = (datetime.now() - timedelta(days=700)).strftime("%Y-%m-%d")
+                    if config_start_date < limit_date:
+                        self.logger.warning(f"Adjusting start_date for 1h data: {config_start_date} -> {limit_date}")
+                        start_date = limit_date
             
             try:
-                existing_df = pd.read_parquet(file_path, storage_options=s3_storage_options)
-                self.logger.info(f"Found existing {filename} ({len(existing_df)} rows). Merging...")
-                df = pd.concat([existing_df, df])
-                df.drop_duplicates(subset=['date'], keep='last', inplace=True)
-                df.sort_values(by='date', inplace=True)
-                df.reset_index(drop=True, inplace=True)
-            except Exception:
-                self.logger.info(f"No existing file for {filename}, creating a new one.")
-            
-            df.to_parquet(file_path, index=False, storage_options=s3_storage_options)
-            
-            self.logger.info(f"Success! Saved total {len(df)} rows to {file_path}")
-            return file_path
+                df = yf.download(ticker, start=start_date, interval=interval, progress=False, session=self.session)
+                
+                if df.empty:
+                    self.logger.warning(f"No new data found for {ticker}")
+                    return None
 
-        except Exception as e:
-            if "Rate limited" in str(e) or "429" in str(e):
-                self.logger.error(f"RATE LIMITED by Yahoo for {ticker}. Pausing execution for 60 seconds...")
-                time.sleep(60)
-            else:
-                self.logger.error(f"Failed to fetch {ticker}: {e}")
-            return None
+                if isinstance(df.columns, pd.MultiIndex):
+                    df.columns = df.columns.get_level_values(0)
+
+                df.reset_index(inplace=True)
+                df.columns = [c.lower().replace(" ", "_") for c in df.columns]
+                
+                if 'datetime' in df.columns:
+                    df.rename(columns={'datetime': 'date'}, inplace=True)
+                
+                if df['date'].dt.tz is not None:
+                    df['date'] = df['date'].dt.tz_convert('UTC').dt.tz_localize(None)
+                
+                filename = f"{ticker}_{interval}.parquet"
+                s3_bucket = self.config["paths"].get("s3_bucket", "raw-data")
+                file_path = f"s3://{s3_bucket}/{filename}"
+                
+                s3_storage_options = {
+                    "client_kwargs": {"endpoint_url": os.getenv("S3_ENDPOINT_URL")},
+                    "key": os.getenv("AWS_ACCESS_KEY_ID"),
+                    "secret": os.getenv("AWS_SECRET_ACCESS_KEY")
+                }
+                
+                try:
+                    existing_df = pd.read_parquet(file_path, storage_options=s3_storage_options)
+                    self.logger.info(f"Found existing {filename} ({len(existing_df)} rows). Merging...")
+                    df = pd.concat([existing_df, df])
+                    df.drop_duplicates(subset=['date'], keep='last', inplace=True)
+                    df.sort_values(by='date', inplace=True)
+                    df.reset_index(drop=True, inplace=True)
+                except Exception:
+                    self.logger.info(f"No existing file for {filename}, creating a new one.")
+                
+                df.to_parquet(file_path, index=False, storage_options=s3_storage_options)
+                
+                self.logger.info(f"Success! Saved total {len(df)} rows to {file_path}")
+                return file_path
+
+            except Exception as e:
+                if "Rate limited" in str(e) or "429" in str(e):
+                    self.logger.error(f"RATE LIMITED by Yahoo for {ticker}. Pausing execution for 60 seconds...")
+                    time.sleep(60)
+                else:
+                    self.logger.error(f"Failed to fetch {ticker}: {e}")
+                return None
 
 if __name__ == "__main__":
     client = YahooFinanceClient()
