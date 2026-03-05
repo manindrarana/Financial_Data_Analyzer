@@ -1,15 +1,32 @@
 import duckdb
 import yaml
+import os
 from src.utils import get_logger
+from dotenv import load_dotenv
 
 class DataCleaner:
     def __init__(self):
         self.logger = get_logger(__name__)
+        load_dotenv()
+        
         with open("configs/settings.yml", "r") as f:
             cfg = yaml.safe_load(f)
         self.db_path = cfg["paths"]["database"]
         self.conn = duckdb.connect(self.db_path)
-        self.logger.info(f"Connected to DuckDB at {self.db_path}")
+        
+        s3_endpoint = os.getenv("S3_ENDPOINT_URL").replace("http://", "")
+        self.conn.execute("INSTALL httpfs; LOAD httpfs;")
+        self.conn.execute(f"""
+            CREATE SECRET IF NOT EXISTS (
+                TYPE S3,
+                KEY_ID '{os.getenv("AWS_ACCESS_KEY_ID")}',
+                SECRET '{os.getenv("AWS_SECRET_ACCESS_KEY")}',
+                ENDPOINT '{s3_endpoint}',
+                URL_STYLE 'path',
+                USE_SSL false
+            );
+        """)
+        self.logger.info(f"Connected to DuckDB at {self.db_path} with S3 access")
     
     def clean_yahoo(self):
         self.logger.info("=" * 60)
