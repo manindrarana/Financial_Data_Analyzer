@@ -99,13 +99,15 @@ class DatabaseLoader:
         
         for symbol in targets:
             for interval in intervals:
-                file_path = f"s3://{self.s3_bucket}/{symbol}_{interval}.parquet"
+                readable_interval = "1h" if interval == "60" else ("1d" if interval == "D" else interval)
+                
+                file_path = f"s3://{self.s3_bucket}/{symbol}_{readable_interval}.parquet"
                 try:
                     self.conn.execute(f"""
                         INSERT INTO bybit_crypto 
                         SELECT 
                             '{symbol}' as symbol,
-                            '{interval}' as interval,
+                            '{readable_interval}' as interval,
                             date, open, high, low, close, volume
                         FROM read_parquet('{file_path}')
                     """)
