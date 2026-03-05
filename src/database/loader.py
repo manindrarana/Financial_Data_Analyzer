@@ -1,25 +1,40 @@
 import duckdb
 import os
 import yaml
+from dotenv import load_dotenv
 from src.utils import get_logger
 
 
 class DatabaseLoader:
     def __init__(self):
-        """Initialize database connection and configuration"""
+        """Initialize database connection, S3 secrets, and configuration"""
         self.logger = get_logger(__name__)
+        load_dotenv()
         
         with open("configs/settings.yml", "r") as f:
-            config = yaml.safe_load(f)
+            self.config = yaml.safe_load(f)
         
-        self.db_path = config["paths"]["database"]
-        self.raw_path = config["paths"]["raw_data"]
+        self.db_path = self.config["paths"]["database"]
+        self.s3_bucket = self.config["paths"].get("s3_bucket", "raw-data")
         
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         
         self.conn = duckdb.connect(self.db_path)
         self.logger.info(f"Connected to DuckDB at {self.db_path}")
-    
+
+        s3_endpoint = os.getenv("S3_ENDPOINT_URL", "").replace("http://", "")
+        self.conn.execute("INSTALL httpfs; LOAD httpfs;")
+        self.conn.execute(f"""
+            CREATE SECRET IF NOT EXISTS (
+                TYPE S3,
+                KEY_ID '{os.getenv("AWS_ACCESS_KEY_ID")}',
+                SECRET '{os.getenv("AWS_SECRET_ACCESS_KEY")}',
+                ENDPOINT '{s3_endpoint}',
+                URL_STYLE 'path',
+                USE_SSL false
+            );
+        """)
+
     def load_yahoo_data(self):
         """Load all Yahoo Finance parquet files into yahoo_stocks table"""
         self.logger.info("=" * 60)
