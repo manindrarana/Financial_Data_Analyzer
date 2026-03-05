@@ -34,18 +34,18 @@ ingestion:
     - "DOTUSDT"
     - "AVAXUSDT"
     - "DYDXUSDT"
-    - "PEPEUSDT"
+    - "1000PEPEUSDT"
 
   settings:
     start_date: "2012-01-01"
 
 providers:
   yfinance:
-    interval: "1h"
+    intervals: ["1h", "1d", "1wk", "1mo"]
   
   bybit:
     category: "linear"
-    interval: "60" # 60 for 1hr, D for daily, W for weekly
+    intervals: ["60", "D", "W", "M"] # 60=1hr, D=Daily, W=Weekly, M=Monthly
     limit: 1000
 
 

@@ -26,6 +26,7 @@ services:
       echo 'Waiting for MinIO...' && sleep 5;
       /usr/bin/mc alias set myminio http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
       /usr/bin/mc mb myminio/raw-data --ignore-existing;
+      /usr/bin/mc mb myminio/processed-data --ignore-existing;
       "
     networks:
       - custom_net
