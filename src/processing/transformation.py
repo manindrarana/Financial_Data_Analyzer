@@ -1,15 +1,32 @@
 import duckdb
 import yaml
+import os
 from src.utils import get_logger
+from dotenv import load_dotenv
 
 class DataCleaner:
     def __init__(self):
         self.logger = get_logger(__name__)
+        load_dotenv()
+        
         with open("configs/settings.yml", "r") as f:
             cfg = yaml.safe_load(f)
         self.db_path = cfg["paths"]["database"]
         self.conn = duckdb.connect(self.db_path)
-        self.logger.info(f"Connected to DuckDB at {self.db_path}")
+        
+        s3_endpoint = os.getenv("S3_ENDPOINT_URL").replace("http://", "")
+        self.conn.execute("INSTALL httpfs; LOAD httpfs;")
+        self.conn.execute(f"""
+            CREATE SECRET IF NOT EXISTS (
+                TYPE S3,
+                KEY_ID '{os.getenv("AWS_ACCESS_KEY_ID")}',
+                SECRET '{os.getenv("AWS_SECRET_ACCESS_KEY")}',
+                ENDPOINT '{s3_endpoint}',
+                URL_STYLE 'path',
+                USE_SSL false
+            );
+        """)
+        self.logger.info(f"Connected to DuckDB at {self.db_path} with S3 access")
     
     def clean_yahoo(self):
         self.logger.info("=" * 60)
@@ -37,17 +54,13 @@ class DataCleaner:
         cnt = self.conn.execute("SELECT COUNT(*) FROM clean_yahoo_stocks").fetchone()[0]
         self.logger.info(f"Rows in clean_yahoo_stocks: {cnt}")
         
-        result = self.conn.execute("""
-            SELECT ticker, interval, COUNT(*) as rows, MIN(date) as start, MAX(date) as end
-            FROM clean_yahoo_stocks
-            GROUP BY ticker, interval
-            ORDER BY ticker, interval
-        """).fetchall()
-        
-        self.logger.info("Summary by ticker and interval:")
-        for row in result:
-            self.logger.info(f"  {row[0]} [{row[1]}]: {row[2]} rows ({row[3]} to {row[4]})")
-    
+        self.logger.info("Exporting clean_yahoo_stocks to MinIO (processed-data)...")
+        self.conn.execute("""
+            COPY clean_yahoo_stocks 
+            TO 's3://processed-data/clean_yahoo_stocks.parquet' (FORMAT PARQUET)
+        """)
+        self.logger.info("Export successful!")
+
     def clean_bybit(self):
         self.logger.info("=" * 60)
         self.logger.info("Cleaning bybit_crypto ...> clean_bybit_crypto")
@@ -74,17 +87,13 @@ class DataCleaner:
         cnt = self.conn.execute("SELECT COUNT(*) FROM clean_bybit_crypto").fetchone()[0]
         self.logger.info(f"Rows in clean_bybit_crypto: {cnt}")
         
-        result = self.conn.execute("""
-            SELECT symbol, interval, COUNT(*) as rows, MIN(date) as start, MAX(date) as end
-            FROM clean_bybit_crypto
-            GROUP BY symbol, interval
-            ORDER BY symbol, interval
-        """).fetchall()
-        
-        self.logger.info("Summary by symbol and interval:")
-        for row in result:
-            self.logger.info(f"  {row[0]} [{row[1]}]: {row[2]} rows ({row[3]} to {row[4]})")
-    
+        self.logger.info("Exporting clean_bybit_crypto to MinIO (processed-data)...")
+        self.conn.execute("""
+            COPY clean_bybit_crypto 
+            TO 's3://processed-data/clean_bybit_crypto.parquet' (FORMAT PARQUET)
+        """)
+        self.logger.info("Export successful!")
+
     def run(self):
         self.logger.info("*" * 60)
         self.logger.info("Starting Data Cleaning Process")

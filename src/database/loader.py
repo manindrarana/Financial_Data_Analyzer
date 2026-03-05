@@ -1,29 +1,44 @@
 import duckdb
 import os
 import yaml
+from dotenv import load_dotenv
 from src.utils import get_logger
 
 
 class DatabaseLoader:
     def __init__(self):
-        """Initialize database connection and configuration"""
+        """Initialize database connection, S3 secrets, and configuration"""
         self.logger = get_logger(__name__)
+        load_dotenv()
         
         with open("configs/settings.yml", "r") as f:
-            config = yaml.safe_load(f)
+            self.config = yaml.safe_load(f)
         
-        self.db_path = config["paths"]["database"]
-        self.raw_path = config["paths"]["raw_data"]
+        self.db_path = self.config["paths"]["database"]
+        self.s3_bucket = self.config["paths"].get("s3_bucket", "raw-data")
         
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         
         self.conn = duckdb.connect(self.db_path)
         self.logger.info(f"Connected to DuckDB at {self.db_path}")
-    
+
+        s3_endpoint = os.getenv("S3_ENDPOINT_URL", "").replace("http://", "")
+        self.conn.execute("INSTALL httpfs; LOAD httpfs;")
+        self.conn.execute(f"""
+            CREATE SECRET IF NOT EXISTS (
+                TYPE S3,
+                KEY_ID '{os.getenv("AWS_ACCESS_KEY_ID")}',
+                SECRET '{os.getenv("AWS_SECRET_ACCESS_KEY")}',
+                ENDPOINT '{s3_endpoint}',
+                URL_STYLE 'path',
+                USE_SSL false
+            );
+        """)
+
     def load_yahoo_data(self):
-        """Load all Yahoo Finance parquet files into yahoo_stocks table"""
+        """Load configured Yahoo Finance parquet files from S3 into yahoo_stocks table"""
         self.logger.info("=" * 60)
-        self.logger.info("Loading Yahoo Finance data into DuckDB...")
+        self.logger.info("Loading Yahoo Finance data into DuckDB from S3...")
         self.logger.info("=" * 60)
 
         self.conn.execute("DROP TABLE IF EXISTS yahoo_stocks")
@@ -36,71 +51,33 @@ class DatabaseLoader:
                 high DOUBLE,
                 low DOUBLE,
                 close DOUBLE,
-                volume BIGINT
+                volume DOUBLE
             )
         """)
-        self.logger.info("Created/verified yahoo_stocks table")
         
-        if not os.path.exists(self.raw_path):
-            self.logger.warning(f"Raw data path does not exist: {self.raw_path}")
-            return
+        targets = self.config["ingestion"]["targets"].get("yfinance", [])
+        intervals = self.config["providers"]["yfinance"].get("intervals", ["1h"])
         
-        yahoo_files = [f for f in os.listdir(self.raw_path) 
-                       if f.endswith('.parquet') and 'USDT' not in f]
-        
-        if not yahoo_files:
-            self.logger.warning("No Yahoo Finance parquet files found")
-            return
-        self.conn.execute("DELETE FROM yahoo_stocks")
-        self.logger.info("Cleared existing data from yahoo_stocks table")
-        
-        for file in yahoo_files:
-            try:
-                parts = file.replace('.parquet', '').split('_')
-                ticker = parts[0]
-                interval = parts[1]
-                file_path = os.path.join(self.raw_path, file)
-                
-                self.conn.execute(f"""
-                    INSERT INTO yahoo_stocks 
-                    SELECT 
-                        '{ticker}' as ticker,
-                        '{interval}' as interval,
-                        date,
-                        open,
-                        high,
-                        low,
-                        close,
-                        volume
-                    FROM read_parquet('{file_path}')
-                """)
-                
-                self.logger.info(f"Done Loading {ticker} [{interval}] from {file}")
-            except Exception as e:
-                self.logger.error(f"Failed to Load {file}: {e}")
-                
-        result = self.conn.execute("""
-            SELECT 
-                ticker, 
-                COUNT(*) as row_count,
-                MIN(date) as earliest_date,
-                MAX(date) as latest_date
-            FROM yahoo_stocks 
-            GROUP BY ticker
-            ORDER BY ticker
-        """).fetchall()
+        for ticker in targets:
+            for interval in intervals:
+                file_path = f"s3://{self.s3_bucket}/{ticker}_{interval}.parquet"
+                try:
+                    self.conn.execute(f"""
+                        INSERT INTO yahoo_stocks 
+                        SELECT 
+                            '{ticker}' as ticker,
+                            '{interval}' as interval,
+                            date, open, high, low, close, volume
+                        FROM read_parquet('{file_path}')
+                    """)
+                    self.logger.info(f"Loaded {ticker} [{interval}] from S3")
+                except Exception as e:
+                    self.logger.warning(f"Skipped {file_path}: File might not exist yet.")
 
-        self.logger.info("Yahoo Finance Data Summary:")
-        for row in result:
-            self.logger.info(f"  {row[0]}: {row[1]} rows ({row[2]} to {row[3]})")
-        
-        total = self.conn.execute("SELECT COUNT(*) FROM yahoo_stocks").fetchone()[0]
-        self.logger.info(f"Total rows in yahoo_stocks: {total}")
-    
     def load_bybit_data(self):
-        """Load all Bybit parquet files into bybit_crypto table"""
+        """Load configured Bybit parquet files from S3 into bybit_crypto table"""
         self.logger.info("=" * 60)
-        self.logger.info("Loading Bybit data into DuckDB...")
+        self.logger.info("Loading Bybit data into DuckDB from S3...")
         self.logger.info("=" * 60)
         
         self.conn.execute("DROP TABLE IF EXISTS bybit_crypto")
@@ -116,95 +93,36 @@ class DatabaseLoader:
                 volume DOUBLE
             )
         """)
-        self.logger.info("Created/verified bybit_crypto table")
         
-        if not os.path.exists(self.raw_path):
-            self.logger.warning(f"Raw data path does not exist: {self.raw_path}")
-            return
+        targets = self.config["ingestion"]["targets"].get("bybit", [])
+        intervals = self.config["providers"]["bybit"].get("intervals", ["60"])
         
-        bybit_files = [f for f in os.listdir(self.raw_path) 
-                       if f.endswith('.parquet') and 'USDT' in f]
-        
-        if not bybit_files:
-            self.logger.warning("No Bybit parquet files found")
-            return
-        
-        for file in bybit_files:
-            try:
-                parts = file.replace('.parquet', '').split('_')
-                symbol = parts[0]
-                interval = parts[1]
-                file_path = os.path.join(self.raw_path, file)
+        for symbol in targets:
+            for interval in intervals:
+                readable_interval = "1h" if interval == "60" else ("1d" if interval == "D" else interval)
                 
-                self.conn.execute(f"""
-                    INSERT INTO bybit_crypto 
-                    SELECT 
-                        '{symbol}' as symbol,
-                        '{interval}' as interval,
-                        date,
-                        open,
-                        high,
-                        low,
-                        close,
-                        volume
-                    FROM read_parquet('{file_path}')
-                """)
-                
-                self.logger.info(f"Loaded {symbol} [{interval}] from {file}")
-            except Exception as e:
-                self.logger.error(f"Failed to load {file}: {e}")
-                
-        result = self.conn.execute("""
-            SELECT 
-                symbol, 
-                COUNT(*) as row_count,
-                MIN(date) as earliest_date,
-                MAX(date) as latest_date
-            FROM bybit_crypto 
-            GROUP BY symbol
-            ORDER BY symbol
-        """).fetchall()
-        
-        self.logger.info("Bybit Crypto Data Summary:")
-        for row in result:
-            self.logger.info(f"  {row[0]}: {row[1]} rows ({row[2]} to {row[3]})")
-        
-        total = self.conn.execute("SELECT COUNT(*) FROM bybit_crypto").fetchone()[0]
-        self.logger.info(f"Total rows in bybit_crypto: {total}")
-        
+                file_path = f"s3://{self.s3_bucket}/{symbol}_{readable_interval}.parquet"
+                try:
+                    self.conn.execute(f"""
+                        INSERT INTO bybit_crypto 
+                        SELECT 
+                            '{symbol}' as symbol,
+                            '{readable_interval}' as interval,
+                            date, open, high, low, close, volume
+                        FROM read_parquet('{file_path}')
+                    """)
+                    self.logger.info(f"Loaded {symbol} [{interval}] from S3")
+                except Exception as e:
+                    self.logger.error(f"Failed to load {file_path}: {e}")
+
     def load_all(self):
-        """Load all data from raw Parquet files into DuckDB"""
-        self.logger.info("*" * 60)
-        self.logger.info("Starting Database Load Process")
-        self.logger.info("*" * 60)
-        
         self.load_yahoo_data()
         self.load_bybit_data()
-        
-        self.logger.info("*" * 60)
-        self.logger.info("Database Load Complete")
-        self.logger.info("*" * 60)
-    
-    def query(self, sql: str):
-        """Execute a SQL query and return results"""
-        return self.conn.execute(sql).fetchall()
-    
+
     def close(self):
-        """Close database connection"""
         self.conn.close()
-        self.logger.info("Database connection closed")
-        
+
 if __name__ == "__main__":
     loader = DatabaseLoader()
     loader.load_all()
-    result = loader.query("""
-        SELECT date, close 
-        FROM yahoo_stocks 
-        WHERE ticker = 'AAPL' 
-        ORDER BY date DESC 
-        LIMIT 5
-    """)
-    for row in result:
-        print(row)
-    
     loader.close()
