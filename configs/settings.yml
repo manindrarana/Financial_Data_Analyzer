@@ -9,6 +9,7 @@ paths:
   database: "data/analytics/financial_data.duckdb"
   models: "data/models"
   s3_bucket: "raw-data"
+  analytics_bucket: "analytics-data"
 
 ingestion:
   active_provider: 
