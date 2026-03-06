@@ -6,8 +6,7 @@ from src.ingestion.bybit_client import BybitClient
 from src.database.loader import DatabaseLoader
 from src.processing.transformation import DataCleaner
 import schedule
-
-
+from src.models.logics import GoldLayerProcessor
 
 def run_pipeline():
     logger = get_logger("Orchestrator")
@@ -43,6 +42,11 @@ def run_pipeline():
     cleaner = DataCleaner()
     cleaner.run()
     cleaner.conn.close()
+    
+    logger.info("*** STEP 4: ANALYTICS (Building Gold Layer) ***")
+    gold_processor = GoldLayerProcessor()
+    gold_processor.run()
+    gold_processor.conn.close()
     
     logger.info("*** PIPELINE EXECUTED SUCCESSFULLY!!!! ***")
 

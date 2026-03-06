@@ -8,6 +8,10 @@ import yfinance as yf
 import requests
 from src.utils import get_logger
 import duckdb
+from pyrate_limiter import Duration, RequestRate, Limiter
+from requests_cache import CacheMixin, SQLiteCache
+from requests_ratelimiter import  LimiterSession
+
 
 class YahooFinanceClient:
     def __init__(self):
@@ -17,8 +21,7 @@ class YahooFinanceClient:
             
         self.raw_path = self.config["paths"]["raw_data"]
         os.makedirs(self.raw_path, exist_ok=True)
-        
-        self.session = requests.Session()
+        self.session = LimiterSession(per_second=2)
         self.session.headers.update({
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         })
@@ -64,10 +67,13 @@ class YahooFinanceClient:
                         start_date = limit_date
             
             try:
+                time.sleep(2) 
+                
                 df = yf.download(ticker, start=start_date, interval=interval, progress=False, session=self.session)
                 
                 if df.empty:
-                    self.logger.warning(f"No new data found for {ticker} at {interval}")
+                    self.logger.warning(f"No new data found or Rate Limited for {ticker} at {interval}")
+                    time.sleep(10)
                     continue
                 
                 if isinstance(df.columns, pd.MultiIndex):
