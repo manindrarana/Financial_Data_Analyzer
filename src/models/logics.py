@@ -28,3 +28,43 @@ class GoldLayerProcessor:
                 USE_SSL false
             );
         """)
+
+    def generate_stocks_gold(self):
+        """Calculates 7-period & 30-period Moving Averages and daily spread/volatility."""
+        self.logger.info("=" * 60)
+        self.logger.info("Building Gold Layer: gold_yahoo_analytics")
+        self.logger.info("=" * 60)
+        
+        self.conn.execute("DROP TABLE IF EXISTS gold_yahoo_analytics")
+        
+        self.conn.execute("""
+            CREATE TABLE gold_yahoo_analytics AS
+            SELECT 
+                ticker,
+                interval,
+                date,
+                close,
+                volume,
+                (high - low) AS spread_volatility,
+                AVG(close) OVER (
+                    PARTITION BY ticker, interval 
+                    ORDER BY date 
+                    ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
+                ) AS sma_7,
+                AVG(close) OVER (
+                    PARTITION BY ticker, interval 
+                    ORDER BY date 
+                    ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
+                ) AS sma_30
+            FROM clean_yahoo_stocks
+            ORDER BY ticker, interval, date;
+        """)
+
+        out_path = f"s3://{self.analytics_bucket}/gold_yahoo_analytics.parquet"
+        try:
+            self.conn.execute(f"COPY gold_yahoo_analytics TO '{out_path}' (FORMAT PARQUET)")
+            self.logger.info(f"Successfully exported Yahoo analytic metrics to {out_path}")
+        except Exception as e:
+            self.logger.error(f"Failed to export Yahoo Gold Layer: {e}")
+
+    
