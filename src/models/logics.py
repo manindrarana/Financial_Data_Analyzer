@@ -104,3 +104,20 @@ class GoldLayerProcessor:
             self.logger.info(f"Successfully exported Bybit analytic metrics to {out_path}")
         except Exception as e:
              self.logger.error(f"Failed to export Bybit Gold Layer: {e}")
+
+    def run(self):
+        self.logger.info("*" * 60)
+        self.logger.info("Starting Gold/Analytics Generation Process")
+        self.logger.info("*" * 60)
+        
+        self.generate_stocks_gold()
+        self.generate_crypto_gold()
+        
+        self.logger.info("*" * 60)
+        self.logger.info("Analytics Processing Completed")
+        self.logger.info("*" * 60)
+
+if __name__ == "__main__":
+    processor = GoldLayerProcessor()
+    processor.run()
+
