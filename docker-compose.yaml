@@ -63,6 +63,7 @@ services:
       - superset_home:/app/superset_home
     command: >
       bash -c "pip install duckdb-engine &&
+               python -c 'import duckdb; conn = duckdb.connect(); conn.execute(\"INSTALL httpfs\"); conn.close()' &&
                superset fab create-admin --username $${SUPERSET_ADMIN_USER} --firstname Superset --lastname Admin --email admin@example.com --password $${SUPERSET_ADMIN_PASSWORD} &&
                superset db upgrade &&
                superset init &&
