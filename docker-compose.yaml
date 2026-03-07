@@ -59,6 +59,8 @@ services:
     networks:
       - custom_net
     user: "root"
+    volumes:
+      - superset_home:/app/superset_home
     command: >
       bash -c "pip install duckdb-engine &&
                superset fab create-admin --username $${SUPERSET_ADMIN_USER} --firstname Superset --lastname Admin --email admin@example.com --password $${SUPERSET_ADMIN_PASSWORD} &&
@@ -68,6 +70,7 @@ services:
 
 volumes:
   minio_data:
+  superset_home:
 
 networks:
   custom_net:
