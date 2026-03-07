@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   minio:
@@ -48,6 +48,23 @@ services:
     dns:
       - 8.8.8.8
       - 1.1.1.1
+
+  superset:
+    image: apache/superset:latest-dev
+    container_name: superset
+    env_file:
+      - .env
+    ports:
+      - "8088:8088"
+    networks:
+      - custom_net
+    user: "root"
+    command: >
+      bash -c "pip install duckdb-engine &&
+               superset fab create-admin --username $${SUPERSET_ADMIN_USER} --firstname Superset --lastname Admin --email admin@example.com --password $${SUPERSET_ADMIN_PASSWORD} &&
+               superset db upgrade &&
+               superset init &&
+               gunicorn --bind 0.0.0.0:8088 --worker-class gthread --threads 10 --timeout 120 --limit-request-line 0 --limit-request-field_size 0 'superset.app:create_app()'"
 
 volumes:
   minio_data:
