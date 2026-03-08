@@ -163,3 +163,32 @@ class DimensionBuilder:
                 INTERVAL 1 DAY
             ) AS t(d);
         """)
+        
+        count = self.conn.execute("SELECT COUNT(*) FROM dim_date").fetchone()[0]
+        self.logger.info(f"dim_date populated with {count} dates (2020-2030)")
+
+    def populate_dim_interval(self):
+        """Populate interval dimension with known intervals"""
+        self.logger.info("=" * 60)
+        self.logger.info("Populating dim_interval (one-time)")
+        self.logger.info("=" * 60)
+        
+        existing = self.conn.execute("SELECT COUNT(*) FROM dim_interval").fetchone()[0]
+        if existing > 0:
+            self.logger.info(f"dim_interval already populated with {existing} intervals, skipping...")
+            return
+        
+        self.conn.execute("""
+            INSERT INTO dim_interval (interval_id, interval_code, interval_minutes, interval_description) VALUES
+            (1, '1h', 60, 'Hourly'),
+            (2, '60', 60, 'Hourly (Bybit)'),
+            (3, '1d', 1440, 'Daily'),
+            (4, 'D', 1440, 'Daily (Bybit)'),
+            (5, '1wk', 10080, 'Weekly'),
+            (6, 'W', 10080, 'Weekly (Bybit)'),
+            (7, '1mo', 43200, 'Monthly'),
+            (8, 'M', 43200, 'Monthly (Bybit)');
+        """)
+        
+        count = self.conn.execute("SELECT COUNT(*) FROM dim_interval").fetchone()[0]
+        self.logger.info(f"dim_interval populated with {count} intervals")
