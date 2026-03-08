@@ -34,3 +34,23 @@ class DimensionBuilder:
                 USE_SSL false
             );
         """)
+    
+    def create_dimension_tables(self):
+        """Create all dimension tables if they don't exist"""
+        self.logger.info("=" * 60)
+        self.logger.info("Creating Dimension Tables")
+        self.logger.info("=" * 60)
+        
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS dim_assets (
+                asset_id INTEGER PRIMARY KEY,
+                asset_symbol VARCHAR UNIQUE NOT NULL,
+                asset_name VARCHAR,
+                asset_class VARCHAR NOT NULL,
+                exchange VARCHAR,
+                sector VARCHAR,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        self.logger.info(" dim_assets table is ready")
