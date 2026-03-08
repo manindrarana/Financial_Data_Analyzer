@@ -5,6 +5,8 @@ from dotenv import load_dotenv
 from src.utils import get_logger
 
 class GoldLayerProcessor:
+    """Builds analytics Gold layer from fact tables and dimensions"""
+    
     def __init__(self):
         self.logger = get_logger(__name__)
         load_dotenv()
@@ -30,7 +32,7 @@ class GoldLayerProcessor:
         """)
         
     def generate_unified_gold_layer(self):
-        """Merges Yahoo Stocks & Bybit Crypto into a single unified aggregated Gold Table"""
+        """Build Gold layer from fact_price_history with dimension"""
         self.logger.info("=" * 60)
         self.logger.info("Building Unified Gold Layer: gold_financial_analytics")
         self.logger.info("=" * 60)
@@ -39,52 +41,38 @@ class GoldLayerProcessor:
         
         self.conn.execute("""
             CREATE TABLE gold_financial_analytics AS
-            WITH combined_assets AS (
-                -- Select Stocks
-                SELECT 
-                    ticker AS asset_symbol,
-                    'Stock' AS asset_class,
-                    interval,
-                    date,
-                    open, high, low, close, volume
-                FROM clean_yahoo_stocks
-                
-                UNION ALL
-                
-                -- Select Crypto
-                SELECT 
-                    symbol AS asset_symbol,
-                    'Crypto' AS asset_class,
-                    interval,
-                    date,
-                    open, high, low, close, volume
-                FROM clean_bybit_crypto
-            )
             SELECT 
-                asset_symbol,
-                asset_class,
-                interval,
-                date,
-                open,
-                high,
-                low,
-                close,
-                volume,
-                (high - low) AS daily_volatility,
-                -- 7 Period Simple Moving Average
-                AVG(close) OVER (
-                    PARTITION BY asset_symbol, interval 
-                    ORDER BY date 
+                da.asset_symbol,
+                da.asset_class,
+                da.exchange,
+                di.interval_code AS interval,
+                f.timestamp AS date,
+                f.open,
+                f.high,
+                f.low,
+                f.close,
+                f.volume,
+                f.daily_volatility,
+                
+                -- 7-Period Simple Moving Average (partitioned by asset + interval)
+                AVG(f.close) OVER (
+                    PARTITION BY da.asset_symbol, di.interval_code 
+                    ORDER BY f.timestamp 
                     ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
                 ) AS sma_7,
-                -- 30 Period Simple Moving Average
-                AVG(close) OVER (
-                    PARTITION BY asset_symbol, interval 
-                    ORDER BY date 
+                
+                -- 30-Period Simple Moving Average (partitioned by asset + interval)
+                AVG(f.close) OVER (
+                    PARTITION BY da.asset_symbol, di.interval_code 
+                    ORDER BY f.timestamp 
                     ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
                 ) AS sma_30
-            FROM combined_assets
-            ORDER BY asset_class, asset_symbol, interval, date;
+                
+            FROM fact_price_history f
+            JOIN dim_assets da ON f.asset_id = da.asset_id
+            JOIN dim_date dd ON f.date_id = dd.date_id
+            JOIN dim_interval di ON f.interval_id = di.interval_id
+            ORDER BY da.asset_class, da.asset_symbol, di.interval_code, f.timestamp;
         """)
         
         cnt = self.conn.execute("SELECT COUNT(*) FROM gold_financial_analytics").fetchone()[0]
@@ -111,4 +99,5 @@ class GoldLayerProcessor:
 if __name__ == "__main__":
     processor = GoldLayerProcessor()
     processor.run()
+    processor.conn.close()
 
