@@ -31,3 +31,44 @@ class FactLoader:
                 USE_SSL false
             );
         """)
+    
+    def create_fact_table(self):
+        """Create fact_price_history table with foreign keys"""
+        self.logger.info("=" * 60)
+        self.logger.info("Creating Fact Table: fact_price_history")
+        self.logger.info("=" * 60)
+        
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS fact_price_history (
+                price_id INTEGER PRIMARY KEY,
+                asset_id INTEGER NOT NULL,
+                date_id INTEGER NOT NULL,
+                interval_id INTEGER NOT NULL,
+                timestamp TIMESTAMP NOT NULL,
+                open DOUBLE,
+                high DOUBLE,
+                low DOUBLE,
+                close DOUBLE,
+                volume DOUBLE,
+                daily_volatility DOUBLE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        
+        self.conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_fact_asset 
+            ON fact_price_history(asset_id);
+        """)
+        
+        self.conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_fact_date 
+            ON fact_price_history(date_id);
+        """)
+        
+        self.conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_fact_timestamp 
+            ON fact_price_history(timestamp);
+        """)
+        
+        self.logger.info(" fact_price_history table and indexes are ready")
+    
