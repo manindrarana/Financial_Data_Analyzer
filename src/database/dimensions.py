@@ -82,4 +82,12 @@ class DimensionBuilder:
         """)
         self.logger.info(" dim_interval table is ready")
         
+    def populate_dim_assets(self):
+        """Extract and load unique assets from Silver layer"""
+        self.logger.info("=" * 60)
+        self.logger.info("Populating dim_assets (incremental)")
+        self.logger.info("=" * 60)
         
+        max_id = self.conn.execute("""
+            SELECT COALESCE(MAX(asset_id), 0) FROM dim_assets
+        """).fetchone()[0]
