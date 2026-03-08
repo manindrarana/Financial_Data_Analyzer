@@ -158,7 +158,7 @@ class DimensionBuilder:
                 CASE WHEN EXTRACT(DOW FROM d) IN (0, 6) THEN FALSE ELSE TRUE END AS is_business_day,
                 CASE WHEN EXTRACT(DOW FROM d) IN (0, 6) THEN TRUE ELSE FALSE END AS is_weekend
             FROM generate_series(
-                DATE '2020-01-01',
+                DATE '2012-01-01',
                 DATE '2030-12-31',
                 INTERVAL 1 DAY
             ) AS t(d);
@@ -192,3 +192,29 @@ class DimensionBuilder:
         
         count = self.conn.execute("SELECT COUNT(*) FROM dim_interval").fetchone()[0]
         self.logger.info(f"dim_interval populated with {count} intervals")
+
+    def run(self):
+        """Execute full dimension build process"""
+        self.logger.info("*" * 60)
+        self.logger.info("Starting Dimension Build Process")
+        self.logger.info("*" * 60)
+        
+        self.create_dimension_tables()
+        self.populate_dim_interval()
+        self.populate_dim_date()
+        self.populate_dim_assets()
+        
+        self.logger.info("*" * 60)
+        self.logger.info("Dimension Build Completed")
+        self.logger.info("*" * 60)
+    
+    def close(self):
+        """Close database connection"""
+        if self.conn:
+            self.conn.close()
+
+
+if __name__ == "__main__":
+    builder = DimensionBuilder()
+    builder.run()
+    builder.close()
