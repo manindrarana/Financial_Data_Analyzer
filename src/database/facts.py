@@ -164,3 +164,27 @@ class FactLoader:
         """).fetchone()[0]
         
         self.logger.info(f"Total rows in fact_price_history: {total_rows}")
+
+    def run(self):
+        """Execute full fact loading process"""
+        self.logger.info("*" * 60)
+        self.logger.info("Starting Fact Loading Process")
+        self.logger.info("*" * 60)
+        
+        self.create_fact_table()
+        self.load_fact_price_history()
+        
+        self.logger.info("*" * 60)
+        self.logger.info("Fact Loading Completed")
+        self.logger.info("*" * 60)
+    
+    def close(self):
+        """Close database connection"""
+        if self.conn:
+            self.conn.close()
+
+
+if __name__ == "__main__":
+    loader = FactLoader()
+    loader.run()
+    loader.close()
