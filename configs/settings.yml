@@ -6,36 +6,36 @@ app:
 paths:
   raw_data: "data/raw"
   processed_data: "data/processed"
-  database: "data/analytics/financial_data.duckdb"
+  database: "/app/database/financial_data.duckdb"
   models: "data/models"
   s3_bucket: "raw-data"
   analytics_bucket: "analytics-data"
 
 ingestion:
-  active_provider: 
-  - "yfinance"
-  - "bybit"
+  active_provider:
+    - "yfinance"
+    - "bybit"
 
   targets:
-    yfinance: 
-    - "AAPL"
-    - "GOOGL"
-    - "MSFT"
-    - "AMZN"
-    - "TSLA"
-    - "META"
+    yfinance:
+      - "AAPL"
+      - "GOOGL"
+      - "MSFT"
+      - "AMZN"
+      - "TSLA"
+      - "META"
     bybit:
-    - "BTCUSDT"
-    - "ETHUSDT"
-    - "SOLUSDT"
-    - "ADAUSDT"
-    - "XRPUSDT"
-    - "LTCUSDT"
-    - "DOGEUSDT"
-    - "DOTUSDT"
-    - "AVAXUSDT"
-    - "DYDXUSDT"
-    - "1000PEPEUSDT"
+      - "BTCUSDT"
+      - "ETHUSDT"
+      - "SOLUSDT"
+      - "ADAUSDT"
+      - "XRPUSDT"
+      - "LTCUSDT"
+      - "DOGEUSDT"
+      - "DOTUSDT"
+      - "AVAXUSDT"
+      - "DYDXUSDT"
+      - "1000PEPEUSDT"
 
   settings:
     start_date: "2012-01-01"
@@ -43,10 +43,8 @@ ingestion:
 providers:
   yfinance:
     intervals: ["1h", "1d", "1wk", "1mo"]
-  
+
   bybit:
     category: "linear"
     intervals: ["60", "D", "W", "M"] # 60=1hr, D=Daily, W=Weekly, M=Monthly
     limit: 1000
-
-
