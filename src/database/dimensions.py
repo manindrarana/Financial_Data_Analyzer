@@ -124,7 +124,7 @@ class DimensionBuilder:
         self.logger.info(f"dim_assets now contains {count} assets")
     
     def populate_dim_date(self):
-        """Generate date dimension for 2020-2030"""
+        """Generate date dimension for 2012-2030"""
         self.logger.info("=" * 60)
         self.logger.info("Populating dim_date (one-time)")
         self.logger.info("=" * 60)
@@ -165,7 +165,7 @@ class DimensionBuilder:
         """)
         
         count = self.conn.execute("SELECT COUNT(*) FROM dim_date").fetchone()[0]
-        self.logger.info(f"dim_date populated with {count} dates (2020-2030)")
+        self.logger.info(f"dim_date populated with {count} dates (2012-2030)")
 
     def populate_dim_interval(self):
         """Populate interval dimension with known intervals"""
