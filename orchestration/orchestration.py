@@ -7,6 +7,8 @@ from src.database.loader import DatabaseLoader
 from src.processing.transformation import DataCleaner
 import schedule
 from src.models.logics import GoldLayerProcessor
+from src.database.dimensions import DimensionBuilder
+from src.database.facts import FactLoader
 
 def run_pipeline():
     logger = get_logger("Orchestrator")
