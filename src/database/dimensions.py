@@ -91,3 +91,35 @@ class DimensionBuilder:
         max_id = self.conn.execute("""
             SELECT COALESCE(MAX(asset_id), 0) FROM dim_assets
         """).fetchone()[0]
+        
+        self.conn.execute(f"""
+            INSERT INTO dim_assets (asset_id, asset_symbol, asset_name, asset_class, exchange)
+            SELECT 
+                ROW_NUMBER() OVER (ORDER BY asset_symbol) + {max_id} AS asset_id,
+                asset_symbol,
+                asset_symbol AS asset_name,
+                asset_class,
+                exchange
+            FROM (
+                SELECT DISTINCT 
+                    ticker AS asset_symbol,
+                    'Stock' AS asset_class,
+                    'Yahoo Finance' AS exchange
+                FROM clean_yahoo_stocks
+                WHERE ticker NOT IN (SELECT asset_symbol FROM dim_assets)
+                
+                UNION ALL
+                
+                SELECT DISTINCT 
+                    REPLACE(symbol, 'USDT', '') AS asset_symbol,
+                    'Crypto' AS asset_class,
+                    'Bybit' AS exchange
+                FROM clean_bybit_crypto
+                WHERE REPLACE(symbol, 'USDT', '') NOT IN (SELECT asset_symbol FROM dim_assets)
+            ) new_assets
+            WHERE asset_symbol IS NOT NULL;
+        """)
+        
+        count = self.conn.execute("SELECT COUNT(*) FROM dim_assets").fetchone()[0]
+        self.logger.info(f"dim_assets now contains {count} assets")
+    
