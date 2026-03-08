@@ -123,3 +123,43 @@ class DimensionBuilder:
         count = self.conn.execute("SELECT COUNT(*) FROM dim_assets").fetchone()[0]
         self.logger.info(f"dim_assets now contains {count} assets")
     
+    def populate_dim_date(self):
+        """Generate date dimension for 2020-2030"""
+        self.logger.info("=" * 60)
+        self.logger.info("Populating dim_date (one-time)")
+        self.logger.info("=" * 60)
+        
+        existing = self.conn.execute("SELECT COUNT(*) FROM dim_date").fetchone()[0]
+        if existing > 0:
+            self.logger.info(f"dim_date already populated with {existing} dates, skipping...")
+            return
+        
+        self.conn.execute("""
+            INSERT INTO dim_date
+            SELECT 
+                ROW_NUMBER() OVER (ORDER BY d) AS date_id,
+                d AS date,
+                EXTRACT(YEAR FROM d) AS year,
+                EXTRACT(QUARTER FROM d) AS quarter,
+                EXTRACT(MONTH FROM d) AS month,
+                CASE EXTRACT(MONTH FROM d)
+                    WHEN 1 THEN 'January' WHEN 2 THEN 'February' WHEN 3 THEN 'March'
+                    WHEN 4 THEN 'April' WHEN 5 THEN 'May' WHEN 6 THEN 'June'
+                    WHEN 7 THEN 'July' WHEN 8 THEN 'August' WHEN 9 THEN 'September'
+                    WHEN 10 THEN 'October' WHEN 11 THEN 'November' WHEN 12 THEN 'December'
+                END AS month_name,
+                EXTRACT(WEEK FROM d) AS week,
+                EXTRACT(DOW FROM d) AS day_of_week,
+                CASE EXTRACT(DOW FROM d)
+                    WHEN 0 THEN 'Sunday' WHEN 1 THEN 'Monday' WHEN 2 THEN 'Tuesday'
+                    WHEN 3 THEN 'Wednesday' WHEN 4 THEN 'Thursday'
+                    WHEN 5 THEN 'Friday' WHEN 6 THEN 'Saturday'
+                END AS day_name,
+                CASE WHEN EXTRACT(DOW FROM d) IN (0, 6) THEN FALSE ELSE TRUE END AS is_business_day,
+                CASE WHEN EXTRACT(DOW FROM d) IN (0, 6) THEN TRUE ELSE FALSE END AS is_weekend
+            FROM generate_series(
+                DATE '2020-01-01',
+                DATE '2030-12-31',
+                INTERVAL 1 DAY
+            ) AS t(d);
+        """)
