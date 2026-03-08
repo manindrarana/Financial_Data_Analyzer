@@ -72,3 +72,14 @@ class DimensionBuilder:
         """)
         self.logger.info(" dim_date table is ready")
         
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS dim_interval (
+                interval_id INTEGER PRIMARY KEY,
+                interval_code VARCHAR UNIQUE NOT NULL,
+                interval_minutes INTEGER,
+                interval_description VARCHAR
+            );
+        """)
+        self.logger.info(" dim_interval table is ready")
+        
+        
