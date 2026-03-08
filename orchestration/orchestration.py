@@ -45,12 +45,23 @@ def run_pipeline():
     cleaner.run()
     cleaner.conn.close()
     
-    logger.info("*** STEP 4: ANALYTICS (Building Gold Layer) ***")
+    logger.info("*** STEP 4: DIMENSIONAL MODELING (Building Dimensions) ***")
+    dim_builder = DimensionBuilder()
+    dim_builder.run()
+    dim_builder.close()
+    
+    logger.info("*** STEP 5: FACT LOADING (Silver ..> Fact Tables) ***")
+    fact_loader = FactLoader()
+    fact_loader.run()
+    fact_loader.close()
+    
+    logger.info("*** STEP 6: ANALYTICS (Building Gold Layer) ***")
     gold_processor = GoldLayerProcessor()
     gold_processor.run()
     gold_processor.conn.close()
     
     logger.info("*** PIPELINE EXECUTED SUCCESSFULLY!!!! ***")
+
 
 if __name__ == "__main__":
     
