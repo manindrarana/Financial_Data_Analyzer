@@ -72,3 +72,45 @@ class FactLoader:
         
         self.logger.info(" fact_price_history table and indexes are ready")
     
+    
+    def load_fact_price_history(self):
+        """Load facts from Silver layer with incremental logic"""
+        self.logger.info("=" * 60)
+        self.logger.info("Loading fact_price_history (incremental)")
+        self.logger.info("=" * 60)
+        
+        max_id = self.conn.execute("""
+            SELECT COALESCE(MAX(price_id), 0) FROM fact_price_history
+        """).fetchone()[0]
+        
+        self.logger.info(f"Current max price_id: {max_id}")
+        
+        self.logger.info("Loading Yahoo Finance stock data...")
+        self.conn.execute(f"""
+            INSERT INTO fact_price_history (
+                price_id, asset_id, date_id, interval_id, timestamp,
+                open, high, low, close, volume, daily_volatility
+            )
+            SELECT 
+                ROW_NUMBER() OVER (ORDER BY s.date) + {max_id} AS price_id,
+                da.asset_id,
+                dd.date_id,
+                di.interval_id,
+                s.date AS timestamp,
+                s.open,
+                s.high,
+                s.low,
+                s.close,
+                s.volume,
+                (s.high - s.low) AS daily_volatility
+            FROM clean_yahoo_stocks s
+            JOIN dim_assets da ON s.ticker = da.asset_symbol
+            JOIN dim_date dd ON CAST(s.date AS DATE) = dd.date
+            JOIN dim_interval di ON s.interval = di.interval_code
+            WHERE NOT EXISTS (
+                SELECT 1 FROM fact_price_history f
+                WHERE f.asset_id = da.asset_id
+                  AND f.timestamp = s.date
+                  AND f.interval_id = di.interval_id
+            );
+        """)
