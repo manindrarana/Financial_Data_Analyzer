@@ -54,3 +54,21 @@ class DimensionBuilder:
             );
         """)
         self.logger.info(" dim_assets table is ready")
+        
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS dim_date (
+                date_id INTEGER PRIMARY KEY,
+                date DATE UNIQUE NOT NULL,
+                year INTEGER,
+                quarter INTEGER,
+                month INTEGER,
+                month_name VARCHAR,
+                week INTEGER,
+                day_of_week INTEGER,
+                day_name VARCHAR,
+                is_business_day BOOLEAN,
+                is_weekend BOOLEAN
+            );
+        """)
+        self.logger.info(" dim_date table is ready")
+        
