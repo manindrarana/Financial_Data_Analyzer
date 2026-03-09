@@ -155,4 +155,26 @@ class TechnicalIndicatorProcessor:
         dropped_rows = initial_rows - len(final_df)
         self.logger.info(f"Dropped {dropped_rows} rows with NaN values (indicator warm-up period)")
         
+        self.conn.execute("DROP TABLE IF EXISTS gold_ml_features")
+        self.conn.execute("""
+            CREATE TABLE gold_ml_features AS 
+            SELECT * FROM final_df
+            ORDER BY asset_class, asset_symbol, interval, date
+        """)
         
+        cnt = self.conn.execute("SELECT COUNT(*) FROM gold_ml_features").fetchone()[0]
+        self.logger.info(f"Successfully created gold_ml_features with {cnt} rows!")
+        
+        indicator_cols = [col for col in final_df.columns if col not in 
+                         ['asset_symbol', 'asset_class', 'exchange', 'interval', 'date', 
+                          'open', 'high', 'low', 'close', 'volume']]
+        self.logger.info(f"Total indicators calculated: {len(indicator_cols)}")
+        self.logger.info(f"Indicators: {', '.join(indicator_cols[:10])}...")
+        
+        out_path = f"s3://{self.analytics_bucket}/ml_features.parquet"
+        try:
+            self.conn.execute(f"COPY gold_ml_features TO '{out_path}' (FORMAT PARQUET)")
+            self.logger.info(f"Successfully exported ML Features to MinIO: {out_path}")
+        except Exception as e:
+            self.logger.error(f"Failed to export ML Features to MinIO: {e}")
+    
