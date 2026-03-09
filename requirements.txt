@@ -12,4 +12,4 @@ s3fs>=2024.2.0
 requests-cache
 requests-ratelimiter
 pyrate-limiter
-pandas-ta>=0.3.0b0
+ta>=0.11.0

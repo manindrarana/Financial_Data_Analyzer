@@ -2,9 +2,9 @@ import duckdb
 import yaml
 import os
 import pandas as pd
-import pandas_ta as ta
 from dotenv import load_dotenv
 from src.utils import get_logger
+import ta
 
 
 class TechnicalIndicatorProcessor:
@@ -40,55 +40,56 @@ class TechnicalIndicatorProcessor:
         df = df.sort_values('date').reset_index(drop=True)
         
         self.logger.info(f"  Calculating indicators for {len(df)} data points...")
-        df['rsi_14'] = ta.rsi(df['close'], length=14)
         
-        macd = ta.macd(df['close'], fast=12, slow=26, signal=9)
-        if macd is not None:
-            df['macd'] = macd['MACD_12_26_9']
-            df['macd_signal'] = macd['MACDs_12_26_9']
-            df['macd_histogram'] = macd['MACDh_12_26_9']
+        df['rsi_14'] = ta.momentum.RSIIndicator(close=df['close'], window=14).rsi()
         
-        df['roc_10'] = ta.roc(df['close'], length=10)
-        df['roc_20'] = ta.roc(df['close'], length=20)
+        macd_indicator = ta.trend.MACD(close=df['close'], window_slow=26, window_fast=12, window_sign=9)
+        df['macd'] = macd_indicator.macd()
+        df['macd_signal'] = macd_indicator.macd_signal()
+        df['macd_histogram'] = macd_indicator.macd_diff()
         
-        stoch = ta.stoch(df['high'], df['low'], df['close'], k=14, d=3, smooth_k=3)
-        if stoch is not None:
-            df['stoch_k'] = stoch['STOCHk_14_3_3']
-            df['stoch_d'] = stoch['STOCHd_14_3_3']
+        df['roc_10'] = ta.momentum.ROCIndicator(close=df['close'], window=10).roc()
+        df['roc_20'] = ta.momentum.ROCIndicator(close=df['close'], window=20).roc()
         
-        df['ema_12'] = ta.ema(df['close'], length=12)
-        df['ema_26'] = ta.ema(df['close'], length=26)
-        df['ema_50'] = ta.ema(df['close'], length=50)
-        df['ema_200'] = ta.ema(df['close'], length=200)
+        stoch = ta.momentum.StochasticOscillator(high=df['high'], low=df['low'], close=df['close'], 
+                                              window=14, smooth_window=3)
+        df['stoch_k'] = stoch.stoch()
+        df['stoch_d'] = stoch.stoch_signal()
         
-        df['sma_50'] = ta.sma(df['close'], length=50)
-        df['sma_100'] = ta.sma(df['close'], length=100)
-        df['sma_200'] = ta.sma(df['close'], length=200)
+        df['ema_12'] = ta.trend.EMAIndicator(close=df['close'], window=12).ema_indicator()
+        df['ema_26'] = ta.trend.EMAIndicator(close=df['close'], window=26).ema_indicator()
+        df['ema_50'] = ta.trend.EMAIndicator(close=df['close'], window=50).ema_indicator()
+        df['ema_200'] = ta.trend.EMAIndicator(close=df['close'], window=200).ema_indicator()
         
-        bbands = ta.bbands(df['close'], length=20, std=2)
-        if bbands is not None:
-            df['bb_upper'] = bbands['BBU_20_2.0']
-            df['bb_middle'] = bbands['BBM_20_2.0']
-            df['bb_lower'] = bbands['BBL_20_2.0']
-            df['bb_width'] = (df['bb_upper'] - df['bb_lower']) / df['bb_middle']
-            df['bb_percentage'] = (df['close'] - df['bb_lower']) / (df['bb_upper'] - df['bb_lower'])
+        df['sma_50'] = ta.trend.SMAIndicator(close=df['close'], window=50).sma_indicator()
+        df['sma_100'] = ta.trend.SMAIndicator(close=df['close'], window=100).sma_indicator()
+        df['sma_200'] = ta.trend.SMAIndicator(close=df['close'], window=200).sma_indicator()
         
-        df['atr_14'] = ta.atr(df['high'], df['low'], df['close'], length=14)
+        bollinger = ta.volatility.BollingerBands(close=df['close'], window=20, window_dev=2)
+        df['bb_upper'] = bollinger.bollinger_hband()
+        df['bb_middle'] = bollinger.bollinger_mavg()
+        df['bb_lower'] = bollinger.bollinger_lband()
+        df['bb_width'] = bollinger.bollinger_wband()
+        df['bb_percentage'] = bollinger.bollinger_pband()
         
-        df['volume_sma_20'] = ta.sma(df['volume'], length=20)
+        df['atr_14'] = ta.volatility.AverageTrueRange(high=df['high'], low=df['low'], 
+                                                    close=df['close'], window=14).average_true_range()
+        
+        df['obv'] = ta.volume.OnBalanceVolumeIndicator(close=df['close'], volume=df['volume']).on_balance_volume()
+        
+        df['vwap'] = ta.volume.VolumeWeightedAveragePrice(high=df['high'], low=df['low'], 
+                                                        close=df['close'], volume=df['volume']).volume_weighted_average_price()
+        
+        df['volume_sma_20'] = df['volume'].rolling(window=20).mean()
         df['volume_ratio'] = df['volume'] / df['volume_sma_20'].replace(0, 1)
-        
-        df['obv'] = ta.obv(df['close'], df['volume'])
-        
-        if len(df) > 0:
-            df['vwap'] = ta.vwap(df['high'], df['low'], df['close'], df['volume'])
         
         df['returns_1d'] = df['close'].pct_change(periods=1)
         df['returns_5d'] = df['close'].pct_change(periods=5)
         df['returns_10d'] = df['close'].pct_change(periods=10)
         df['returns_20d'] = df['close'].pct_change(periods=20)
         
-        df['log_returns'] = (df['close'] / df['close'].shift(1)).apply(lambda x: 0 if x <= 0 else pd.np.log(x) if hasattr(pd, 'np') else __import__('numpy').log(x))
+        import numpy as np
+        df['log_returns'] = np.log(df['close'] / df['close'].shift(1))
         
         df['hl_ratio'] = (df['high'] - df['low']) / df['close'].replace(0, 1)
         
@@ -178,3 +179,23 @@ class TechnicalIndicatorProcessor:
         except Exception as e:
             self.logger.error(f"Failed to export ML Features to MinIO: {e}")
     
+    def run(self):
+        self.logger.info("*" * 60)
+        self.logger.info("Starting Technical Indicator Calculation Process")
+        self.logger.info("*" * 60)
+        
+        self.generate_ml_features_table()
+        
+        self.logger.info("*" * 60)
+        self.logger.info("Technical Indicators Completed")
+        self.logger.info("*" * 60)
+    
+    def close(self):
+        if self.conn:
+            self.conn.close()
+
+
+if __name__ == "__main__":
+    processor = TechnicalIndicatorProcessor()
+    processor.run()
+    processor.close()
