@@ -75,3 +75,16 @@ class TechnicalIndicatorProcessor:
         
         df['atr_14'] = ta.atr(df['high'], df['low'], df['close'], length=14)
         
+        df['volume_sma_20'] = ta.sma(df['volume'], length=20)
+        df['volume_ratio'] = df['volume'] / df['volume_sma_20'].replace(0, 1)
+        
+        df['obv'] = ta.obv(df['close'], df['volume'])
+        
+        if len(df) > 0:
+            df['vwap'] = ta.vwap(df['high'], df['low'], df['close'], df['volume'])
+        
+        df['returns_1d'] = df['close'].pct_change(periods=1)
+        df['returns_5d'] = df['close'].pct_change(periods=5)
+        df['returns_10d'] = df['close'].pct_change(periods=10)
+        df['returns_20d'] = df['close'].pct_change(periods=20)
+        
