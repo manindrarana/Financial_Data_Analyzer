@@ -34,3 +34,16 @@ class TechnicalIndicatorProcessor:
             );
         """)
     
+    def calculate_indicators_for_asset(self, df):
+        """Calculate all technical indicators for a single asset's data"""
+        
+        df = df.sort_values('date').reset_index(drop=True)
+        
+        self.logger.info(f"  Calculating indicators for {len(df)} data points...")
+        df['rsi_14'] = ta.rsi(df['close'], length=14)
+        
+        macd = ta.macd(df['close'], fast=12, slow=26, signal=9)
+        if macd is not None:
+            df['macd'] = macd['MACD_12_26_9']
+            df['macd_signal'] = macd['MACDs_12_26_9']
+            df['macd_histogram'] = macd['MACDh_12_26_9']
