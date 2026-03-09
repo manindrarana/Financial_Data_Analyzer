@@ -47,3 +47,17 @@ class TechnicalIndicatorProcessor:
             df['macd'] = macd['MACD_12_26_9']
             df['macd_signal'] = macd['MACDs_12_26_9']
             df['macd_histogram'] = macd['MACDh_12_26_9']
+        
+        df['roc_10'] = ta.roc(df['close'], length=10)
+        df['roc_20'] = ta.roc(df['close'], length=20)
+        
+        stoch = ta.stoch(df['high'], df['low'], df['close'], k=14, d=3, smooth_k=3)
+        if stoch is not None:
+            df['stoch_k'] = stoch['STOCHk_14_3_3']
+            df['stoch_d'] = stoch['STOCHd_14_3_3']
+        
+        df['ema_12'] = ta.ema(df['close'], length=12)
+        df['ema_26'] = ta.ema(df['close'], length=26)
+        df['ema_50'] = ta.ema(df['close'], length=50)
+        df['ema_200'] = ta.ema(df['close'], length=200)
+        
