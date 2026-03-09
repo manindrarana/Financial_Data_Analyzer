@@ -125,6 +125,34 @@ class TechnicalIndicatorProcessor:
             FROM gold_financial_analytics
             ORDER BY asset_symbol, interval, date
         """
+        df_all = self.conn.execute(query).df()
+        self.logger.info(f"Loaded {len(df_all)} rows from gold_financial_analytics")
+
+        result_dfs = []
+        total_groups = df_all.groupby(['asset_symbol', 'interval']).ngroups
+        current_group = 0
         
+        for (asset, interval), group_df in df_all.groupby(['asset_symbol', 'interval']):
+            current_group += 1
+            self.logger.info(f"[{current_group}/{total_groups}] Processing {asset} ({interval})...")
+            
+            if len(group_df) < 200:
+                self.logger.warning(f"  Skipping {asset} ({interval}) - only {len(group_df)} rows (need 200+)")
+                continue
+            
+            enhanced_df = self.calculate_indicators_for_asset(group_df.copy())
+            result_dfs.append(enhanced_df)
+        
+        if not result_dfs:
+            self.logger.error("No data groups had enough rows for indicator calculation!")
+            return
+        
+        final_df = pd.concat(result_dfs, ignore_index=True)
+        self.logger.info(f"Combined data from {len(result_dfs)} asset-interval groups")
+        
+        initial_rows = len(final_df)
+        final_df = final_df.dropna()
+        dropped_rows = initial_rows - len(final_df)
+        self.logger.info(f"Dropped {dropped_rows} rows with NaN values (indicator warm-up period)")
         
         
