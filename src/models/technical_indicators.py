@@ -61,3 +61,17 @@ class TechnicalIndicatorProcessor:
         df['ema_50'] = ta.ema(df['close'], length=50)
         df['ema_200'] = ta.ema(df['close'], length=200)
         
+        df['sma_50'] = ta.sma(df['close'], length=50)
+        df['sma_100'] = ta.sma(df['close'], length=100)
+        df['sma_200'] = ta.sma(df['close'], length=200)
+        
+        bbands = ta.bbands(df['close'], length=20, std=2)
+        if bbands is not None:
+            df['bb_upper'] = bbands['BBU_20_2.0']
+            df['bb_middle'] = bbands['BBM_20_2.0']
+            df['bb_lower'] = bbands['BBL_20_2.0']
+            df['bb_width'] = (df['bb_upper'] - df['bb_lower']) / df['bb_middle']
+            df['bb_percentage'] = (df['close'] - df['bb_lower']) / (df['bb_upper'] - df['bb_lower'])
+        
+        df['atr_14'] = ta.atr(df['high'], df['low'], df['close'], length=14)
+        
