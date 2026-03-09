@@ -100,3 +100,31 @@ class TechnicalIndicatorProcessor:
         df['prev_low'] = df['low'].shift(1)
         
         return df
+    
+    def generate_ml_features_table(self):
+        """Generate gold_ml_features table with all technical indicators"""
+        self.logger.info("=" * 60)
+        self.logger.info("Building ML Features Table: gold_ml_features")
+        self.logger.info("=" * 60)
+        
+        query = """
+            SELECT 
+                asset_symbol,
+                asset_class,
+                exchange,
+                interval,
+                date,
+                open,
+                high,
+                low,
+                close,
+                volume,
+                daily_volatility,
+                sma_7,
+                sma_30
+            FROM gold_financial_analytics
+            ORDER BY asset_symbol, interval, date
+        """
+        
+        
+        
