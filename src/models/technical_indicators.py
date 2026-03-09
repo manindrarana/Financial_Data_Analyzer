@@ -88,3 +88,15 @@ class TechnicalIndicatorProcessor:
         df['returns_10d'] = df['close'].pct_change(periods=10)
         df['returns_20d'] = df['close'].pct_change(periods=20)
         
+        df['log_returns'] = (df['close'] / df['close'].shift(1)).apply(lambda x: 0 if x <= 0 else pd.np.log(x) if hasattr(pd, 'np') else __import__('numpy').log(x))
+        
+        df['hl_ratio'] = (df['high'] - df['low']) / df['close'].replace(0, 1)
+        
+        df['close_position'] = (df['close'] - df['low']) / (df['high'] - df['low']).replace(0, 1)
+        
+        df['prev_close'] = df['close'].shift(1)
+        df['prev_volume'] = df['volume'].shift(1)
+        df['prev_high'] = df['high'].shift(1)
+        df['prev_low'] = df['low'].shift(1)
+        
+        return df
