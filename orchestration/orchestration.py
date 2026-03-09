@@ -9,6 +9,7 @@ import schedule
 from src.models.logics import GoldLayerProcessor
 from src.database.dimensions import DimensionBuilder
 from src.database.facts import FactLoader
+from src.models.technical_indicators import TechnicalIndicatorProcessor
 
 def run_pipeline():
     logger = get_logger("Orchestrator")
@@ -59,6 +60,11 @@ def run_pipeline():
     gold_processor = GoldLayerProcessor()
     gold_processor.run()
     gold_processor.conn.close()
+    
+    logger.info("*** STEP 7: TECHNICAL INDICATORS (Building Technical Indicators) ***")
+    indicator_processor = TechnicalIndicatorProcessor()
+    indicator_processor.run()
+    indicator_processor.conn.close()
     
     logger.info("*** PIPELINE EXECUTED SUCCESSFULLY!!!! ***")
 
