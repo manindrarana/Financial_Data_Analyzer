@@ -144,7 +144,7 @@ class FeatureAnalyzer:
         if fail_count > 0:
             self.logger.error(f"Quality check: {fail_count} features FAILED")
         else:
-            self.logger.info("Quality check: All features PASSED ✓")
+            self.logger.info("Quality check: All features PASSED ")
         
         if leakage_count > 0:
             self.logger.warning(f"Flagged {leakage_count} features as LEAKAGE (should not use for prediction)")
@@ -155,3 +155,35 @@ class FeatureAnalyzer:
         cnt = self.conn.execute("SELECT COUNT(*) FROM gold_feature_statistics").fetchone()[0]
         self.logger.info(f"\nCreated gold_feature_statistics with {cnt} features")
         
+        out_path = f"s3://{self.analytics_bucket}/feature_statistics.parquet"
+        try:
+            self.conn.execute(f"COPY gold_feature_statistics TO '{out_path}' (FORMAT PARQUET)")
+            self.logger.info(f"Exported to MinIO: {out_path}")
+        except Exception as e:
+            self.logger.error(f"Export failed: {e}")
+        
+        self.logger.info("\n" + "=" * 60)
+        self.logger.info("RECOMMENDATIONS FOR ML:")
+        self.logger.info("=" * 60)
+        top_features = stats_df[stats_df['quality_flag'] == 'PASS'].nlargest(15, 'importance_score')['feature_name'].tolist()
+        self.logger.info("Use these TOP 15 features (no data leakage):")
+        for i, feat in enumerate(top_features, 1):
+            self.logger.info(f"  {i}. {feat}")
+    
+    def run(self):
+        self.logger.info("*" * 60)
+        self.logger.info("Feature Quality Analysis")
+        self.logger.info("*" * 60)
+        self.analyze_features()
+        self.logger.info("*" * 60)
+        self.logger.info("Analysis Complete")
+        self.logger.info("*" * 60)
+    
+    def close(self):
+        if self.conn:
+            self.conn.close()
+            
+if __name__ == "__main__":
+    analyzer = FeatureAnalyzer()
+    analyzer.run()
+    analyzer.close()
