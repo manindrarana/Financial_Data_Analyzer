@@ -73,3 +73,19 @@ class FeatureAnalyzer:
                         'feature_2': corr_matrix.columns[j],
                         'correlation': corr_matrix.iloc[i, j]
                     })
+        
+        if high_corr_pairs:
+            self.logger.warning(f"Found {len(high_corr_pairs)} highly correlated pairs (>0.9)")
+        else:
+            self.logger.info("No highly correlated pairs found")
+        
+        if 'returns_1d' in indicator_cols:
+            target_corr = corr_matrix['returns_1d'].drop('returns_1d').sort_values(key=abs, ascending=False)
+            stats_df['target_correlation'] = stats_df['feature_name'].map(target_corr)
+            
+            self.logger.info("\nTop 10 features correlated with returns_1d:")
+            for feat, corr in target_corr.head(10).items():
+                self.logger.info(f"  {feat}: {corr:.4f}")
+        
+        self.logger.info("\n--- Feature Importance Ranking ---")
+        
