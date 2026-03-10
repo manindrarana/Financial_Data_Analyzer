@@ -89,3 +89,38 @@ class FeatureAnalyzer:
         
         self.logger.info("\n--- Feature Importance Ranking ---")
         
+        leakage_cols = ['returns_1d', 'returns_5d', 'returns_10d', 'returns_20d', 'log_returns']
+        feature_cols = [col for col in indicator_cols if col not in leakage_cols]
+        
+        self.logger.info(f"Excluded {len(leakage_cols)} leakage features (returns-based)")
+        self.logger.info(f"Analyzing {len(feature_cols)} valid predictive features")
+        
+        df_clean = df[feature_cols + ['returns_1d']].dropna()
+        
+        if len(df_clean) < 1000:
+            self.logger.warning("Not enough data for importance analysis")
+            stats_df['importance_score'] = 0.0
+        else:
+            X = df_clean[feature_cols]
+            y = df_clean['returns_1d']
+            
+            sample_size = min(10000, len(X))
+            self.logger.info(f"Training RandomForest on {sample_size} samples...")
+            X_sample = X.sample(n=sample_size, random_state=42)
+            y_sample = y.loc[X_sample.index]
+            
+            rf = RandomForestRegressor(n_estimators=50, max_depth=10, random_state=42, n_jobs=-1)
+            rf.fit(X_sample, y_sample)
+            
+            importance_df = pd.DataFrame({
+                'feature_name': feature_cols,
+                'importance_score': rf.feature_importances_
+            }).sort_values('importance_score', ascending=False)
+            
+            stats_df = stats_df.merge(importance_df, on='feature_name', how='left')
+            stats_df['importance_score'] = stats_df['importance_score'].fillna(0.0)
+            
+            self.logger.info("\nTop 15 Most Important Features:")
+            for idx, row in importance_df.head(15).iterrows():
+                self.logger.info(f"  {row['feature_name']}: {row['importance_score']:.4f}")
+        
