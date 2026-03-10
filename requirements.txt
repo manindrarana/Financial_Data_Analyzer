@@ -13,3 +13,4 @@ requests-cache
 requests-ratelimiter
 pyrate-limiter
 ta>=0.11.0
+scikit-learn>=1.3.0
