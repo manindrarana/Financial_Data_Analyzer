@@ -10,6 +10,7 @@ from src.models.logics import GoldLayerProcessor
 from src.database.dimensions import DimensionBuilder
 from src.database.facts import FactLoader
 from src.models.technical_indicators import TechnicalIndicatorProcessor
+from src.models.feature_analyzer import FeatureAnalyzer
 
 def run_pipeline():
     logger = get_logger("Orchestrator")
@@ -65,6 +66,11 @@ def run_pipeline():
     indicator_processor = TechnicalIndicatorProcessor()
     indicator_processor.run()
     indicator_processor.conn.close()
+    
+    logger.info("*** STEP 8: FEATURE VALIDATION (Analyzing ML Feature Quality) ***")
+    feature_analyzer = FeatureAnalyzer()
+    feature_analyzer.run()
+    feature_analyzer.close()
     
     logger.info("*** PIPELINE EXECUTED SUCCESSFULLY!!!! ***")
 
