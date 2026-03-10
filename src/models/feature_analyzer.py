@@ -123,4 +123,35 @@ class FeatureAnalyzer:
             self.logger.info("\nTop 15 Most Important Features:")
             for idx, row in importance_df.head(15).iterrows():
                 self.logger.info(f"  {row['feature_name']}: {row['importance_score']:.4f}")
+            
+        self.logger.info("\n--- Data Quality Checks ---")
+        quality_flags = []
+        for idx, row in stats_df.iterrows():
+            if row['has_inf']:
+                quality_flags.append('FAIL_INF')
+            elif row['null_count'] > 0:
+                quality_flags.append('FAIL_NULL')
+            elif row['feature_name'] in leakage_cols:
+                quality_flags.append('LEAKAGE')
+            else:
+                quality_flags.append('PASS')
+        
+        stats_df['quality_flag'] = quality_flags
+        
+        fail_count = sum(1 for flag in quality_flags if flag not in ['PASS', 'LEAKAGE'])
+        leakage_count = sum(1 for flag in quality_flags if flag == 'LEAKAGE')
+        
+        if fail_count > 0:
+            self.logger.error(f"Quality check: {fail_count} features FAILED")
+        else:
+            self.logger.info("Quality check: All features PASSED ✓")
+        
+        if leakage_count > 0:
+            self.logger.warning(f"Flagged {leakage_count} features as LEAKAGE (should not use for prediction)")
+        
+        self.conn.execute("DROP TABLE IF EXISTS gold_feature_statistics")
+        self.conn.execute("CREATE TABLE gold_feature_statistics AS SELECT * FROM stats_df ORDER BY importance_score DESC")
+        
+        cnt = self.conn.execute("SELECT COUNT(*) FROM gold_feature_statistics").fetchone()[0]
+        self.logger.info(f"\nCreated gold_feature_statistics with {cnt} features")
         
