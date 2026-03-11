@@ -31,7 +31,7 @@ The project uses a **Medallion Data Lake Architecture** with three layers stored
 ### Services
 
 - **MinIO**: S3-compatible object storage (Ports: 9000 for API, 9001 for web console)
-- **Python Pipeline**: Automated ETL orchestration (executes on startup + scheduled daily at 00:00 UTC)
+- **Python Pipeline**: Automated ELT orchestration (executes on startup + scheduled daily at 00:00 UTC)
 - **Apache Superset**: Interactive BI dashboard for data visualization (Port: 8088)
 - **DuckDB**: In-process analytical database for SQL transformations
 
@@ -45,6 +45,13 @@ The project uses a **Medallion Data Lake Architecture** with three layers stored
 
 - **`orchestration/`**  
   Contains the main scripts that run the whole pipeline automatically (e.g., download -> clean -> save).
+
+- **`scripts/`**
+  Contains Python scripts for data analysis:
+  - eda_ml.py: Checks data volume and readiness for ML.
+  - top15_feat.py: Finds top 15 important features.
+  - target_analysis.py: Analyzes the target variable (returns_1d).
+
 
 - **`src/`**  
   The main source code for the project:
