@@ -40,13 +40,6 @@ The project uses a **Medallion Data Lake Architecture** with three layers stored
 - **`configs/`**  
   Settings for the project, like API keys and database paths.
 
-- **`data/`**  
-  Where all data is stored locally (ignored by Git):
-  - `raw/`: The original extracted `.parquet` data.
-  - `processed/`: Saved flat files of cleaned data.
-  - `analytics/`: The DuckDB database `financial_data.duckdb`.
-  - `models/`: Saved AI/ML models.
-
 - **`notebooks/`**  
   Jupyter notebooks where test ideas and visualize data before writing the final code.
 
