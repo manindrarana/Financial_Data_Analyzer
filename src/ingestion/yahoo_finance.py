@@ -11,6 +11,7 @@ import duckdb
 from pyrate_limiter import Duration, RequestRate, Limiter
 from requests_cache import CacheMixin, SQLiteCache
 from requests_ratelimiter import  LimiterSession
+import random
 
 
 class YahooFinanceClient:
@@ -67,13 +68,37 @@ class YahooFinanceClient:
                         start_date = limit_date
             
             try:
-                time.sleep(2) 
+                max_retries = 3
+                retry_count = 0
+                df = pd.DataFrame()
                 
-                df = yf.download(ticker, start=start_date, interval=interval, progress=False, session=self.session)
+                USER_AGENTS = [
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0",
+                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+                ]
+
+                while retry_count < max_retries:
+                    try:
+                        time.sleep(2 + (retry_count * 5)) 
+                        self.session.headers.update({"User-Agent": random.choice(USER_AGENTS)})
+                        
+                        df = yf.download(ticker, start=start_date, interval=interval, progress=False, session=self.session)
+                        
+                        if not df.empty:
+                            break  
+                            
+                        self.logger.warning(f"Empty data or Rate Limited for {ticker} at {interval} (Attempt {retry_count + 1}/{max_retries})")
+                        retry_count += 1
+                        time.sleep(15 * retry_count)
+                    except Exception as e:
+                        self.logger.error(f"Error fetching {ticker} at {interval} (Attempt {retry_count + 1}): {e}")
+                        retry_count += 1
+                        time.sleep(15 * retry_count)
                 
                 if df.empty:
-                    self.logger.warning(f"No new data found or Rate Limited for {ticker} at {interval}")
-                    time.sleep(10)
+                    self.logger.error(f"Failed to fetch {ticker} [{interval}] after {max_retries} retries. Skipping.")
                     continue
                 
                 if isinstance(df.columns, pd.MultiIndex):
@@ -112,11 +137,7 @@ class YahooFinanceClient:
                 self.logger.info(f"Success! Saved total {len(df)} rows to {file_path}")
 
             except Exception as e:
-                if "Rate limited" in str(e) or "429" in str(e):
-                    self.logger.error(f"RATE LIMITED by Yahoo for {ticker}. Pausing execution for 60 seconds...")
-                    time.sleep(60)
-                else:
-                    self.logger.error(f"Failed to fetch {ticker}: {e}")
+                self.logger.error(f"Critical error processing {ticker}: {e}")
                 continue
 
         return True
