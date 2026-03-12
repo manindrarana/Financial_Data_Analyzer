@@ -82,9 +82,10 @@ class YahooFinanceClient:
                 while retry_count < max_retries:
                     try:
                         time.sleep(2 + (retry_count * 5)) 
-                        self.session.headers.update({"User-Agent": random.choice(USER_AGENTS)})
+                        fresh_session = requests.Session()
+                        fresh_session.headers.update({"User-Agent": random.choice(USER_AGENTS)})
                         
-                        df = yf.download(ticker, start=start_date, interval=interval, progress=False, session=self.session)
+                        df = yf.download(ticker, start=start_date, interval=interval, progress=False, session=fresh_session)
                         
                         if not df.empty:
                             break  
@@ -93,7 +94,10 @@ class YahooFinanceClient:
                         retry_count += 1
                         time.sleep(15 * retry_count)
                     except Exception as e:
-                        self.logger.error(f"Error fetching {ticker} at {interval} (Attempt {retry_count + 1}): {e}")
+                        if "429" in str(e) or "Rate limit" in str(e):
+                            self.logger.warning(f"Hard 429 block for {ticker} at {interval} (Attempt {retry_count + 1}/{max_retries})")
+                        else:
+                            self.logger.error(f"Error fetching {ticker} at {interval} (Attempt {retry_count + 1}): {e}")
                         retry_count += 1
                         time.sleep(15 * retry_count)
                 
