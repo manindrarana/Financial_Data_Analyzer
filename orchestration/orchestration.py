@@ -79,10 +79,12 @@ if __name__ == "__main__":
     
     logger = get_logger("Orchestrator_Main")
     
+    logger.info("Docker container started. Running initial pipeline execution...")
     run_pipeline()
-    schedule.every().day.at("00:00").do(run_pipeline)
     
-    logger.info("Pipeline scheduled container will now stay alive and wait for the next run...")
+    schedule.every(1).hours.do(run_pipeline)
+    
+    logger.info("Initial run complete. Container will now stay alive and execute pipeline every 1 hour...")
     
     while True:
         schedule.run_pending()
