@@ -81,7 +81,7 @@ class YahooFinanceClient:
 
                 while retry_count < max_retries:
                     try:
-                        time.sleep(2 + (retry_count * 5)) 
+                        time.sleep(1 + (retry_count * 2)) 
                         fresh_session = requests.Session()
                         fresh_session.headers.update({"User-Agent": random.choice(USER_AGENTS)})
                         
@@ -91,15 +91,21 @@ class YahooFinanceClient:
                             break  
                             
                         self.logger.warning(f"Empty data or Rate Limited for {ticker} at {interval} (Attempt {retry_count + 1}/{max_retries})")
+                        
+                        if last_date and (datetime.now() - timedelta(days=5)).strftime("%Y-%m-%d") <= start_date:
+                            self.logger.info(f"Assuming market is closed (weekend/holiday) and no new data for {ticker} [{interval}]. Moving on.")
+                            break
+
                         retry_count += 1
-                        time.sleep(15 * retry_count)
+                        time.sleep(5)
                     except Exception as e:
                         if "429" in str(e) or "Rate limit" in str(e):
                             self.logger.warning(f"Hard 429 block for {ticker} at {interval} (Attempt {retry_count + 1}/{max_retries})")
+                            time.sleep(10)
                         else:
                             self.logger.error(f"Error fetching {ticker} at {interval} (Attempt {retry_count + 1}): {e}")
+                            time.sleep(3)
                         retry_count += 1
-                        time.sleep(15 * retry_count)
                 
                 if df.empty:
                     self.logger.error(f"Failed to fetch {ticker} [{interval}] after {max_retries} retries. Skipping.")
