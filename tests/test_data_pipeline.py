@@ -23,3 +23,21 @@ def get_duckdb_connection():
         );
     """)
     return con
+
+
+class TestDuckDBConnection:
+    def test_duckdb_connects_successfully(self):
+        con = get_duckdb_connection()
+        result = con.execute("SELECT 1 AS test").fetchone()
+        assert result[0] == 1
+        con.close()
+class TestMlFeaturesParquet:
+    def setup_method(self):
+        self.con = get_duckdb_connection()
+    def teardown_method(self):
+        self.con.close()
+    def test_parquet_file_is_accessible(self):
+        result = self.con.execute(
+            "SELECT COUNT(*) FROM read_parquet('s3://analytics-data/ml_features.parquet')"
+        ).fetchone()
+        assert result[0] > 0, "ml_features.parquet is empty or inaccessible"
