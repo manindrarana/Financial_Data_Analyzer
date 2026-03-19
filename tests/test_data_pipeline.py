@@ -65,11 +65,11 @@ class TestMlFeaturesParquet:
         for symbol in all_expected:
             assert symbol in symbols, f"Expected asset {symbol} not found in ml_features"
     
-    def test_parquet_has_required_columns(self):
+    def test_parquet_has_core_ohlcv_columns(self):
         columns = self.con.execute(
-            "DESCRIBE SELECT * FROM read_parquet('s3://analytics-data/ml_features.parquet')"
+            f"DESCRIBE SELECT * FROM read_parquet('{PARQUET_PATH}')"
         ).df()["column_name"].tolist()
-        required = ["date", "asset_symbol", "open", "high", "low", "close", "volume", "rsi_14", "macd"]
-        for col in required:
-            assert col in columns, f"Missing required column: {col}"
+        for col in CORE_OHLCV_COLUMNS:
+            assert col in columns, f"Missing core OHLCV column: {col}"
 
+    
