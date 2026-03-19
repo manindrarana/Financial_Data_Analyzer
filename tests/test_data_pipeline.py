@@ -31,13 +31,24 @@ class TestDuckDBConnection:
         result = con.execute("SELECT 1 AS test").fetchone()
         assert result[0] == 1
         con.close()
+
 class TestMlFeaturesParquet:
     def setup_method(self):
         self.con = get_duckdb_connection()
+        
     def teardown_method(self):
         self.con.close()
+        
     def test_parquet_file_is_accessible(self):
         result = self.con.execute(
             "SELECT COUNT(*) FROM read_parquet('s3://analytics-data/ml_features.parquet')"
         ).fetchone()
         assert result[0] > 0, "ml_features.parquet is empty or inaccessible"
+        
+    def test_parquet_has_expected_assets(self):
+        symbols = self.con.execute(
+            "SELECT DISTINCT asset_symbol FROM read_parquet('s3://analytics-data/ml_features.parquet')"
+        ).df()["asset_symbol"].tolist()
+        expected = ["AAPL", "MSFT", "BTC"]
+        for symbol in expected:
+            assert symbol in symbols, f"Expected asset {symbol} not found in ml_features"
