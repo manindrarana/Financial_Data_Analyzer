@@ -81,3 +81,9 @@ class TestMlFeaturesParquet:
             f"Gold Layer processing may have failed."
         )
 
+    def test_parquet_has_no_negative_prices(self):
+        result = self.con.execute(f"""
+            SELECT COUNT(*) FROM read_parquet('{PARQUET_PATH}')
+            WHERE close <= 0 OR open <= 0
+        """).fetchone()
+        assert result[0] == 0, "Negative or zero prices found in ml_features.parquet"
