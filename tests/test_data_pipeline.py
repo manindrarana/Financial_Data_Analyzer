@@ -1,6 +1,7 @@
 import os
 import pytest
 import duckdb
+import yaml
 from dotenv import load_dotenv
 
 load_dotenv(dotenv_path=".env")
@@ -46,9 +47,17 @@ class TestMlFeaturesParquet:
         assert result[0] > 0, "ml_features.parquet is empty or inaccessible"
         
     def test_parquet_has_expected_assets(self):
+        with open("configs/settings.yml", "r") as f:
+            config = yaml.safe_load(f)
+
+        yfinance_targets = config["ingestion"]["targets"]["yfinance"]
+        bybit_targets = [s.replace("USDT", "") for s in config["ingestion"]["targets"]["bybit"]]
+        all_expected = yfinance_targets + bybit_targets
+
         symbols = self.con.execute(
             "SELECT DISTINCT asset_symbol FROM read_parquet('s3://analytics-data/ml_features.parquet')"
         ).df()["asset_symbol"].tolist()
-        expected = ["AAPL", "MSFT", "BTC"]
-        for symbol in expected:
+
+        for symbol in all_expected:
             assert symbol in symbols, f"Expected asset {symbol} not found in ml_features"
+
