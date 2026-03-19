@@ -9,6 +9,10 @@ MINIO_USER = os.getenv("MINIO_ROOT_USER", "minioadmin")
 MINIO_PASSWORD = os.getenv("MINIO_ROOT_PASSWORD", "minioadmin")
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "localhost:9000")
 
+PARQUET_PATH = "s3://analytics-data/ml_features.parquet"
+CORE_OHLCV_COLUMNS = ["date", "asset_symbol", "asset_class", "interval", "open", "high", "low", "close", "volume"]
+MIN_EXPECTED_COLUMNS = 40
+
 
 def get_duckdb_connection():
     con = duckdb.connect()
@@ -60,4 +64,12 @@ class TestMlFeaturesParquet:
 
         for symbol in all_expected:
             assert symbol in symbols, f"Expected asset {symbol} not found in ml_features"
+    
+    def test_parquet_has_required_columns(self):
+        columns = self.con.execute(
+            "DESCRIBE SELECT * FROM read_parquet('s3://analytics-data/ml_features.parquet')"
+        ).df()["column_name"].tolist()
+        required = ["date", "asset_symbol", "open", "high", "low", "close", "volume", "rsi_14", "macd"]
+        for col in required:
+            assert col in columns, f"Missing required column: {col}"
 
