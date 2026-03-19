@@ -72,4 +72,12 @@ class TestMlFeaturesParquet:
         for col in CORE_OHLCV_COLUMNS:
             assert col in columns, f"Missing core OHLCV column: {col}"
 
-    
+    def test_parquet_has_sufficient_feature_columns(self):
+        column_count = self.con.execute(
+            f"DESCRIBE SELECT * FROM read_parquet('{PARQUET_PATH}')"
+        ).df().shape[0]
+        assert column_count >= MIN_EXPECTED_COLUMNS, (
+            f"Only {column_count} columns found, expected at least {MIN_EXPECTED_COLUMNS}. "
+            f"Gold Layer processing may have failed."
+        )
+
