@@ -22,11 +22,7 @@ The project uses a **Medallion Data Lake Architecture** with three layers stored
    Cleaned and validated data stored as Parquet files. Duplicates removed, schemas enforced, timestamps normalized.
 
 3. **Gold Layer** (`s3://analytics-data/`)  
-   Business-ready analytics table (`gold_financial_analytics.parquet`) with calculated metrics:
-   - 7-day and 30-day moving averages (SMA)
-   - Daily volatility
-   - Ready for machine learning and dashboards
-
+   Analytics table (`ml_features.parquet`) with 49 calculated features including moving averages, RSI, MACD, Bollinger Bands, VWAP, and return features. Ready for machine learning and dashboards.
 
 ### Services
 
