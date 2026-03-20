@@ -34,7 +34,7 @@ class GoldLayerProcessor:
     def generate_unified_gold_layer(self):
         """Build Gold layer from fact_price_history with dimension"""
         self.logger.info("=" * 60)
-        self.logger.info("Building Unified Gold Layer: gold_financial_analytics")
+        self.logger.info("Building Intermediate Analytics Table (input for Technical Indicators)...")
         self.logger.info("=" * 60)
         
         self.conn.execute("DROP TABLE IF EXISTS gold_financial_analytics")
