@@ -72,7 +72,7 @@ class DatabaseLoader:
                     """)
                     self.logger.info(f"Loaded {ticker} [{interval}] from S3")
                 except Exception as e:
-                    self.logger.warning(f"Skipped {file_path}: File might not exist yet.")
+                    self.logger.warning(f"Skipped {file_path}: {e}")
 
     def load_bybit_data(self):
         """Load configured Bybit parquet files from S3 into bybit_crypto table"""
