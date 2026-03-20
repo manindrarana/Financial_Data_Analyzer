@@ -108,7 +108,7 @@ class BybitClient:
                     time.sleep(0.1)
 
                 except Exception as e:
-                    self.logger.error(f"Error in loop: {e}")
+                    self.logger.error(f"Error fetching {symbol} [{interval}]: {e}")
                     break
 
             if not all_data:
