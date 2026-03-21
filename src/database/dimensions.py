@@ -159,7 +159,7 @@ class DimensionBuilder:
                 CASE WHEN EXTRACT(DOW FROM d) IN (0, 6) THEN TRUE ELSE FALSE END AS is_weekend
             FROM generate_series(
                 DATE '2012-01-01',
-                DATE '2030-12-31',
+                (CURRENT_DATE + INTERVAL 5 YEAR)::DATE,
                 INTERVAL 1 DAY
             ) AS t(d);
         """)
