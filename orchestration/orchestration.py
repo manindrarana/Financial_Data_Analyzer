@@ -2,16 +2,11 @@ import yaml
 import time
 import gc
 from src.utils import get_logger
-from src.ingestion.yahoo_finance import YahooFinanceClient
-from src.ingestion.bybit_client import BybitClient
-from src.database.loader import DatabaseLoader
-from src.processing.transformation import DataCleaner
+from src.ingestion import YahooFinanceClient, BybitClient
+from src.database import DatabaseLoader, DimensionBuilder, FactLoader
+from src.processing import DataCleaner
 import schedule
-from src.models.logics import GoldLayerProcessor
-from src.database.dimensions import DimensionBuilder
-from src.database.facts import FactLoader
-from src.models.technical_indicators import TechnicalIndicatorProcessor
-from src.models.feature_analyzer import FeatureAnalyzer
+from src.models import GoldLayerProcessor, TechnicalIndicatorProcessor, FeatureAnalyzer
 
 def run_pipeline():
     logger = get_logger("Orchestrator")
@@ -92,7 +87,7 @@ def run_pipeline():
         logger.info(f"Step 8 completed in {time.time() - step_start:.1f}s")
         
         logger.info("*** PIPELINE EXECUTED SUCCESSFULLY!!!! ***")
-        logger.info("Pipeline going to sleep for exactly 1 hour...")
+        logger.info("Pipeline completed. Next run scheduled in 1 hour.")
         
     except Exception as e:
         logger.error(f"PIPELINE CRASHED during execution! Error: {e}")
