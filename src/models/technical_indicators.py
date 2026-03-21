@@ -5,6 +5,7 @@ import pandas as pd
 from dotenv import load_dotenv
 from src.utils import get_logger
 import ta
+import numpy as np
 
 
 class TechnicalIndicatorProcessor:
@@ -88,7 +89,6 @@ class TechnicalIndicatorProcessor:
         df['returns_10d'] = df['close'].pct_change(periods=10)
         df['returns_20d'] = df['close'].pct_change(periods=20)
         
-        import numpy as np
         df['log_returns'] = np.log(df['close'] / df['close'].shift(1))
         
         df['hl_ratio'] = (df['high'] - df['low']) / df['close'].replace(0, 1)
