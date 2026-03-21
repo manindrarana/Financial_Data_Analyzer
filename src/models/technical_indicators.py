@@ -7,6 +7,8 @@ from src.utils import get_logger
 import ta
 import numpy as np
 
+MIN_ROWS_FOR_INDICATORS = 200
+
 
 class TechnicalIndicatorProcessor:
     """Calculates technical indicators for ML feature engineering"""
@@ -137,8 +139,8 @@ class TechnicalIndicatorProcessor:
             current_group += 1
             self.logger.info(f"[{current_group}/{total_groups}] Processing {asset} ({interval})...")
             
-            if len(group_df) < 200:
-                self.logger.warning(f"  Skipping {asset} ({interval}) - only {len(group_df)} rows (need 200+)")
+            if len(group_df) < MIN_ROWS_FOR_INDICATORS:
+                self.logger.warning(f"  Skipping {asset} ({interval}) - only {len(group_df)} rows (need {MIN_ROWS_FOR_INDICATORS}+)")
                 continue
             
             enhanced_df = self.calculate_indicators_for_asset(group_df.copy())
