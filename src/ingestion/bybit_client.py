@@ -35,7 +35,6 @@ class BybitClient:
             return None
             
         try:
-            import duckdb
             conn = duckdb.connect(db_path, read_only=True)
             readable_interval = "1h" if interval == "60" else ("1d" if interval == "D" else interval)
             query = f"SELECT MAX(date) FROM clean_bybit_crypto WHERE symbol='{symbol}' AND interval='{readable_interval}'"
