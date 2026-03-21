@@ -17,6 +17,7 @@ import random
 class YahooFinanceClient:
     def __init__(self):
         self.logger = get_logger(__name__)
+        load_dotenv()
         with open("configs/settings.yml", "r") as f:
             self.config = yaml.safe_load(f)
             
