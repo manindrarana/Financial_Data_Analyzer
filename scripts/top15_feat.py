@@ -1,4 +1,3 @@
-import duckdb
 import subprocess
 import pandas as pd
 
