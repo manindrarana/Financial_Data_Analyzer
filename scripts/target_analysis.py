@@ -1,6 +1,8 @@
 import subprocess
 import pandas as pd
 
+PIPELINE_CONTAINER = "financial_data_pipeline"
+
 sql_query = """
 SELECT 
     COUNT(*) as total_samples,
@@ -24,7 +26,7 @@ conn.close()
 """
 
 output = subprocess.run(
-    ['docker', 'exec', 'financial_data_pipeline', 'python3', '-c', docker_python_code],
+    ['docker', 'exec', PIPELINE_CONTAINER, 'python3', '-c', docker_python_code],
     capture_output=True,
     text=True
 )
