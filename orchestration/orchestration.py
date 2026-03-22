@@ -12,6 +12,8 @@ def run_pipeline():
     logger = get_logger("Orchestrator")
     logger.info("Starting Financial Data Pipeline (ELT)...")
     
+    pipeline_start = time.time()
+
     try:
         with open("configs/settings.yml", "r") as f:
             config = yaml.safe_load(f)
@@ -87,8 +89,9 @@ def run_pipeline():
         logger.info(f"Step 8 completed in {time.time() - step_start:.1f}s")
         
         logger.info("*** PIPELINE EXECUTED SUCCESSFULLY!!!! ***")
+        logger.info(f"Total pipeline runtime: {time.time() - pipeline_start:.1f}s")
         logger.info("Pipeline completed. Next run scheduled in 1 hour.")
-        
+
     except Exception as e:
         logger.error(f"PIPELINE CRASHED during execution! Error: {e}")
         
@@ -108,3 +111,4 @@ if __name__ == "__main__":
     while True:
         schedule.run_pending()
         time.sleep(60)
+        
