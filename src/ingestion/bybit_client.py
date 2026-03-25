@@ -153,6 +153,11 @@ class BybitClient:
             
         return True
 
+    def close(self):
+        """Close external connections"""
+        pass
+
 if __name__ == "__main__":
     client = BybitClient()
     client.fetch_data("BTCUSDT")
+    client.close()
