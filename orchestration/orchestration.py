@@ -50,7 +50,7 @@ def run_pipeline():
         step_start = time.time()
         cleaner = DataCleaner()
         cleaner.run()
-        cleaner.conn.close()
+        cleaner.close()
         logger.info(f"Step 3 completed in {time.time() - step_start:.1f}s")
         
         logger.info("*** STEP 4: DIMENSIONAL MODELING (Building Dimensions) ***")
@@ -71,14 +71,14 @@ def run_pipeline():
         step_start = time.time()
         gold_processor = GoldLayerProcessor()
         gold_processor.run()
-        gold_processor.conn.close()
+        gold_processor.close()
         logger.info(f"Step 6 completed in {time.time() - step_start:.1f}s")
         
         logger.info("*** STEP 7: TECHNICAL INDICATORS (Building Technical Indicators) ***")
         step_start = time.time()
         indicator_processor = TechnicalIndicatorProcessor()
         indicator_processor.run()
-        indicator_processor.conn.close()
+        indicator_processor.close()
         logger.info(f"Step 7 completed in {time.time() - step_start:.1f}s")
         
         logger.info("*** STEP 8: FEATURE VALIDATION (Analyzing ML Feature Quality) ***")
