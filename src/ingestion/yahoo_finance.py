@@ -153,7 +153,13 @@ class YahooFinanceClient:
 
         return True
 
+    def close(self):
+        """Close session and cleanup"""
+        if hasattr(self, 'session'):
+            self.session.close()
+
 if __name__ == "__main__":
     client = YahooFinanceClient()
     client.fetch_data("AAPL")
+    client.close()
 
