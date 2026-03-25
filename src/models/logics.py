@@ -96,8 +96,13 @@ class GoldLayerProcessor:
         self.logger.info("Analytics Processing Completed")
         self.logger.info("*" * 60)
 
+    def close(self):
+        """Close DuckDB connection"""
+        if self.conn:
+            self.conn.close()
+
 if __name__ == "__main__":
     processor = GoldLayerProcessor()
     processor.run()
-    processor.conn.close()
+    processor.close()
 
