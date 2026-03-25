@@ -18,6 +18,7 @@ def get_logger(name: str) -> logging.Logger:
     level_str = os.getenv("LOG_LEVEL", "INFO").upper()
     level = getattr(logging, level_str, logging.INFO)
     logger.setLevel(level)
+    logger.propagate = False
 
     if not logger.handlers:
         console_handler = logging.StreamHandler(sys.stdout)
