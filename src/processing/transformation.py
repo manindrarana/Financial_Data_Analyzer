@@ -12,6 +12,7 @@ class DataCleaner:
         with open("configs/settings.yml", "r") as f:
             cfg = yaml.safe_load(f)
         self.db_path = cfg["paths"]["database"]
+        self.processed_bucket = cfg["paths"].get("processed_bucket", "processed-data")
         self.conn = duckdb.connect(self.db_path)
         
         s3_endpoint = os.getenv("S3_ENDPOINT_URL", "http://localhost:9000").replace("http://", "")
@@ -54,10 +55,10 @@ class DataCleaner:
         cnt = self.conn.execute("SELECT COUNT(*) FROM clean_yahoo_stocks").fetchone()[0]
         self.logger.info(f"Rows in clean_yahoo_stocks: {cnt}")
         
-        self.logger.info("Exporting clean_yahoo_stocks to MinIO (processed-data)...")
-        self.conn.execute("""
+        self.logger.info(f"Exporting clean_yahoo_stocks to MinIO ({self.processed_bucket})...")
+        self.conn.execute(f"""
             COPY clean_yahoo_stocks 
-            TO 's3://processed-data/clean_yahoo_stocks.parquet' (FORMAT PARQUET)
+            TO 's3://{self.processed_bucket}/clean_yahoo_stocks.parquet' (FORMAT PARQUET)
         """)
         self.logger.info("Export successful!")
 
@@ -87,10 +88,10 @@ class DataCleaner:
         cnt = self.conn.execute("SELECT COUNT(*) FROM clean_bybit_crypto").fetchone()[0]
         self.logger.info(f"Rows in clean_bybit_crypto: {cnt}")
         
-        self.logger.info("Exporting clean_bybit_crypto to MinIO (processed-data)...")
-        self.conn.execute("""
+        self.logger.info(f"Exporting clean_bybit_crypto to MinIO ({self.processed_bucket})...")
+        self.conn.execute(f"""
             COPY clean_bybit_crypto 
-            TO 's3://processed-data/clean_bybit_crypto.parquet' (FORMAT PARQUET)
+            TO 's3://{self.processed_bucket}/clean_bybit_crypto.parquet' (FORMAT PARQUET)
         """)
         self.logger.info("Export successful!")
 
@@ -104,9 +105,12 @@ class DataCleaner:
         
         self.logger.info("*" * 60)
         self.logger.info("Data Cleaning Completed")
-        self.logger.info("*" * 60)
+    def close(self):
+        """Close DuckDB connection"""
+        if self.conn:
+            self.conn.close()
 
 if __name__ == "__main__":
     cleaner = DataCleaner()
     cleaner.run()
-    cleaner.conn.close()
+    cleaner.close()
