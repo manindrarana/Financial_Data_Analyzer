@@ -10,6 +10,7 @@ paths:
   models: "data/models"
   s3_bucket: "raw-data"
   analytics_bucket: "analytics-data"
+  processed_bucket: "processed-data"
 
 ingestion:
   active_provider:
