@@ -22,7 +22,7 @@ class DatabaseLoader:
         self.conn = duckdb.connect(self.db_path)
         self.logger.info(f"Connected to DuckDB at {self.db_path}")
 
-        s3_endpoint = os.getenv("S3_ENDPOINT_URL", "").replace("http://", "")
+        s3_endpoint = os.getenv("S3_ENDPOINT_URL", "http://localhost:9000").replace("http://", "")
         self.conn.execute("INSTALL httpfs; LOAD httpfs;")
         self.conn.execute(f"""
             CREATE SECRET IF NOT EXISTS (

@@ -133,7 +133,7 @@ class BybitClient:
             file_path = f"s3://{s3_bucket}/{filename}"
             
             s3_storage_options = {
-                "client_kwargs": {"endpoint_url": os.getenv("S3_ENDPOINT_URL")},
+                "client_kwargs": {"endpoint_url": os.getenv("S3_ENDPOINT_URL", "http://localhost:9000")},
                 "key": os.getenv("AWS_ACCESS_KEY_ID"),
                 "secret": os.getenv("AWS_SECRET_ACCESS_KEY")
             }
