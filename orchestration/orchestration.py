@@ -1,6 +1,7 @@
 import yaml
 import time
 import gc
+import traceback
 from src.utils import get_logger
 from src.ingestion import YahooFinanceClient, BybitClient
 from src.database import DatabaseLoader, DimensionBuilder, FactLoader
@@ -94,6 +95,7 @@ def run_pipeline():
 
     except Exception as e:
         logger.error(f"PIPELINE CRASHED during execution! Error: {e}")
+        logger.error(traceback.format_exc())
         
     finally:
         gc.collect()
