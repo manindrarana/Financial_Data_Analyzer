@@ -5,11 +5,14 @@ import yaml
 from dotenv import load_dotenv
 
 load_dotenv(dotenv_path=".env")
-MINIO_USER = os.getenv("MINIO_ROOT_USER", "minioadmin")
-MINIO_PASSWORD = os.getenv("MINIO_ROOT_PASSWORD", "minioadmin")
-MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "localhost:9000")
+S3_KEY = os.getenv("AWS_ACCESS_KEY_ID", "minioadmin")
+S3_SECRET = os.getenv("AWS_SECRET_ACCESS_KEY", "minioadmin")
+S3_ENDPOINT = os.getenv("S3_ENDPOINT_URL", "http://localhost:9000").replace("http://", "")
 
-PARQUET_PATH = "s3://analytics-data/ml_features.parquet"
+with open("configs/settings.yml", "r") as f:
+    _config = yaml.safe_load(f)
+ANALYTICS_BUCKET = _config["paths"].get("analytics_bucket", "analytics-data")
+PARQUET_PATH = f"s3://{ANALYTICS_BUCKET}/ml_features.parquet"
 CORE_OHLCV_COLUMNS = ["date", "asset_symbol", "asset_class", "interval", "open", "high", "low", "close", "volume"]
 MIN_EXPECTED_COLUMNS = 40
 
@@ -20,9 +23,9 @@ def get_duckdb_connection():
     con.execute(f"""
         CREATE SECRET IF NOT EXISTS (
             TYPE S3,
-            KEY_ID '{MINIO_USER}',
-            SECRET '{MINIO_PASSWORD}',
-            ENDPOINT '{MINIO_ENDPOINT}',
+            KEY_ID '{S3_KEY}',
+            SECRET '{S3_SECRET}',
+            ENDPOINT '{S3_ENDPOINT}',
             URL_STYLE 'path',
             USE_SSL false
         );
