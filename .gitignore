@@ -7,3 +7,8 @@ __pycache__/
 data/raw/*
 data/processed/*
 data/analytics/*
+
+*duckdb
+*.log
+.pytest_cache/
+notebooks/.ipynb_checkpoints/
