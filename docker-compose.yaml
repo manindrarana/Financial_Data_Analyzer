@@ -8,6 +8,11 @@ services:
       - "9000:9000"
       - "9001:9001"
     command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     volumes:
       - minio_data:/data
     networks:
@@ -16,7 +21,8 @@ services:
   createbuckets:
     image: minio/mc
     depends_on:
-      - minio
+      minio:
+        condition: service_healthy
     env_file:
       - .env
     entrypoint: >
