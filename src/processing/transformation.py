@@ -105,6 +105,8 @@ class DataCleaner:
         
         self.logger.info("*" * 60)
         self.logger.info("Data Cleaning Completed")
+        self.logger.info("*" * 60)
+
     def close(self):
         """Close DuckDB connection"""
         if self.conn:
