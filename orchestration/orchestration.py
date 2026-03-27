@@ -31,12 +31,14 @@ def run_pipeline():
             for ticker in yfinance_targets:
                 yahoo_client.fetch_data(ticker)
                 time.sleep(3)
+            yahoo_client.close()
                 
         if "bybit" in active_providers:
             bybit_client = BybitClient()
             for symbol in bybit_targets:
                 bybit_client.fetch_data(symbol)
                 time.sleep(1)
+            bybit_client.close()
 
         logger.info(f"Step 1 completed in {time.time() - step_start:.1f}s")
 
