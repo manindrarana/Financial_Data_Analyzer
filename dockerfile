@@ -1,5 +1,8 @@
 FROM python:3.9-slim
 ENV PYTHONUNBUFFERED=1
+LABEL maintainer="Manindra Rana"
+LABEL description="Financial Data Analyzer - ELT Pipeline for Stock and Crypto Analysis"
+LABEL version="1.0.0"
 WORKDIR /app
 RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt .
