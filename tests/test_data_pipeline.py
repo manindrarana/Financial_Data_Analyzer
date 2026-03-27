@@ -49,7 +49,7 @@ class TestMlFeaturesParquet:
         
     def test_parquet_file_is_accessible(self):
         result = self.con.execute(
-            "SELECT COUNT(*) FROM read_parquet('s3://analytics-data/ml_features.parquet')"
+            f"SELECT COUNT(*) FROM read_parquet('{PARQUET_PATH}')"
         ).fetchone()
         assert result[0] > 0, "ml_features.parquet is empty or inaccessible"
         
@@ -62,7 +62,7 @@ class TestMlFeaturesParquet:
         all_expected = yfinance_targets + bybit_targets
 
         symbols = self.con.execute(
-            "SELECT DISTINCT asset_symbol FROM read_parquet('s3://analytics-data/ml_features.parquet')"
+            f"SELECT DISTINCT asset_symbol FROM read_parquet('{PARQUET_PATH}')"
         ).df()["asset_symbol"].tolist()
 
         for symbol in all_expected:
