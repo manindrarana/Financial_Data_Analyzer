@@ -86,10 +86,10 @@ class YahooFinanceClient:
                 while retry_count < max_retries:
                     try:
                         time.sleep(1 + (retry_count * 2)) 
-                        fresh_session = requests.Session()
-                        fresh_session.headers.update({"User-Agent": random.choice(USER_AGENTS)})
-                        
-                        df = yf.download(ticker, start=start_date, interval=interval, progress=False, session=fresh_session)
+                        with requests.Session() as fresh_session:
+                            fresh_session.headers.update({"User-Agent": random.choice(USER_AGENTS)})
+                            
+                            df = yf.download(ticker, start=start_date, interval=interval, progress=False, session=fresh_session)
                         
                         if not df.empty:
                             break  
