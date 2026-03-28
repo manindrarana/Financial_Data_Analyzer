@@ -34,14 +34,17 @@ class YahooFinanceClient:
         if not os.path.exists(db_path):
             return None
         
+        conn = None
         try:
             conn = duckdb.connect(db_path, read_only=True)
             query = f"SELECT MAX(date) FROM clean_yahoo_stocks WHERE ticker='{ticker}' AND interval='{interval}'"
             res = conn.execute(query).fetchone()
-            conn.close()
             return res[0] if res and res[0] else None
         except Exception:
             return None
+        finally:
+            if conn:
+                conn.close()
 
     def fetch_data(self, ticker: str):
         """
