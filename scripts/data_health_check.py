@@ -73,3 +73,8 @@ class DataHealthScanner:
                 WHERE asset_symbol = '{symbol}' AND interval = '{interval}'
                 ORDER BY date
             """).df()
+
+            stats = self._calculate_gaps(df, symbol, interval)
+            all_results.append(stats)
+            
+        return pd.DataFrame(all_results)
