@@ -59,5 +59,8 @@ class DataHealthScanner:
             "Completeness": f"{completeness:.2f}%"
         }
 
-def check_gold_layer(self):
+    def check_gold_layer(self):
         """Continuity scan for the final gold_ml_features layer."""
+        self.logger.info("Initializing scan for Gold Layer (gold_ml_features)...")
+        assets = self.get_assets_to_check("gold_ml_features", "asset_symbol")
+        all_results = []
