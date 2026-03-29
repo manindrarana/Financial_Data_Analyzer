@@ -19,3 +19,17 @@ def get_db_connection():
         return None
         
     return duckdb.connect(db_path, read_only=True)
+
+
+class DataHealthScanner:
+    def __init__(self):
+        """Initializes the scanner with its database connection and configuration."""
+        self.conn = get_db_connection()
+        self.logger = get_logger(__name__)
+        
+    def get_assets_to_check(self, table_name, symbol_col):
+        """Fetches unique symbols and intervals from a table."""
+        if not self.conn:
+            return pd.DataFrame()
+            
+        return self.conn.execute(f"SELECT DISTINCT {symbol_col}, interval FROM {table_name}").df()
