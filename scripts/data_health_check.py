@@ -33,3 +33,28 @@ class DataHealthScanner:
             return pd.DataFrame()
             
         return self.conn.execute(f"SELECT DISTINCT {symbol_col}, interval FROM {table_name}").df()
+
+
+    def _calculate_gaps(self, df, symbol, interval):
+        """Engine to compare actual vs. ideal timestamps."""
+        if df.empty:
+            return {"Symbol": symbol, "Interval": interval, "Health": "No Data Found"}
+
+        freq_map = {'1h': 'H', '60': 'H', '1d': 'D', 'D': 'D'}
+        freq = freq_map.get(str(interval), 'H')
+        
+        start, end = df['date'].min(), df['date'].max()
+        ideal_timeline = pd.date_range(start=start, end=end, freq=freq)
+        
+        actual_dates = set(df['date'])
+        missing = [d for d in ideal_timeline if d not in actual_dates]
+        
+        completeness = (len(df) / len(ideal_timeline)) * 100 if len(ideal_timeline) > 0 else 0
+        
+        return {
+            "Symbol": symbol,
+            "Interval": interval,
+            "Total Rows": len(df),
+            "Gap Count": len(missing),
+            "Completeness": f"{completeness:.2f}%"
+        }
