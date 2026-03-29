@@ -64,3 +64,12 @@ class DataHealthScanner:
         self.logger.info("Initializing scan for Gold Layer (gold_ml_features)...")
         assets = self.get_assets_to_check("gold_ml_features", "asset_symbol")
         all_results = []
+
+        for _, row in assets.iterrows():
+            symbol, interval = row['asset_symbol'], row['interval']
+            
+            df = self.conn.execute(f"""
+                SELECT date FROM gold_ml_features 
+                WHERE asset_symbol = '{symbol}' AND interval = '{interval}'
+                ORDER BY date
+            """).df()
