@@ -58,3 +58,6 @@ class DataHealthScanner:
             "Gap Count": len(missing),
             "Completeness": f"{completeness:.2f}%"
         }
+
+def check_gold_layer(self):
+        """Continuity scan for the final gold_ml_features layer."""
