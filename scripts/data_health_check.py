@@ -134,3 +134,11 @@ class DataHealthScanner:
         if hasattr(self, 'conn') and self.conn:
             self.conn.close()
             self.logger.info("DuckDB connection closed safely.")
+
+if __name__ == "__main__":
+    scanner = DataHealthScanner()
+    try:
+        scanner.run()
+    finally:
+        scanner.close()
+    
