@@ -118,3 +118,13 @@ class DataHealthScanner:
         yahoo_results = self.check_yahoo_silver()
         bybit_results = self.check_bybit_silver()
         gold_results = self.check_gold_layer()
+
+        all_checks = pd.concat([yahoo_results, bybit_results, gold_results], ignore_index=True)
+        
+        print("\n" + "="*80)
+        print("DATA PIPELINE CONTINUITY REPORT")
+        print("="*80)
+        print(all_checks.to_string(index=False))
+        print("="*80)
+        print(f"Total Assets Checked: {len(all_checks)}")
+        print("*" * 60)
