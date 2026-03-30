@@ -128,3 +128,9 @@ class DataHealthScanner:
         print("="*80)
         print(f"Total Assets Checked: {len(all_checks)}")
         print("*" * 60)
+
+    def close(self):
+        """Closes the DuckDB connection."""
+        if hasattr(self, 'conn') and self.conn:
+            self.conn.close()
+            self.logger.info("DuckDB connection closed safely.")
