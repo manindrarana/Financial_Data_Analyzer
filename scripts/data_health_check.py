@@ -108,3 +108,13 @@ class DataHealthScanner:
             results.append(stats)
             
         return pd.DataFrame(results)
+
+    def run(self):
+        """Orchestrates all checks and displays a unified report."""
+        self.logger.info("*" * 60)
+        self.logger.info("STARTING FULL DATA CONTINUITY HEALTH CHECK")
+        self.logger.info("*" * 60)
+        
+        yahoo_results = self.check_yahoo_silver()
+        bybit_results = self.check_bybit_silver()
+        gold_results = self.check_gold_layer()
