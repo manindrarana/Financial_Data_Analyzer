@@ -49,7 +49,13 @@ class DataHealthScanner:
         actual_dates = set(df['date'])
         missing = [d for d in ideal_timeline if d not in actual_dates]
         
+        if missing:
+            self.logger.warning(f"GAP DETECTED: {symbol} [{interval}] is missing {len(missing)} points")
+            sample = [d.strftime('%Y-%m-%d %H:%M') for d in missing[:5]]
+            self.logger.warning(f"First few gaps found at: {', '.join(sample)}")
+
         completeness = (len(df) / len(ideal_timeline)) * 100 if len(ideal_timeline) > 0 else 0
+
         
         return {
             "Symbol": symbol,
