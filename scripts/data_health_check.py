@@ -78,3 +78,18 @@ class DataHealthScanner:
             all_results.append(stats)
             
         return pd.DataFrame(all_results)
+
+    def check_yahoo_silver(self):
+        """Scans the clean_yahoo_stocks table for gaps."""
+        self.logger.info("Scanning Yahoo Silver Layer (clean_yahoo_stocks)...")
+        assets = self.get_assets_to_check("clean_yahoo_stocks", "ticker")
+        
+        results = []
+        for _, row in assets.iterrows():
+            symbol, interval = row['ticker'], row['interval']
+            df = self.conn.execute(f"SELECT date FROM clean_yahoo_stocks WHERE ticker = '{symbol}' AND interval = '{interval}' ORDER BY date").df()
+            
+            stats = self._calculate_gaps(df, f"Yahoo_{symbol}", interval)
+            results.append(stats)
+            
+        return pd.DataFrame(results)
