@@ -93,3 +93,18 @@ class DataHealthScanner:
             results.append(stats)
             
         return pd.DataFrame(results)
+
+    def check_bybit_silver(self):
+        """Scans the clean_bybit_crypto table for gaps."""
+        self.logger.info("Scanning Bybit Silver Layer (clean_bybit_crypto)...")
+        assets = self.get_assets_to_check("clean_bybit_crypto", "symbol")
+        
+        results = []
+        for _, row in assets.iterrows():
+            symbol, interval = row['symbol'], row['interval']
+            df = self.conn.execute(f"SELECT date FROM clean_bybit_crypto WHERE symbol = '{symbol}' AND interval = '{interval}' ORDER BY date").df()
+            
+            stats = self._calculate_gaps(df, f"Bybit_{symbol}", interval)
+            results.append(stats)
+            
+        return pd.DataFrame(results)
