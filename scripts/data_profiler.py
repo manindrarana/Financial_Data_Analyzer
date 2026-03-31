@@ -17,3 +17,14 @@ def get_db_connection():
         return None
         
     return duckdb.connect(db_path, read_only=True)
+
+class DataProfiler:
+    def __init__(self):
+        self.conn = get_db_connection()
+        self.logger = logger
+        
+    def close(self):
+        """Closes the connection safely."""
+        if hasattr(self, 'conn') and self.conn:
+            self.conn.close()
+            self.logger.info("Profiler connection closed.")
