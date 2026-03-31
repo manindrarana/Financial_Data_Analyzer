@@ -28,3 +28,10 @@ class DataProfiler:
         if hasattr(self, 'conn') and self.conn:
             self.conn.close()
             self.logger.info("Profiler connection closed.")
+
+if __name__ == "__main__":
+    profiler = DataProfiler()
+    try:
+        profiler.logger.info("Profiler ready for analysiss.")
+    finally:
+        profiler.close()
