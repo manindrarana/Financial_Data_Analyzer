@@ -47,6 +47,11 @@ class DataHealthScanner:
             '1mo': 'M', 'M': 'ME'
         }
         freq = freq_map.get(str(interval), 'D')
+        
+        name_check = symbol.lower()
+        if ("yahoo" in name_check or any(s.lower() in name_check for s in ["AAPL", "MSFT", "AMZN", "GOOGL", "TSLA", "META"])):
+            if freq == 'D':
+                freq = 'B'
 
         
         start, end = df['date'].min(), df['date'].max()
