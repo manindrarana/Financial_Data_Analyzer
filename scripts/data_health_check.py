@@ -40,8 +40,14 @@ class DataHealthScanner:
         if df.empty:
             return {"Symbol": symbol, "Interval": interval, "Health": "No Data Found"}
 
-        freq_map = {'1h': 'H', '60': 'H', '1d': 'D', 'D': 'D'}
-        freq = freq_map.get(str(interval), 'H')
+        freq_map = {
+            '1h': 'H', '60': 'H', 
+            '1d': 'D', 'D': 'D',
+            '1wk': 'W', 'W': 'W',
+            '1mo': 'M', 'M': 'ME'
+        }
+        freq = freq_map.get(str(interval), 'D')
+
         
         start, end = df['date'].min(), df['date'].max()
         ideal_timeline = pd.date_range(start=start, end=end, freq=freq)
