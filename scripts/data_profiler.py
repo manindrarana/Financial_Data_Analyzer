@@ -22,7 +22,14 @@ class DataProfiler:
     def __init__(self):
         self.conn = get_db_connection()
         self.logger = logger
-        
+
+    def get_tickers(self, table_name, symbol_col):
+        """Discovers all unique symbols in a specific table."""
+        if not self.conn:
+            return []
+        df = self.conn.execute(f"SELECT DISTINCT {symbol_col} FROM {table_name}").df()
+        return df[symbol_col].tolist()
+     
     def close(self):
         """Closes the connection safely."""
         if hasattr(self, 'conn') and self.conn:
