@@ -29,7 +29,17 @@ class DataProfiler:
             return []
         df = self.conn.execute(f"SELECT DISTINCT {symbol_col} FROM {table_name}").df()
         return df[symbol_col].tolist()
-     
+
+    def calculate_returns(self, df):
+        """Calculates Daily and Percentage returns for a specific asset dataframe."""
+        if df.empty or 'close' not in df.columns:
+            return pd.DataFrame()
+        
+        df = df.sort_values('date').copy()
+        df['prev_close'] = df['close'].shift(1)
+        df['change_pct'] = ((df['close'] - df['prev_close']) / df['prev_close']) * 100
+        return df.dropna(subset=['change_pct'])
+    
     def close(self):
         """Closes the connection safely."""
         if hasattr(self, 'conn') and self.conn:
