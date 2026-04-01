@@ -131,6 +131,6 @@ class DataProfiler:
 if __name__ == "__main__":
     profiler = DataProfiler()
     try:
-        profiler.logger.info("Profiler ready for analysiss.")
+        profiler.run()
     finally:
         profiler.close()
