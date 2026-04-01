@@ -74,6 +74,21 @@ class DataProfiler:
         master_df = pd.concat(all_results, ignore_index=True)
         return master_df.sort_values('change_pct', ascending=True).head(limit)
 
+    def volatility_scan(self, table_name, symbol_col):
+        """Calculates standard deviation of returns for each asset to find high-risk tickers."""
+        self.logger.info(f"Scanning risk profiles in {table_name}...")
+        tickers = self.get_tickers(table_name, symbol_col)
+        
+        risk_results = []
+        for t in tickers:
+            df = self.conn.execute(f"SELECT date, {symbol_col}, close FROM {table_name} WHERE {symbol_col}='{t}' ORDER BY date").df()
+            df_returns = self.calculate_returns(df)
+            if not df_returns.empty:
+                vol = df_returns['change_pct'].std()
+                risk_results.append({symbol_col: t, "Volatility": f"{vol:.2f}%"})
+        
+        return pd.DataFrame(risk_results).sort_values('Volatility', ascending=False)
+
     def close(self):
         """Closes the connection safely."""
         if hasattr(self, 'conn') and self.conn:
