@@ -88,6 +88,12 @@ class DataProfiler:
                 risk_results.append({symbol_col: t, "Volatility": f"{vol:.2f}%"})
         
         return pd.DataFrame(risk_results).sort_values('Volatility', ascending=False)
+    
+    def anomaly_detector(self, table_name):
+        """Finds any clearly broken or impossible data rows (price <= 0 or volume < 0)."""
+        self.logger.info(f"Checking {table_name} for impossible data...")
+        anomalies = self.conn.execute(f"SELECT * FROM {table_name} WHERE close <= 0 OR volume < 0").df()
+        return anomalies
 
     def close(self):
         """Closes the connection safely."""
