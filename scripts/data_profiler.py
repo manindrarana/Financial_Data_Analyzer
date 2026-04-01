@@ -40,6 +40,23 @@ class DataProfiler:
         df['change_pct'] = ((df['close'] - df['prev_close']) / df['prev_close']) * 100
         return df.dropna(subset=['change_pct'])
     
+    def find_top_gainers(self, table_name, symbol_col, limit=10):
+        """Finds the biggest single-day gains in the specified table."""
+        self.logger.info(f"Finding top performers in {table_name}...")
+        tickers = self.get_tickers(table_name, symbol_col)
+        
+        all_results = []
+        for t in tickers:
+            df = self.conn.execute(f"SELECT date, {symbol_col}, close FROM {table_name} WHERE {symbol_col} = '{t}' ORDER BY date").df()
+            df_returns = self.calculate_returns(df)
+            all_results.append(df_returns)
+            
+        if not all_results:
+            return pd.DataFrame()
+            
+        master_df = pd.concat(all_results, ignore_index=True)
+        return master_df.sort_values('change_pct', ascending=False).head(limit)
+    
     def close(self):
         """Closes the connection safely."""
         if hasattr(self, 'conn') and self.conn:
