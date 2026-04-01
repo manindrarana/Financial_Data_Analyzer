@@ -95,6 +95,33 @@ class DataProfiler:
         anomalies = self.conn.execute(f"SELECT * FROM {table_name} WHERE close <= 0 OR volume < 0").df()
         return anomalies
 
+    def run(self):
+        """Consolidates all analyses into one diagnostic report."""
+        self.logger.info("*"*60)
+        self.logger.info("STARTING DATA PROFILING AND OUTLIER SCAN")
+        self.logger.info("*"*60)
+        
+        yahoo_gainers = self.find_top_gainers("clean_yahoo_stocks", "ticker")
+        yahoo_losers = self.find_top_losers("clean_yahoo_stocks", "ticker")
+        yahoo_risk = self.volatility_scan("clean_yahoo_stocks", "ticker")
+        
+        bybit_gainers = self.find_top_gainers("clean_bybit_crypto", "symbol")
+        bybit_losers = self.find_top_losers("clean_bybit_crypto", "symbol")
+        bybit_risk = self.volatility_scan("clean_bybit_crypto", "symbol")
+        
+        final_gainers = pd.concat([yahoo_gainers, bybit_gainers])
+        
+        print("\n" + "="*80)
+        print("TOP 10 MARKET GAINERS (HISTORICAL)")
+        print("="*80)
+        print(final_gainers.to_string(index=False))
+        
+        print("\n" + "="*80)
+        print("HIGHEST RISK ASSETS (VOLATILITY)")
+        print("="*80)
+        print(pd.concat([yahoo_risk.head(5), bybit_risk.head(5)]).to_string(index=False))
+        print("="*80)
+
     def close(self):
         """Closes the connection safely."""
         if hasattr(self, 'conn') and self.conn:
