@@ -148,6 +148,24 @@ class DataProfiler:
             
         return merged['p1'].corr(merged['p2'])
 
+    def sector_analysis(self):
+        """Compares overall performance and risk stats for different sectors (Yahoo vs Bybit)."""
+        self.logger.info("Comparing Sectors (Stocks vs Crypto)...")
+        yahoo_risk = self.volatility_scan("clean_yahoo_stocks", "ticker")
+        bybit_risk = self.volatility_scan("clean_bybit_crypto", "symbol")
+        
+        yahoo_risk['Asset'] = yahoo_risk['ticker']
+        bybit_risk['Asset'] = bybit_risk['symbol']
+        
+        yahoo_risk['Vol'] = yahoo_risk['Volatility'].str.rstrip('%').astype(float)
+        bybit_risk['Vol'] = bybit_risk['Volatility'].str.rstrip('%').astype(float)
+        
+        summary = [
+            {"Sector": "Yahoo Stocks", "Avg_Vol": f"{yahoo_risk['Vol'].mean():.2f}%", "Max_Risk": yahoo_risk['Asset'].iloc[0]},
+            {"Sector": "Bybit Crypto", "Avg_Vol": f"{bybit_risk['Vol'].mean():.2f}%", "Max_Risk": bybit_risk['Asset'].iloc[0]}
+        ]
+        return pd.DataFrame(summary)
+
     def close(self):
         """Closes the connection safely."""
         if hasattr(self, 'conn') and self.conn:
