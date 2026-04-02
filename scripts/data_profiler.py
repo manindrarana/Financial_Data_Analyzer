@@ -129,6 +129,25 @@ class DataProfiler:
         print(final_risk.sort_values('Volatility', ascending=False).head(10).to_string(index=False))
         print("="*80)
 
+    def calculate_correlation(self, asset1, asset2, table_name, symbol_col):
+        """Calculates the correlation between two assets over time."""
+        self.logger.info(f"Calculating Correlation: {asset1} vs {asset2}")
+        
+        query1 = f"SELECT date, close as p1 FROM {table_name} WHERE {symbol_col} = '{asset1}'"
+        query2 = f"SELECT date, close as p2 FROM {table_name} WHERE {symbol_col} = '{asset2}'"
+        
+        df1 = self.conn.execute(query1).df()
+        df2 = self.conn.execute(query2).df()
+        
+        if df1.empty or df2.empty:
+            return 0.0
+            
+        merged = pd.merge(df1, df2, on='date')
+        if len(merged) < 5:
+            return 0.0
+            
+        return merged['p1'].corr(merged['p2'])
+
     def close(self):
         """Closes the connection safely."""
         if hasattr(self, 'conn') and self.conn:
