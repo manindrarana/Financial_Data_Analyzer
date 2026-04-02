@@ -139,6 +139,20 @@ class DataProfiler:
         print(sector_results.to_string(index=False))
         print("="*80)
         
+        dead_list = self.detect_dead_assets("clean_yahoo_stocks", "ticker") + self.detect_dead_assets("clean_bybit_crypto", "symbol")
+        spikes_df = pd.concat([self.volume_spike_detector("clean_yahoo_stocks", "ticker"), self.volume_spike_detector("clean_bybit_crypto", "symbol")])
+        
+        if dead_list:
+            print(f"\n[WARNING]: {len(dead_list)} Dead Assets identified (Prices frozen).")
+            print(f"Examples: {', '.join(dead_list[:5])}")
+            
+        if not spikes_df.empty:
+            print("\n" + "="*80)
+            print("SIGNIFICANT VOLUME SPIKES DETECTED")
+            print("="*80)
+            print(spikes_df.to_string(index=False))
+            print("="*80)
+            
         self.export_markdown_report(top_gainers_display, top_risk_display, sector_results)
 
 
