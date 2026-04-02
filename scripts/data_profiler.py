@@ -166,6 +166,23 @@ class DataProfiler:
         ]
         return pd.DataFrame(summary)
 
+
+    def export_markdown_report(self, gainers, risk, sector):
+        """Saves a summary report of today's profiling results to a markdown file."""
+        report_path = "reports/market_profile.md"
+        os.makedirs("reports", exist_ok=True)
+        
+        with open(report_path, "w") as f:
+            f.write("# Market Profiling Report\n\n")
+            f.write("## Top 10 Gainers\n\n")
+            f.write(gainers.to_markdown(index=False) + "\n\n")
+            f.write("## Highest Risk Assets\n\n")
+            f.write(risk.to_markdown(index=False) + "\n\n")
+            f.write("## Sector Summary\n\n")
+            f.write(sector.to_markdown(index=False) + "\n")
+            
+        self.logger.info(f"Report exported to {report_path}")
+
     def close(self):
         """Closes the connection safely."""
         if hasattr(self, 'conn') and self.conn:
