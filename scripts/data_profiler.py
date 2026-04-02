@@ -109,17 +109,24 @@ class DataProfiler:
         bybit_losers = self.find_top_losers("clean_bybit_crypto", "symbol")
         bybit_risk = self.volatility_scan("clean_bybit_crypto", "symbol")
         
+        yahoo_gainers['Asset'] = yahoo_gainers['ticker']
+        bybit_gainers['Asset'] = bybit_gainers['symbol']
         final_gainers = pd.concat([yahoo_gainers, bybit_gainers])
         
         print("\n" + "="*80)
         print("TOP 10 MARKET GAINERS (HISTORICAL)")
         print("="*80)
-        print(final_gainers.to_string(index=False))
+        cols_to_show = ['date', 'Asset', 'close', 'prev_close', 'change_pct']
+        print(final_gainers[cols_to_show].sort_values('change_pct', ascending=False).head(10).to_string(index=False))
+        
+        yahoo_risk['Asset'] = yahoo_risk['ticker']
+        bybit_risk['Asset'] = bybit_risk['symbol']
+        final_risk = pd.concat([yahoo_risk[['Asset', 'Volatility']], bybit_risk[['Asset', 'Volatility']]])
         
         print("\n" + "="*80)
         print("HIGHEST RISK ASSETS (VOLATILITY)")
         print("="*80)
-        print(pd.concat([yahoo_risk.head(5), bybit_risk.head(5)]).to_string(index=False))
+        print(final_risk.sort_values('Volatility', ascending=False).head(10).to_string(index=False))
         print("="*80)
 
     def close(self):
