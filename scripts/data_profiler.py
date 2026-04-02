@@ -196,6 +196,19 @@ class DataProfiler:
             
         self.logger.info(f"Report exported to {report_path}")
 
+    def detect_dead_assets(self, table_name, symbol_col, window=7):
+        """Finds assets with zero price movement over a window of data."""
+        self.logger.info(f"Scanning {table_name} for dead/frozen assets...")
+        tickers = self.get_tickers(table_name, symbol_col)
+        
+        dead_list = []
+        for t in tickers:
+            df = self.conn.execute(f"SELECT close FROM {table_name} WHERE {symbol_col}='{t}' ORDER BY date DESC LIMIT {window}").df()
+            if len(df) >= window and df['close'].nunique() == 1:
+                dead_list.append(t)
+        
+        return dead_list
+
     def close(self):
         """Closes the connection safely."""
         if hasattr(self, 'conn') and self.conn:
