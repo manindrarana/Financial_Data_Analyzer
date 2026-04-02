@@ -209,6 +209,21 @@ class DataProfiler:
         
         return dead_list
 
+    def volume_spike_detector(self, table_name, symbol_col, threshold=10):
+        """Finds days where volume is significantly higher than the rolling average."""
+        self.logger.info(f"Scanning {table_name} for Volume Spikes...")
+        query = f"""
+            SELECT date, {symbol_col}, volume, avg_vol
+            FROM (
+                SELECT date, {symbol_col}, volume,
+                       AVG(volume) OVER(PARTITION BY {symbol_col} ORDER BY date ROWS BETWEEN 30 PRECEDING AND 1 PRECEDING) as avg_vol
+                FROM {table_name}
+            )
+            WHERE volume > {threshold} * avg_vol AND avg_vol > 0
+            LIMIT 10
+        """
+        return self.conn.execute(query).df()
+
     def close(self):
         """Closes the connection safely."""
         if hasattr(self, 'conn') and self.conn:
