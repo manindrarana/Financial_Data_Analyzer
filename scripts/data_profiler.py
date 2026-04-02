@@ -113,21 +113,34 @@ class DataProfiler:
         bybit_gainers['Asset'] = bybit_gainers['symbol']
         final_gainers = pd.concat([yahoo_gainers, bybit_gainers])
         
+        self.logger.info("Generating Global Market View...")
+        sector_results = self.sector_analysis()
+        
         print("\n" + "="*80)
         print("TOP 10 MARKET GAINERS (HISTORICAL)")
         print("="*80)
         cols_to_show = ['date', 'Asset', 'close', 'prev_close', 'change_pct']
-        print(final_gainers[cols_to_show].sort_values('change_pct', ascending=False).head(10).to_string(index=False))
+        top_gainers_display = final_gainers[cols_to_show].sort_values('change_pct', ascending=False).head(10)
+        print(top_gainers_display.to_string(index=False))
         
         yahoo_risk['Asset'] = yahoo_risk['ticker']
         bybit_risk['Asset'] = bybit_risk['symbol']
         final_risk = pd.concat([yahoo_risk[['Asset', 'Volatility']], bybit_risk[['Asset', 'Volatility']]])
+        top_risk_display = final_risk.sort_values('Volatility', ascending=False).head(10)
         
         print("\n" + "="*80)
         print("HIGHEST RISK ASSETS (VOLATILITY)")
         print("="*80)
-        print(final_risk.sort_values('Volatility', ascending=False).head(10).to_string(index=False))
+        print(top_risk_display.to_string(index=False))
+        
+        print("\n" + "="*80)
+        print("SECTOR COMPARISON (STOCKS vs CRYPTO)")
         print("="*80)
+        print(sector_results.to_string(index=False))
+        print("="*80)
+        
+        self.export_markdown_report(top_gainers_display, top_risk_display, sector_results)
+
 
     def calculate_correlation(self, asset1, asset2, table_name, symbol_col):
         """Calculates the correlation between two assets over time."""
