@@ -116,6 +116,10 @@ class DataProfiler:
         self.logger.info("Generating Global Market View...")
         sector_results = self.sector_analysis()
         
+        yahoo_corr = self.scan_top_correlations("clean_yahoo_stocks", "ticker")
+        bybit_corr = self.scan_top_correlations("clean_bybit_crypto", "symbol")
+        full_corr = pd.concat([yahoo_corr, bybit_corr])
+        
         print("\n" + "="*80)
         print("TOP 10 MARKET GAINERS (HISTORICAL)")
         print("="*80)
@@ -132,6 +136,11 @@ class DataProfiler:
         print("HIGHEST RISK ASSETS (VOLATILITY)")
         print("="*80)
         print(top_risk_display.to_string(index=False))
+        
+        print("\n" + "="*80)
+        print("ASSET CORRELATIONS (TOP PAIRS)")
+        print("="*80)
+        print(full_corr.to_string(index=False))
         
         print("\n" + "="*80)
         print("SECTOR COMPARISON (STOCKS vs CRYPTO)")
@@ -153,8 +162,7 @@ class DataProfiler:
             print(spikes_df.to_string(index=False))
             print("="*80)
             
-        self.export_markdown_report(top_gainers_display, top_risk_display, sector_results)
-
+        self.export_markdown_report(top_gainers_display, top_risk_display, sector_results, full_corr)
 
     def calculate_correlation(self, asset1, asset2, table_name, symbol_col):
         """Calculates the correlation between two assets over time."""
@@ -194,7 +202,7 @@ class DataProfiler:
         return pd.DataFrame(summary)
 
 
-    def export_markdown_report(self, gainers, risk, sector):
+    def export_markdown_report(self, gainers, risk, sector, correlations):
         """Saves a summary report of today's profiling results to a markdown file."""
         report_path = "reports/market_profile.md"
         os.makedirs("reports", exist_ok=True)
@@ -205,6 +213,8 @@ class DataProfiler:
             f.write(gainers.to_markdown(index=False) + "\n\n")
             f.write("## Highest Risk Assets\n\n")
             f.write(risk.to_markdown(index=False) + "\n\n")
+            f.write("## Top Asset Correlations\n\n")
+            f.write(correlations.to_markdown(index=False) + "\n\n")
             f.write("## Sector Summary\n\n")
             f.write(sector.to_markdown(index=False) + "\n")
             
