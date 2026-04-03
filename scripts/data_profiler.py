@@ -252,6 +252,19 @@ class DataProfiler:
         """
         return self.conn.execute(query).df()
 
+    def calculate_spread_outliers(self, table_name, symbol_col, limit=10):
+        """Finds days where the High-Low spread is exceptionally wide."""
+        self.logger.info(f"Scanning {table_name} for high-low spread outliers...")
+        query = f"""
+            SELECT date, {symbol_col}, high, low, close,
+                   ((high - low) / close) * 100 as spread_pct
+            FROM {table_name}
+            WHERE close > 0
+            ORDER BY spread_pct DESC
+            LIMIT {limit}
+        """
+        return self.conn.execute(query).df()
+
     def scan_top_correlations(self, table_name, symbol_col, limit=5):
         """Scans the top 10 most volatile assets to find the strongest correlations."""
         self.logger.info(f"Scanning {table_name} for top correlations...")
