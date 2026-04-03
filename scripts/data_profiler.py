@@ -274,6 +274,23 @@ class DataProfiler:
         """
         return self.conn.execute(query).df()
 
+    def find_overnight_gaps(self, table_name, symbol_col, threshold=2.0):
+        """Finds assets that opened >N% away from previous close."""
+        self.logger.info(f"Scanning {table_name} for overnight gaps...")
+        query = f"""
+            SELECT date, {symbol_col}, open, prev_close, 
+                   ((open - prev_close) / prev_close) * 100 as gap_pct
+            FROM (
+                SELECT date, {symbol_col}, open, 
+                       LAG(close) OVER(PARTITION BY {symbol_col} ORDER BY date) as prev_close
+                FROM {table_name}
+            )
+            WHERE prev_close IS NOT NULL AND ABS(gap_pct) > {threshold}
+            ORDER BY ABS(gap_pct) DESC
+            LIMIT 10
+        """
+        return self.conn.execute(query).df()
+
     def scan_top_correlations(self, table_name, symbol_col, limit=5):
         """Scans the top 10 most volatile assets to find the strongest correlations."""
         self.logger.info(f"Scanning {table_name} for top correlations...")
