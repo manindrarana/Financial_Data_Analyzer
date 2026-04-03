@@ -238,6 +238,21 @@ class DataProfiler:
         """
         return self.conn.execute(query).df()
 
+    def scan_top_correlations(self, table_name, symbol_col, limit=5):
+        """Scans the top 10 most volatile assets to find the strongest correlations."""
+        self.logger.info(f"Scanning {table_name} for top correlations...")
+        
+        top_assets = self.volatility_scan(table_name, symbol_col).head(10)['Asset'].tolist()
+        
+        results = []
+        for i in range(len(top_assets)):
+            for j in range(i + 1, len(top_assets)):
+                a1, a2 = top_assets[i], top_assets[j]
+                corr = self.calculate_correlation(a1, a2, table_name, symbol_col)
+                results.append({"Pair": f"{a1} / {a2}", "Correlation": f"{corr:.3f}"})
+                
+        return pd.DataFrame(results).sort_values('Correlation', ascending=False).head(limit)
+
     def close(self):
         """Closes the connection safely."""
         if hasattr(self, 'conn') and self.conn:
