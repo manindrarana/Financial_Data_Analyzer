@@ -162,7 +162,7 @@ class DataProfiler:
             print(spikes_df.to_string(index=False))
             print("="*80)
             
-        self.export_markdown_report(top_gainers_display, top_risk_display, sector_results, full_corr)
+        self.export_markdown_report(top_gainers_display, top_risk_display, sector_results, full_corr, dead_list, spikes_df)
 
     def calculate_correlation(self, asset1, asset2, table_name, symbol_col):
         """Calculates the correlation between two assets over time."""
@@ -202,7 +202,7 @@ class DataProfiler:
         return pd.DataFrame(summary)
 
 
-    def export_markdown_report(self, gainers, risk, sector, correlations):
+    def export_markdown_report(self, gainers, risk, sector, correlations, dead_list, spikes):
         """Saves a summary report of today's profiling results to a markdown file."""
         report_path = "reports/market_profile.md"
         os.makedirs("reports", exist_ok=True)
@@ -215,6 +215,10 @@ class DataProfiler:
             f.write(risk.to_markdown(index=False) + "\n\n")
             f.write("## Top Asset Correlations\n\n")
             f.write(correlations.to_markdown(index=False) + "\n\n")
+            f.write("## Market Anomalies (Frozen Prices)\n\n")
+            f.write(f"The following assets have 0 price movement: {', '.join(dead_list) if dead_list else 'None'}\n\n")
+            f.write("## Significant Volume Spikes\n\n")
+            f.write(spikes.to_markdown(index=False) + "\n\n")
             f.write("## Sector Summary\n\n")
             f.write(sector.to_markdown(index=False) + "\n")
             
