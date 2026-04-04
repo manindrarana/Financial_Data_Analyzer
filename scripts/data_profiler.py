@@ -123,16 +123,15 @@ class DataProfiler:
         self.logger.info("*"*60)
         
         yahoo_gainers = self.find_top_gainers("clean_yahoo_stocks", "ticker")
-        yahoo_losers = self.find_top_losers("clean_yahoo_stocks", "ticker")
         yahoo_risk = self.volatility_scan("clean_yahoo_stocks", "ticker")
         
         bybit_gainers = self.find_top_gainers("clean_bybit_crypto", "symbol")
-        bybit_losers = self.find_top_losers("clean_bybit_crypto", "symbol")
         bybit_risk = self.volatility_scan("clean_bybit_crypto", "symbol")
         
         yahoo_gainers['Asset'] = yahoo_gainers['ticker']
         bybit_gainers['Asset'] = bybit_gainers['symbol']
         final_gainers = pd.concat([yahoo_gainers, bybit_gainers])
+        top_gainers_display = final_gainers.sort_values('change_pct', ascending=False).head(10)
         
         self.logger.info("Generating Global Market View...")
         sector_results = self.sector_analysis()
@@ -141,17 +140,30 @@ class DataProfiler:
         bybit_corr = self.scan_top_correlations("clean_bybit_crypto", "symbol")
         full_corr = pd.concat([yahoo_corr, bybit_corr])
         
-        print("\n" + "="*80)
-        print("TOP 10 MARKET GAINERS (HISTORICAL)")
-        print("="*80)
-        cols_to_show = ['date', 'Asset', 'close', 'prev_close', 'change_pct']
-        top_gainers_display = final_gainers[cols_to_show].sort_values('change_pct', ascending=False).head(10)
-        print(top_gainers_display.to_string(index=False))
+        yahoo_rsi = self.calculate_rsi("clean_yahoo_stocks", "ticker")
+        bybit_rsi = self.calculate_rsi("clean_bybit_crypto", "symbol")
+        full_rsi = pd.concat([yahoo_rsi, bybit_rsi])
         
+        dead_list = self.detect_dead_assets("clean_yahoo_stocks", "ticker") + \
+                    self.detect_dead_assets("clean_bybit_crypto", "symbol")
+                    
+        spikes_df = pd.concat([self.volume_spike_detector("clean_yahoo_stocks", "ticker"), 
+                               self.volume_spike_detector("clean_bybit_crypto", "symbol")])
+                               
+        spread_df = pd.concat([self.calculate_spread_outliers("clean_yahoo_stocks", "ticker"), 
+                               self.calculate_spread_outliers("clean_bybit_crypto", "symbol")])
+                               
+        gap_df = pd.concat([self.find_overnight_gaps("clean_yahoo_stocks", "ticker"), 
+                            self.find_overnight_gaps("clean_bybit_crypto", "symbol")])
+
         yahoo_risk['Asset'] = yahoo_risk['ticker']
         bybit_risk['Asset'] = bybit_risk['symbol']
         final_risk = pd.concat([yahoo_risk[['Asset', 'Volatility']], bybit_risk[['Asset', 'Volatility']]])
         top_risk_display = final_risk.sort_values('Volatility', ascending=False).head(10)
+        print("\n" + "="*80)
+        print("TOP 10 MARKET GAINERS (HISTORICAL)")
+        print("="*80)
+        print(top_gainers_display[['date', 'Asset', 'close', 'prev_close', 'change_pct']].to_string(index=False))
         
         print("\n" + "="*80)
         print("HIGHEST RISK ASSETS (VOLATILITY)")
@@ -164,40 +176,33 @@ class DataProfiler:
         print(full_corr.to_string(index=False))
         
         print("\n" + "="*80)
+        print("MOMENTUM DASHBOARD (RSI)")
+        print("="*80)
+        print(full_rsi.to_string(index=False))
+        
+        print("\n" + "="*80)
+        print("TOP INTRADAY PRICE SWINGS (HIGH-LOW SPREAD)")
+        print("="*80)
+        print(spread_df.sort_values('spread_pct', ascending=False).head(10).to_string(index=False))
+        
+        print("\n" + "="*80)
+        print("SIGNIFICANT OVERNIGHT GAPS")
+        print("="*80)
+        print(gap_df.sort_values('gap_pct', ascending=False).head(10).to_string(index=False))
+        
+        print("\n" + "="*80)
         print("SECTOR COMPARISON (STOCKS vs CRYPTO)")
         print("="*80)
         print(sector_results.to_string(index=False))
         print("="*80)
         
-        dead_list = self.detect_dead_assets("clean_yahoo_stocks", "ticker") + self.detect_dead_assets("clean_bybit_crypto", "symbol")
-        spikes_df = pd.concat([self.volume_spike_detector("clean_yahoo_stocks", "ticker"), self.volume_spike_detector("clean_bybit_crypto", "symbol")])
-        
         if dead_list:
-            print(f"\n[WARNING]: {len(dead_list)} Dead Assets identified (Prices frozen).")
-            print(f"Examples: {', '.join(dead_list[:5])}")
-            
-        if not spikes_df.empty:
-            print("\n" + "="*80)
-            print("SIGNIFICANT VOLUME SPIKES DETECTED")
-            print("="*80)
-            print(spikes_df.to_string(index=False))
-            print("="*80)
-            
-        spread_df = pd.concat([self.calculate_spread_outliers("clean_yahoo_stocks", "ticker"), self.calculate_spread_outliers("clean_bybit_crypto", "symbol")])
-        print("\n" + "="*80)
-        print("TOP INTRADAY PRICE SWINGS (HIGH-LOW SPREAD)")
-        print("="*80)
-        print(spread_df.sort_values('spread_pct', ascending=False).head(10).to_string(index=False))
-        print("="*80)
+            print(f"\n[WARNING]: {len(dead_list)} Dead Assets identified. Examples: {', '.join(dead_list[:5])}")
 
-        gap_df = pd.concat([self.find_overnight_gaps("clean_yahoo_stocks", "ticker"), self.find_overnight_gaps("clean_bybit_crypto", "symbol")])
-        print("\n" + "="*80)
-        print("SIGNIFICANT OVERNIGHT GAPS (OPEN vs PREV_CLOSE)")
-        print("="*80)
-        print(gap_df.sort_values('gap_pct', ascending=False).head(10).to_string(index=False))
-        print("="*80)
+        self.export_markdown_report(top_gainers_display, top_risk_display, sector_results, 
+                                    full_corr, dead_list, spikes_df, spread_df, gap_df, full_rsi)
 
-        self.export_markdown_report(top_gainers_display, top_risk_display, sector_results, full_corr, dead_list, spikes_df, spread_df, gap_df)
+
 
 
     def calculate_correlation(self, asset1, asset2, table_name, symbol_col):
@@ -238,7 +243,7 @@ class DataProfiler:
         return pd.DataFrame(summary)
 
 
-    def export_markdown_report(self, gainers, risk, sector, correlations, dead_list, spikes, spread, gaps):
+    def export_markdown_report(self, gainers, risk, sector, correlations, dead_list, spikes, spread, gaps, rsi):
         """Saves a summary report of today's profiling results to a markdown file."""
         report_path = "reports/market_profile.md"
         os.makedirs("reports", exist_ok=True)
@@ -249,6 +254,8 @@ class DataProfiler:
             f.write(gainers.to_markdown(index=False) + "\n\n")
             f.write("## Highest Risk Assets\n\n")
             f.write(risk.to_markdown(index=False) + "\n\n")
+            f.write("## Momentum Dashboard (RSI)\n\n")
+            f.write(rsi.to_markdown(index=False) + "\n\n")
             f.write("## Top Asset Correlations\n\n")
             f.write(correlations.to_markdown(index=False) + "\n\n")
             f.write("## Overnight Gaps (Open vs Prev Close)\n\n")
