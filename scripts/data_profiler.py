@@ -333,7 +333,8 @@ class DataProfiler:
         """Scans the top 10 most volatile assets to find the strongest correlations."""
         self.logger.info(f"Scanning {table_name} for top correlations...")
         
-        top_assets = self.volatility_scan(table_name, symbol_col).head(10)['Asset'].tolist()
+        top_assets = self.volatility_scan(table_name, symbol_col).head(10)[symbol_col].tolist()
+
         
         results = []
         for i in range(len(top_assets)):
