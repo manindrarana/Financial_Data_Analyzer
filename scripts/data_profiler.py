@@ -169,7 +169,15 @@ class DataProfiler:
         print(spread_df.sort_values('spread_pct', ascending=False).head(10).to_string(index=False))
         print("="*80)
 
-        self.export_markdown_report(top_gainers_display, top_risk_display, sector_results, full_corr, dead_list, spikes_df, spread_df)
+        gap_df = pd.concat([self.find_overnight_gaps("clean_yahoo_stocks", "ticker"), self.find_overnight_gaps("clean_bybit_crypto", "symbol")])
+        print("\n" + "="*80)
+        print("SIGNIFICANT OVERNIGHT GAPS (OPEN vs PREV_CLOSE)")
+        print("="*80)
+        print(gap_df.sort_values('gap_pct', ascending=False).head(10).to_string(index=False))
+        print("="*80)
+
+        self.export_markdown_report(top_gainers_display, top_risk_display, sector_results, full_corr, dead_list, spikes_df, spread_df, gap_df)
+
 
     def calculate_correlation(self, asset1, asset2, table_name, symbol_col):
         """Calculates the correlation between two assets over time."""
@@ -209,7 +217,7 @@ class DataProfiler:
         return pd.DataFrame(summary)
 
 
-    def export_markdown_report(self, gainers, risk, sector, correlations, dead_list, spikes, spread):
+    def export_markdown_report(self, gainers, risk, sector, correlations, dead_list, spikes, spread, gaps):
         """Saves a summary report of today's profiling results to a markdown file."""
         report_path = "reports/market_profile.md"
         os.makedirs("reports", exist_ok=True)
@@ -222,6 +230,8 @@ class DataProfiler:
             f.write(risk.to_markdown(index=False) + "\n\n")
             f.write("## Top Asset Correlations\n\n")
             f.write(correlations.to_markdown(index=False) + "\n\n")
+            f.write("## Overnight Gaps (Open vs Prev Close)\n\n")
+            f.write(gaps.to_markdown(index=False) + "\n\n")
             f.write("## Intraday Price Swings (High-Low Spread)\n\n")
             f.write(spread.to_markdown(index=False) + "\n\n")
             f.write("## Market Anomalies (Frozen Prices)\n\n")
