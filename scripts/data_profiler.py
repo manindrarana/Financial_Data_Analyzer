@@ -74,6 +74,27 @@ class DataProfiler:
         master_df = pd.concat(all_results, ignore_index=True)
         return master_df.sort_values('change_pct', ascending=True).head(limit)
 
+    def calculate_rsi(self, table_name, symbol_col, window=14):
+        """Calculates current RSI for all assets in a table."""
+        self.logger.info(f"Calculating RSI for {table_name}...")
+        tickers = self.get_tickers(table_name, symbol_col)
+        
+        rsi_results = []
+        for t in tickers:
+            df = self.conn.execute(f"SELECT date, close FROM {table_name} WHERE {symbol_col}='{t}' ORDER BY date DESC LIMIT 30").df()
+            if len(df) < window + 1: continue
+            
+            df = df.iloc[::-1]
+            delta = df['close'].diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
+            rs = gain / (loss + 1e-9)
+            rsi_val = (100 - (100 / (1 + rs))).iloc[-1]
+            
+            rsi_results.append({symbol_col: t, "RSI": round(rsi_val, 2)})
+            
+        return pd.DataFrame(rsi_results).sort_values('RSI', ascending=False)
+
     def volatility_scan(self, table_name, symbol_col):
         """Calculates standard deviation of returns for each asset to find high-risk tickers."""
         self.logger.info(f"Scanning risk profiles in {table_name}...")
