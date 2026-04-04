@@ -131,7 +131,10 @@ class DataProfiler:
         yahoo_gainers['Asset'] = yahoo_gainers['ticker']
         bybit_gainers['Asset'] = bybit_gainers['symbol']
         final_gainers = pd.concat([yahoo_gainers, bybit_gainers])
-        top_gainers_display = final_gainers.sort_values('change_pct', ascending=False).head(10)
+        
+        cols = ['date', 'Asset', 'close', 'prev_close', 'change_pct']
+        top_gainers_display = final_gainers[cols].sort_values('change_pct', ascending=False).head(10)
+
         
         self.logger.info("Generating Global Market View...")
         sector_results = self.sector_analysis()
@@ -140,21 +143,26 @@ class DataProfiler:
         bybit_corr = self.scan_top_correlations("clean_bybit_crypto", "symbol")
         full_corr = pd.concat([yahoo_corr, bybit_corr])
         
-        yahoo_rsi = self.calculate_rsi("clean_yahoo_stocks", "ticker")
-        bybit_rsi = self.calculate_rsi("clean_bybit_crypto", "symbol")
+        yahoo_rsi = self.calculate_rsi("clean_yahoo_stocks", "ticker").rename(columns={'ticker': 'Asset'})
+        bybit_rsi = self.calculate_rsi("clean_bybit_crypto", "symbol").rename(columns={'symbol': 'Asset'})
         full_rsi = pd.concat([yahoo_rsi, bybit_rsi])
         
         dead_list = self.detect_dead_assets("clean_yahoo_stocks", "ticker") + \
                     self.detect_dead_assets("clean_bybit_crypto", "symbol")
                     
-        spikes_df = pd.concat([self.volume_spike_detector("clean_yahoo_stocks", "ticker"), 
-                               self.volume_spike_detector("clean_bybit_crypto", "symbol")])
+        spikes_df = pd.concat([
+            self.volume_spike_detector("clean_yahoo_stocks", "ticker").rename(columns={'ticker': 'Asset'}), 
+            self.volume_spike_detector("clean_bybit_crypto", "symbol").rename(columns={'symbol': 'Asset'})
+        ])
                                
-        spread_df = pd.concat([self.calculate_spread_outliers("clean_yahoo_stocks", "ticker"), 
-                               self.calculate_spread_outliers("clean_bybit_crypto", "symbol")])
+        spread_df = pd.concat([
+            self.calculate_spread_outliers("clean_yahoo_stocks", "ticker").rename(columns={'ticker': 'Asset'}), 
+            self.calculate_spread_outliers("clean_bybit_crypto", "symbol").rename(columns={'symbol': 'Asset'})
+        ])
                                
-        gap_df = pd.concat([self.find_overnight_gaps("clean_yahoo_stocks", "ticker"), 
-                            self.find_overnight_gaps("clean_bybit_crypto", "symbol")])
+        yahoo_gaps = self.find_overnight_gaps("clean_yahoo_stocks", "ticker").rename(columns={'ticker': 'Asset'})
+        bybit_gaps = self.find_overnight_gaps("clean_bybit_crypto", "symbol").rename(columns={'symbol': 'Asset'})
+        gap_df = pd.concat([yahoo_gaps, bybit_gaps])
 
         yahoo_risk['Asset'] = yahoo_risk['ticker']
         bybit_risk['Asset'] = bybit_risk['symbol']
@@ -178,17 +186,18 @@ class DataProfiler:
         print("\n" + "="*80)
         print("MOMENTUM DASHBOARD (RSI)")
         print("="*80)
-        print(full_rsi.to_string(index=False))
+        print(full_rsi.sort_values('RSI', ascending=False).to_string(index=False))
         
         print("\n" + "="*80)
         print("TOP INTRADAY PRICE SWINGS (HIGH-LOW SPREAD)")
         print("="*80)
-        print(spread_df.sort_values('spread_pct', ascending=False).head(10).to_string(index=False))
+        print(spread_df[['date', 'Asset', 'high', 'low', 'spread_pct']].sort_values('spread_pct', ascending=False).head(10).to_string(index=False))
         
         print("\n" + "="*80)
         print("SIGNIFICANT OVERNIGHT GAPS")
         print("="*80)
-        print(gap_df.sort_values('gap_pct', ascending=False).head(10).to_string(index=False))
+        print(gap_df[['date', 'Asset', 'open', 'prev_close', 'gap_pct']].sort_values('gap_pct', ascending=False).head(10).to_string(index=False))
+
         
         print("\n" + "="*80)
         print("SECTOR COMPARISON (STOCKS vs CRYPTO)")
