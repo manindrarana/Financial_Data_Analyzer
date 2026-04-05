@@ -118,6 +118,29 @@ class DataProfiler:
         
         return pd.DataFrame(signals)
 
+    def calculate_zscore(self, table_name, symbol_col):
+        """Identifies assets currently trading at extreme statistical outliers (Z-Score)."""
+        self.logger.info(f"Scanning {table_name} for Volatility Z-Scores...")
+        tickers = self.get_tickers(table_name, symbol_col)
+        
+        z_results = []
+        for t in tickers:
+            df = self.conn.execute(f"SELECT date, close FROM {table_name} WHERE {symbol_col}='{t}' ORDER BY date DESC LIMIT 50").df()
+            if len(df) < 30: continue
+            
+            df = df.iloc[::-1]
+            returns = df['close'].pct_change().dropna()
+            
+            current_ret = returns.iloc[-1]
+            mean_ret = returns.mean()
+            std_ret = returns.std()
+            
+            if std_ret > 0:
+                z_score = (current_ret - mean_ret) / std_ret
+                z_results.append({symbol_col: t, "Z-Score": round(z_score, 2)})
+                
+        return pd.DataFrame(z_results).sort_values("Z-Score", ascending=False)
+
     def volatility_scan(self, table_name, symbol_col):
         """Calculates standard deviation of returns for each asset to find high-risk tickers."""
         self.logger.info(f"Scanning risk profiles in {table_name}...")
