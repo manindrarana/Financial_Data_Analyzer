@@ -95,6 +95,28 @@ class DataProfiler:
             
         return pd.DataFrame(rsi_results).sort_values('RSI', ascending=False)
 
+    def detect_volatility_squeeze(self, table_name, symbol_col, window=20):
+        """Identifies assets where Bollinger Bands are tightening (impending breakout)."""
+        self.logger.info(f"Scanning {table_name} for Volatility Squeezes...")
+        tickers = self.get_tickers(table_name, symbol_col)
+        
+        squeeze_results = []
+        for t in tickers:
+            df = self.conn.execute(f"SELECT date, close FROM {table_name} WHERE {symbol_col}='{t}' ORDER BY date DESC LIMIT 50").df()
+            if len(df) < window: continue
+            
+            df = df.iloc[::-1]
+            df['std'] = df['close'].rolling(window=window).std()
+            df['avg_std'] = df['std'].rolling(window=window).mean()
+            
+            last_row = df.iloc[-1]
+            if last_row['avg_std'] > 0:
+                squeeze_ratio = last_row['std'] / last_row['avg_std']
+                if squeeze_ratio < 0.7:
+                    squeeze_results.append({"Asset": t, "Squeeze_Ratio": f"{squeeze_ratio:.2f}", "Status": "🔥 SQUEEZING"})
+                    
+        return pd.DataFrame(squeeze_results).sort_values("Squeeze_Ratio")
+
     def scan_ma_crossovers(self, table_name, symbol_col):
         """Identifies Golden Cross (50>200) or Death Cross (50<200) signals."""
         self.logger.info(f"Scanning {table_name} for MA Crossovers...")
