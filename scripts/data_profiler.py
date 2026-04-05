@@ -170,6 +170,14 @@ class DataProfiler:
         bybit_rsi = self.calculate_rsi("clean_bybit_crypto", "symbol").rename(columns={'symbol': 'Asset'})
         full_rsi = pd.concat([yahoo_rsi, bybit_rsi])
         
+        yahoo_ma = self.scan_ma_crossovers("clean_yahoo_stocks", "ticker")
+        bybit_ma = self.scan_ma_crossovers("clean_bybit_crypto", "symbol")
+        full_ma = pd.concat([yahoo_ma, bybit_ma])
+        
+        yahoo_atr = self.calculate_atr("clean_yahoo_stocks", "ticker").rename(columns={'ticker': 'Asset'})
+        bybit_atr = self.calculate_atr("clean_bybit_crypto", "symbol").rename(columns={'symbol': 'Asset'})
+        full_atr = pd.concat([yahoo_atr, bybit_atr])
+
         dead_list = self.detect_dead_assets("clean_yahoo_stocks", "ticker") + \
                     self.detect_dead_assets("clean_bybit_crypto", "symbol")
                     
@@ -202,6 +210,16 @@ class DataProfiler:
         print(top_risk_display.to_string(index=False))
         
         print("\n" + "="*80)
+        print("TRUE VOLATILITY DASHBOARD (ATR)")
+        print("="*80)
+        print(full_atr.sort_values('ATR', ascending=False).to_string(index=False))
+
+        print("\n" + "="*80)
+        print("TREND REVERSAL SIGNALS (MA CROSSOVER)")
+        print("="*80)
+        print(full_ma.to_string(index=False) if not full_ma.empty else "No new signals.")
+
+        print("\n" + "="*80)
         print("ASSET CORRELATIONS (TOP PAIRS)")
         print("="*80)
         print(full_corr.to_string(index=False))
@@ -221,7 +239,6 @@ class DataProfiler:
         print("="*80)
         print(gap_df[['date', 'Asset', 'open', 'prev_close', 'gap_pct']].sort_values('gap_pct', ascending=False).head(10).to_string(index=False))
 
-        
         print("\n" + "="*80)
         print("SECTOR COMPARISON (STOCKS vs CRYPTO)")
         print("="*80)
@@ -232,10 +249,7 @@ class DataProfiler:
             print(f"\n[WARNING]: {len(dead_list)} Dead Assets identified. Examples: {', '.join(dead_list[:5])}")
 
         self.export_markdown_report(top_gainers_display, top_risk_display, sector_results, 
-                                    full_corr, dead_list, spikes_df, spread_df, gap_df, full_rsi)
-
-
-
+                                    full_corr, dead_list, spikes_df, spread_df, gap_df, full_rsi, full_ma, full_atr)
 
     def calculate_correlation(self, asset1, asset2, table_name, symbol_col):
         """Calculates the correlation between two assets over time."""
@@ -274,8 +288,7 @@ class DataProfiler:
         ]
         return pd.DataFrame(summary)
 
-
-    def export_markdown_report(self, gainers, risk, sector, correlations, dead_list, spikes, spread, gaps, rsi):
+    def export_markdown_report(self, gainers, risk, sector, correlations, dead_list, spikes, spread, gaps, rsi, ma, atr):
         """Saves a summary report of today's profiling results to a markdown file."""
         report_path = "reports/market_profile.md"
         os.makedirs("reports", exist_ok=True)
@@ -286,6 +299,11 @@ class DataProfiler:
             f.write(gainers.to_markdown(index=False) + "\n\n")
             f.write("## Highest Risk Assets\n\n")
             f.write(risk.to_markdown(index=False) + "\n\n")
+            f.write("## True Volatility Dashboard (ATR)\n\n")
+            f.write(atr.to_markdown(index=False) + "\n\n")
+            f.write("## Trend Reversal Signals (MA Crossovers)\n\n")
+            f.write(ma.to_markdown(index=False) if not ma.empty else "No new signals.\n\n")
+            f.write("\n\n")
             f.write("## Momentum Dashboard (RSI)\n\n")
             f.write(rsi.to_markdown(index=False) + "\n\n")
             f.write("## Top Asset Correlations\n\n")
