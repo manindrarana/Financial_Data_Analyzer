@@ -226,6 +226,10 @@ class DataProfiler:
         yahoo_z = self.calculate_zscore("clean_yahoo_stocks", "ticker").rename(columns={'ticker': 'Asset'})
         bybit_z = self.calculate_zscore("clean_bybit_crypto", "symbol").rename(columns={'symbol': 'Asset'})
         full_z = pd.concat([yahoo_z, bybit_z])
+        
+        yahoo_squeeze = self.detect_volatility_squeeze("clean_yahoo_stocks", "ticker")
+        bybit_squeeze = self.detect_volatility_squeeze("clean_bybit_crypto", "symbol")
+        full_squeeze = pd.concat([yahoo_squeeze, bybit_squeeze])
 
         dead_list = self.detect_dead_assets("clean_yahoo_stocks", "ticker") + \
                     self.detect_dead_assets("clean_bybit_crypto", "symbol")
@@ -269,6 +273,11 @@ class DataProfiler:
         print(full_z.sort_values('Z-Score', ascending=False).head(10).to_string(index=False))
 
         print("\n" + "="*80)
+        print("POTENTIAL BREAKOUT WATCHLIST (BOLLINGER SQUEEZE)")
+        print("="*80)
+        print(full_squeeze.to_string(index=False) if not full_squeeze.empty else "No assets currently squeezing.")
+
+        print("\n" + "="*80)
         print("TREND REVERSAL SIGNALS (MA CROSSOVER)")
         print("="*80)
         print(full_ma.to_string(index=False) if not full_ma.empty else "No new signals.")
@@ -303,7 +312,8 @@ class DataProfiler:
             print(f"\n[WARNING]: {len(dead_list)} Dead Assets identified. Examples: {', '.join(dead_list[:5])}")
 
         self.export_markdown_report(top_gainers_display, top_risk_display, sector_results, 
-                                    full_corr, dead_list, spikes_df, spread_df, gap_df, full_rsi, full_ma, full_atr, full_z)
+                                    full_corr, dead_list, spikes_df, spread_df, gap_df, 
+                                    full_rsi, full_ma, full_atr, full_z, full_squeeze)
 
     def calculate_correlation(self, asset1, asset2, table_name, symbol_col):
         """Calculates the correlation between two assets over time."""
@@ -342,7 +352,7 @@ class DataProfiler:
         ]
         return pd.DataFrame(summary)
 
-    def export_markdown_report(self, gainers, risk, sector, correlations, dead_list, spikes, spread, gaps, rsi, ma, atr, z_score):
+    def export_markdown_report(self, gainers, risk, sector, correlations, dead_list, spikes, spread, gaps, rsi, ma, atr, z_score, squeeze):
         """Saves a summary report of today's profiling results to a markdown file."""
         report_path = "reports/market_profile.md"
         os.makedirs("reports", exist_ok=True)
@@ -351,6 +361,9 @@ class DataProfiler:
             f.write("# Market Profiling Report\n\n")
             f.write("## Top 10 Gainers\n\n")
             f.write(gainers.to_markdown(index=False) + "\n\n")
+            f.write("## Potential Breakouts (Bollinger Squeeze)\n\n")
+            f.write(squeeze.to_markdown(index=False) if not squeeze.empty else "No assets currently squeezing.\n\n")
+            f.write("\n\n")
             f.write("## Statistical Outliers (Z-Score)\n\n")
             f.write(z_score.to_markdown(index=False) + "\n\n")
             f.write("## Highest Risk Assets\n\n")
