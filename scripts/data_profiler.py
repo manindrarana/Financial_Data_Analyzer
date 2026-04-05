@@ -361,6 +361,29 @@ class DataProfiler:
         """
         return self.conn.execute(query).df()
 
+    def calculate_atr(self, table_name, symbol_col, window=14):
+        """Calculates 14-day ATR for all symbols in a table."""
+        self.logger.info(f"Calculating ATR for {table_name}...")
+        tickers = self.get_tickers(table_name, symbol_col)
+        
+        atr_results = []
+        for t in tickers:
+            df = self.conn.execute(f"SELECT high, low, close FROM {table_name} WHERE {symbol_col}='{t}' ORDER BY date DESC LIMIT 30").df()
+            if len(df) < window + 1: continue
+            
+            df = df.iloc[::-1]
+            df['prev_close'] = df['close'].shift(1)
+            df['tr'] = pd.concat([
+                df['high'] - df['low'],
+                (df['high'] - df['prev_close']).abs(),
+                (df['low'] - df['prev_close']).abs()
+            ], axis=1).max(axis=1)
+            
+            atr_val = df['tr'].rolling(window).mean().iloc[-1]
+            atr_results.append({symbol_col: t, "ATR": round(atr_val, 4)})
+            
+        return pd.DataFrame(atr_results).sort_values('ATR', ascending=False)
+
     def scan_top_correlations(self, table_name, symbol_col, limit=5):
         """Scans the top 10 most volatile assets to find the strongest correlations."""
         self.logger.info(f"Scanning {table_name} for top correlations...")
