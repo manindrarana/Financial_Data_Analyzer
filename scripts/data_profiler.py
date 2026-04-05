@@ -95,6 +95,29 @@ class DataProfiler:
             
         return pd.DataFrame(rsi_results).sort_values('RSI', ascending=False)
 
+    def scan_ma_crossovers(self, table_name, symbol_col):
+        """Identifies Golden Cross (50>200) or Death Cross (50<200) signals."""
+        self.logger.info(f"Scanning {table_name} for MA Crossovers...")
+        tickers = self.get_tickers(table_name, symbol_col)
+        
+        signals = []
+        for t in tickers:
+            df = self.conn.execute(f"SELECT date, close FROM {table_name} WHERE {symbol_col}='{t}' ORDER BY date").df()
+            if len(df) < 200: continue
+            
+            df['SMA_50'] = df['close'].rolling(window=50).mean()
+            df['SMA_200'] = df['close'].rolling(window=200).mean()
+            
+            last_row = df.iloc[-1]
+            prev_row = df.iloc[-2]
+            
+            if prev_row['SMA_50'] <= prev_row['SMA_200'] and last_row['SMA_50'] > last_row['SMA_200']:
+                signals.append({"Asset": t, "Signal": "GOLDEN CROSS (BULLISH)"})
+            elif prev_row['SMA_50'] >= prev_row['SMA_200'] and last_row['SMA_50'] < last_row['SMA_200']:
+                signals.append({"Asset": t, "Signal": "DEATH CROSS (BEARISH)"})
+        
+        return pd.DataFrame(signals)
+
     def volatility_scan(self, table_name, symbol_col):
         """Calculates standard deviation of returns for each asset to find high-risk tickers."""
         self.logger.info(f"Scanning risk profiles in {table_name}...")
