@@ -23,11 +23,34 @@ class MLProfiler:
         """profiler and its configuration."""
         self.conn = get_db_connection()
         self.logger = logger
-        self.tables = [
-            ("clean_yahoo_stocks", "ticker"),
-            ("clean_bybit_crypto", "symbol")
-        ]
+        self.ml_table = "gold_ml_features"
 
+    def get_summary(self):
+        """Fetches summary of ML-Ready features."""
+        if not self.conn:
+            return pd.DataFrame()
+            
+        query = f"""
+            SELECT 
+                asset_symbol, 
+                interval, 
+                COUNT(*) as row_count,
+                MIN(date) as start_date,
+                MAX(date) as end_date
+            FROM {self.ml_table}
+            GROUP BY asset_symbol, interval
+        """
+        return self.conn.execute(query).df()
+
+    def run(self):
+        """profiling process."""
+        self.logger.info("ML PROFILER - STARTING...")
+        self.logger.info(f"ML Table: {self.ml_table}")
+        
+        summary = self.get_summary()
+        print("\nML FEATURES SUMMARY (GOLD LAYER):")
+        print(summary.to_string(index=False))
+        
     def close(self):
         """close the database connection."""
         if hasattr(self, 'conn') and self.conn:
@@ -36,6 +59,6 @@ class MLProfiler:
 if __name__ == "__main__":
     profiler = MLProfiler()
     try:
-        pass
+        profiler.run()
     finally:
         profiler.close()
