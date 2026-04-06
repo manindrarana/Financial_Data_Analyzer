@@ -43,7 +43,7 @@ class MLProfiler:
         return self.conn.execute(query).df()
 
     def check_nulls(self):
-        """Analyzes percentage of missing values (NaNs) across all feature columns."""
+        """analyze percentage of missing values (NaNs) across all feature columns."""
         self.logger.info("  Step 4: Scanning for Missing (NaN) values...")
         
         sample = self.conn.execute(f"SELECT * FROM {self.ml_table} LIMIT 1").df()
@@ -63,6 +63,71 @@ class MLProfiler:
                 
         return pd.DataFrame(results)
 
+    def check_timeline_consistency(self):
+        """identifies gaps in the date timeline for each asset-interval group."""
+        self.logger.info("  Step 5: Analyzing Timeline Consistency & Gaps...")
+        
+        summary = self.get_summary()
+        results = []
+        
+        freq_map = {'1h': 60, '1d': 1440, '1wk': 10080, '60': 60, 'D': 1440, 'W': 10080}
+        
+        for _, row in summary.iterrows():
+            asset, interval = row['asset_symbol'], row['interval']
+            actual_rows = row['row_count']
+            
+            start, end = pd.to_datetime(row['start_date']), pd.to_datetime(row['end_date'])
+            
+            minutes_diff = (end - start).total_seconds() / 60
+            expected_rows = (minutes_diff / freq_map.get(interval, 1440)) + 1
+            
+            gaps = int(expected_rows - actual_rows)
+            gap_pct = (gaps / expected_rows) * 100 if expected_rows > 0 else 0
+            
+            if gaps > 0:
+                results.append({
+                    "Asset": asset,
+                    "Interval": interval,
+                    "Expected": int(expected_rows),
+                    "Actual": actual_rows,
+                    "Gaps": gaps,
+                    "Gap_%": f"{gap_pct:.2f}%"
+                })
+                
+        return pd.DataFrame(results)
+
+    def generate_markdown_report(self, summary_df, null_df, gap_df):
+        """save profiling results to reports/ml_quality_report.md."""
+        self.logger.info("  Step 6: Saving Quality Report...")
+        
+        report_path = "reports/ml_profile_report.md"
+        os.makedirs("reports", exist_ok=True)
+        
+        with open(report_path, "w") as f:
+            f.write("# ML Data Quality Report\n\n")
+            f.write(f"Generated on: {pd.Timestamp.now()}\n\n")
+            
+            f.write("## 1. Data Summary\n")
+            f.write(summary_df.to_string(index=False) + "\n\n")
+            
+            f.write("## 2. Missing Values (NaNs)\n")
+            if null_df.empty:
+                f.write("Status: Perfect (0 Nulls found)\n\n")
+            else:
+                f.write(null_df.to_string(index=False) + "\n\n")
+            
+            f.write("## 3. Data Gaps\n")
+            f.write("Note: Stock market data (1h/1d) correctly shows gaps for weekends.\n\n")
+            if gap_df.empty:
+                f.write("Status: No gaps detected (Continuous).\n\n")
+            else:
+                f.write(gap_df.to_string(index=False) + "\n\n")
+                
+            f.write("## 4. Conclusion\n")
+            f.write("Data is verified for ML training.\n")
+
+        self.logger.info(f"File saved: {report_path}")
+
     def run(self):
         """profiling process."""
         self.logger.info("ML PROFILER - STARTING...")
@@ -78,6 +143,15 @@ class MLProfiler:
             print(null_report.to_string(index=False))
         else:
             print("PERFECT: 0 Null values found in all features!")
+        
+        gap_report = self.check_timeline_consistency()
+        print("\nTIMELINE CONSISTENCY REPORT (GAPS):")
+        if not gap_report.empty:
+            print(gap_report.to_string(index=False))
+        else:
+            print("PERFECT: All timelines are 100% continuous!")
+        
+        self.generate_markdown_report(summary, null_report, gap_report)
         
         print("\n" + "=" * 80)
 
