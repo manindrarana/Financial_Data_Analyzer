@@ -42,6 +42,27 @@ class MLProfiler:
         """
         return self.conn.execute(query).df()
 
+    def check_nulls(self):
+        """Analyzes percentage of missing values (NaNs) across all feature columns."""
+        self.logger.info("  Step 4: Scanning for Missing (NaN) values...")
+        
+        sample = self.conn.execute(f"SELECT * FROM {self.ml_table} LIMIT 1").df()
+        feature_cols = [c for c in sample.columns if c not in ['asset_symbol', 'interval', 'date', 'asset_class', 'exchange']]
+        
+        null_sqls = [f"COUNT(CASE WHEN {c} IS NULL THEN 1 END) as {c}_nulls" for c in feature_cols]
+        total_query = f"SELECT COUNT(*) as total_rows, {', '.join(null_sqls)} FROM {self.ml_table}"
+        
+        null_counts = self.conn.execute(total_query).df()
+        total_rows = null_counts['total_rows'].iloc[0]
+        
+        results = []
+        for c in feature_cols:
+            n_count = null_counts[f"{c}_nulls"].iloc[0]
+            if n_count > 0:
+                results.append({"Feature": c, "Null_Count": n_count, "Null_%": f"{(n_count/total_rows)*100:.2f}%"})
+                
+        return pd.DataFrame(results)
+
     def run(self):
         """profiling process."""
         self.logger.info("ML PROFILER - STARTING...")
@@ -51,6 +72,15 @@ class MLProfiler:
         print("\nML FEATURES SUMMARY (GOLD LAYER):")
         print(summary.to_string(index=False))
         
+        null_report = self.check_nulls()
+        print("\nNULL VALUE QUALITY REPORT:")
+        if not null_report.empty:
+            print(null_report.to_string(index=False))
+        else:
+            print("PERFECT: 0 Null values found in all features!")
+        
+        print("\n" + "=" * 80)
+
     def close(self):
         """close the database connection."""
         if hasattr(self, 'conn') and self.conn:
