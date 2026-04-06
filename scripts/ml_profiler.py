@@ -96,8 +96,8 @@ class MLProfiler:
                 
         return pd.DataFrame(results)
 
-    def generate_markdown_report(self, summary_df, null_df, gap_df):
-        """save profiling results to reports/ml_quality_report.md."""
+    def generate_markdown_report(self, summary_df, null_df, gap_df, frozen_df):
+        """saves profiling results to reports/ml_profile_report.md."""
         self.logger.info("  Step 6: Saving Quality Report...")
         
         report_path = "reports/ml_profile_report.md"
@@ -122,11 +122,47 @@ class MLProfiler:
                 f.write("Status: No gaps detected (Continuous).\n\n")
             else:
                 f.write(gap_df.to_string(index=False) + "\n\n")
+            
+            f.write("## 4. Frozen Prices \n")
+            if frozen_df.empty:
+                f.write("Status: Perfect \n\n")
+            else:
+                f.write("Assets with excessive repeated prices (>5 rows):\n\n")
+                f.write(frozen_df.to_string(index=False) + "\n\n")
                 
-            f.write("## 4. Conclusion\n")
+            f.write("## 5. Conclusion\n")
             f.write("Data is verified for ML training.\n")
 
         self.logger.info(f"File saved: {report_path}")
+
+    def check_frozen_prices(self, threshold=5):
+        """finds assets that have the exact same price for multiple candles ."""
+        self.logger.info("  Step 7: Detecting Frozen  Prices...")
+        
+        query = f"""
+            WITH price_changes AS (
+                SELECT 
+                    asset_symbol,
+                    interval,
+                    close,
+                    LAG(close) OVER (PARTITION BY asset_symbol, interval ORDER BY date) as prev_close
+                FROM {self.ml_table}
+            )
+            SELECT 
+                asset_symbol,
+                interval,
+                COUNT(*) filter (where close = prev_close) as frozen_candles,
+                COUNT(*) as total_candles
+            FROM price_changes
+            GROUP BY asset_symbol, interval
+            HAVING frozen_candles > {threshold}
+        """
+        df = self.conn.execute(query).df()
+        if not df.empty:
+            df['Frozen_%'] = (df['frozen_candles'] / df['total_candles']) * 100
+            df['Frozen_%'] = df['Frozen_%'].map('{:.2f}%'.format)
+            
+        return df
 
     def run(self):
         """profiling process."""
@@ -151,7 +187,14 @@ class MLProfiler:
         else:
             print("PERFECT: All timelines are 100% continuous!")
         
-        self.generate_markdown_report(summary, null_report, gap_report)
+        frozen_report = self.check_frozen_prices()
+        print("\nFROZEN PRICE REPORT:")
+        if not frozen_report.empty:
+            print(frozen_report.to_string(index=False))
+        else:
+            print("PERFECT: No frozen prices detected!")
+            
+        self.generate_markdown_report(summary, null_report, gap_report, frozen_report)
         
         print("\n" + "=" * 80)
 
