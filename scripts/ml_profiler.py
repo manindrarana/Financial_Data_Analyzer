@@ -96,7 +96,7 @@ class MLProfiler:
                 
         return pd.DataFrame(results)
 
-    def generate_markdown_report(self, summary_df, null_df, gap_df, frozen_df):
+    def generate_markdown_report(self, summary_df, null_df, gap_df, frozen_df, spike_df):
         """saves profiling results to reports/ml_profile_report.md."""
         self.logger.info("  Step 6: Saving Quality Report...")
         
@@ -129,8 +129,15 @@ class MLProfiler:
             else:
                 f.write("Assets with excessive repeated prices (>5 rows):\n\n")
                 f.write(frozen_df.to_string(index=False) + "\n\n")
+            
+            f.write("## 5. Extreme Spikes (Outliers)\n")
+            if spike_df.empty:
+                f.write("Status: Perfect (No spikes detected)\n\n")
+            else:
+                f.write("Assets with flash crashes/spikes (>5 standard deviations):\n\n")
+                f.write(spike_df.to_string(index=False) + "\n\n")
                 
-            f.write("## 5. Conclusion\n")
+            f.write("## 6. Conclusion\n")
             f.write("Data is verified for ML training.\n")
 
         self.logger.info(f"File saved: {report_path}")
@@ -225,7 +232,7 @@ class MLProfiler:
         else:
             print("PERFECT: No extreme spikes detected!")
             
-        self.generate_markdown_report(summary, null_report, gap_report, frozen_report)
+        self.generate_markdown_report(summary, null_report, gap_report, frozen_report, spike_report)
         
         print("\n" + "=" * 80)
 
