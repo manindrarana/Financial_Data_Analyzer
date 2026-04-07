@@ -84,7 +84,10 @@ services:
     volumes:
       - mlflow_data:/mlruns
     command: >
-      bash -c "pip install mlflow && mlflow ui --host 0.0.0.0 --backend-store-uri sqlite:////mlruns/mlflow.db --default-artifact-root /mlruns"
+      bash -c "pip install --upgrade pip && 
+               pip install mlflow && 
+               mlflow db upgrade sqlite:////mlruns/mlflow.db && 
+               mlflow server --host 0.0.0.0 --backend-store-uri sqlite:////mlruns/mlflow.db --default-artifact-root /mlruns"
     networks:
       - custom_net
 
