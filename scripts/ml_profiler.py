@@ -164,6 +164,30 @@ class MLProfiler:
             
         return df
 
+    def check_outliers(self, z_threshold=5):
+        """identifies extreme price spikes (moves > 5 standard deviations)."""
+        self.logger.info(f"  Step 8: Analyzing Extreme Spikes (Z-Score > {z_threshold})...")
+        
+        query = f"""
+            WITH stats AS (
+                SELECT 
+                    asset_symbol,
+                    AVG(log_returns) as avg_ret,
+                    STDDEV(log_returns) as std_ret
+                FROM {self.ml_table}
+                GROUP BY asset_symbol
+            )
+            SELECT 
+                t.asset_symbol,
+                t.interval,
+                COUNT(*) as spike_candles
+            FROM {self.ml_table} t
+            JOIN stats s ON t.asset_symbol = s.asset_symbol
+            WHERE ABS(t.log_returns - s.avg_ret) > ({z_threshold} * s.std_ret)
+            GROUP BY t.asset_symbol, t.interval
+        """
+        return self.conn.execute(query).df()
+
     def run(self):
         """profiling process."""
         self.logger.info("ML PROFILER - STARTING...")
