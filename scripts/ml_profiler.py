@@ -218,6 +218,13 @@ class MLProfiler:
         else:
             print("PERFECT: No frozen prices detected!")
             
+        spike_report = self.check_outliers()
+        print("\nEXTREME SPIKE REPORT (OUTLIERS):")
+        if not spike_report.empty:
+            print(spike_report.to_string(index=False))
+        else:
+            print("PERFECT: No extreme spikes detected!")
+            
         self.generate_markdown_report(summary, null_report, gap_report, frozen_report)
         
         print("\n" + "=" * 80)
