@@ -42,7 +42,7 @@ services:
     env_file:
       - .env
     volumes:
-      - duckdb_data:/app/database
+      - ./database:/app/database
       - .:/app
 
     restart: unless-stopped
@@ -67,7 +67,7 @@ services:
     user: "root"
     volumes:
       - superset_home:/app/superset_home
-      - duckdb_data:/app/database
+      - ./database:/app/database
     command: >
       bash -c "pip install duckdb-engine &&
                python -c 'import duckdb; conn = duckdb.connect(); conn.execute(\"INSTALL httpfs\"); conn.close()' &&
@@ -94,7 +94,6 @@ services:
 volumes:
   minio_data:
   superset_home:
-  duckdb_data:
   mlflow_data:
 
 networks:
