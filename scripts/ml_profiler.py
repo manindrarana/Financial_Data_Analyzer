@@ -266,6 +266,14 @@ class MLProfiler:
         else:
             print("PERFECT: No extreme spikes detected!")
             
+        dupes, drifts = self.check_timestamp_integrity()
+        print("\nTIMESTAMP INTEGRITY REPORT:")
+        if dupes.empty and drifts.empty:
+            print("PERFECT: No duplicates or interval drift detected!")
+        else:
+            if not dupes.empty: print(f"DUPLICATES FOUND: {len(dupes)} rows")
+            if not drifts.empty: print(f"DRIFT DETECTED: {len(drifts)} asset-groups have irregular gaps")
+            
         self.generate_markdown_report(summary, null_report, gap_report, frozen_report, spike_report)
         
         print("\n" + "=" * 80)
