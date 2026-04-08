@@ -195,6 +195,40 @@ class MLProfiler:
         """
         return self.conn.execute(query).df()
 
+    def check_timestamp_integrity(self):
+        """checks for duplicate timestamps and inconsistent interval deltas (time drift)."""
+        self.logger.info("  Step 9: Analyzing Timestamp & Interval Integrity...")
+        
+        dup_query = f"""
+            SELECT asset_symbol, interval, date, COUNT(*) as occurs
+            FROM {self.ml_table}
+            GROUP BY asset_symbol, interval, date
+            HAVING occurs > 1
+        """
+        dupes = self.conn.execute(dup_query).df()
+        
+        query = f"""
+            WITH deltas AS (
+                SELECT 
+                    asset_symbol,
+                    interval,
+                    date,
+                    LAG(date) OVER (PARTITION BY asset_symbol, interval ORDER BY date) as prev_date
+                FROM {self.ml_table}
+            )
+            SELECT 
+                asset_symbol,
+                interval,
+                COUNT(*) as drift_events
+            FROM deltas
+            WHERE prev_date IS NOT NULL
+            AND (epoch(date) - epoch(prev_date)) NOT IN (3600, 86400, 604800)
+            GROUP BY asset_symbol, interval
+        """
+        drifts = self.conn.execute(query).df()
+        
+        return dupes, drifts
+
     def run(self):
         """profiling process."""
         self.logger.info("ML PROFILER - STARTING...")
