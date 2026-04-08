@@ -96,7 +96,7 @@ class MLProfiler:
                 
         return pd.DataFrame(results)
 
-    def generate_markdown_report(self, summary_df, null_df, gap_df, frozen_df, spike_df):
+    def generate_markdown_report(self, summary_df, null_df, gap_df, frozen_df, spike_df, dupes_df, drifts_df):
         """saves profiling results to reports/ml_profile_report.md."""
         self.logger.info("  Step 6: Saving Quality Report...")
         
@@ -136,8 +136,18 @@ class MLProfiler:
             else:
                 f.write("Assets with flash crashes/spikes (>5 standard deviations):\n\n")
                 f.write(spike_df.to_string(index=False) + "\n\n")
+            
+            f.write("## 6. Timestamp & Interval Integrity\n")
+            if dupes_df.empty and drifts_df.empty:
+                f.write("Status: Perfect (No duplicates or drift detected).\n\n")
+            else:
+                if not dupes_df.empty:
+                    f.write(f"Duplicated Timestamps: {len(dupes_df)} cases found.\n")
+                if not drifts_df.empty:
+                    f.write("Inconsistent Interval Deltas (Time Drift):\n")
+                    f.write(drifts_df.to_string(index=False) + "\n\n")
                 
-            f.write("## 6. Conclusion\n")
+            f.write("## 7. Conclusion\n")
             f.write("Data is verified for ML training.\n")
 
         self.logger.info(f"File saved: {report_path}")
@@ -274,7 +284,7 @@ class MLProfiler:
             if not dupes.empty: print(f"DUPLICATES FOUND: {len(dupes)} rows")
             if not drifts.empty: print(f"DRIFT DETECTED: {len(drifts)} asset-groups have irregular gaps")
             
-        self.generate_markdown_report(summary, null_report, gap_report, frozen_report, spike_report)
+        self.generate_markdown_report(summary, null_report, gap_report, frozen_report, spike_report, dupes, drifts)
         
         print("\n" + "=" * 80)
 
