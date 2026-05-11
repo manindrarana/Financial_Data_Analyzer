@@ -12,3 +12,7 @@ data/analytics/*
 *.log
 .pytest_cache/
 notebooks/.ipynb_checkpoints/
+
+# Obsidian notes
+obsidian_notes/
+.obsidian/

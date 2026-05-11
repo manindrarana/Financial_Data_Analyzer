@@ -86,10 +86,10 @@ class TechnicalIndicatorProcessor:
         df['volume_sma_20'] = df['volume'].rolling(window=20).mean()
         df['volume_ratio'] = df['volume'] / df['volume_sma_20'].replace(0, 1)
         
-        df['returns_1d'] = df['close'].pct_change(periods=1)
-        df['returns_5d'] = df['close'].pct_change(periods=5)
-        df['returns_10d'] = df['close'].pct_change(periods=10)
-        df['returns_20d'] = df['close'].pct_change(periods=20)
+        df['returns_1p'] = df['close'].pct_change(periods=1)
+        df['returns_5p'] = df['close'].pct_change(periods=5)
+        df['returns_10p'] = df['close'].pct_change(periods=10)
+        df['returns_20p'] = df['close'].pct_change(periods=20)
         
         df['log_returns'] = np.log(df['close'] / df['close'].shift(1))
         
