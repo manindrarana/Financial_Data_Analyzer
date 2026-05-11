@@ -79,30 +79,30 @@ class FeatureAnalyzer:
         else:
             self.logger.info("No highly correlated pairs found")
         
-        if 'returns_1d' in indicator_cols:
-            target_corr = corr_matrix['returns_1d'].drop('returns_1d').sort_values(key=abs, ascending=False)
+        if 'returns_1p' in indicator_cols:
+            target_corr = corr_matrix['returns_1p'].drop('returns_1p').sort_values(key=abs, ascending=False)
             stats_df['target_correlation'] = stats_df['feature_name'].map(target_corr)
             
-            self.logger.info("\nTop 10 features correlated with returns_1d:")
+            self.logger.info("\nTop 10 features correlated with returns_1p:")
             for feat, corr in target_corr.head(10).items():
                 self.logger.info(f"  {feat}: {corr:.4f}")
         
         self.logger.info("\n--- Feature Importance Ranking ---")
         
-        leakage_cols = ['returns_1d', 'returns_5d', 'returns_10d', 'returns_20d', 'log_returns']
+        leakage_cols = ['returns_1p', 'returns_5p', 'returns_10p', 'returns_20p', 'log_returns']
         feature_cols = [col for col in indicator_cols if col not in leakage_cols]
         
         self.logger.info(f"Excluded {len(leakage_cols)} leakage features (returns-based)")
         self.logger.info(f"Analyzing {len(feature_cols)} valid predictive features")
         
-        df_clean = df[feature_cols + ['returns_1d']].dropna()
+        df_clean = df[feature_cols + ['returns_1p']].dropna()
         
         if len(df_clean) < 1000:
             self.logger.warning("Not enough data for importance analysis")
             stats_df['importance_score'] = 0.0
         else:
             X = df_clean[feature_cols]
-            y = df_clean['returns_1d']
+            y = df_clean['returns_1p']
             
             sample_size = min(10000, len(X))
             self.logger.info(f"Training RandomForest on {sample_size} samples...")
