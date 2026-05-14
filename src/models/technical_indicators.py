@@ -161,6 +161,8 @@ class TechnicalIndicatorProcessor:
             final_df['join_date'] = pd.to_datetime(final_df['date']).dt.floor('h')
             df_macro_all['join_date'] = pd.to_datetime(df_macro_all['date']).dt.floor('h')
             
+            df_macro_all = df_macro_all.groupby(['join_date', 'interval']).first().reset_index()
+            
             final_df = pd.merge(
                 final_df, 
                 df_macro_all.drop(columns=['date']), 
