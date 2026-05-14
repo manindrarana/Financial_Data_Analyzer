@@ -25,6 +25,9 @@ ingestion:
       - "AMZN"
       - "TSLA"
       - "META"
+      - "DX-Y.NYB"
+      - "^VIX"
+      - "^TNX"
     bybit:
       - "BTCUSDT"
       - "ETHUSDT"
