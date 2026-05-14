@@ -153,6 +153,19 @@ class TechnicalIndicatorProcessor:
         final_df = pd.concat(result_dfs, ignore_index=True)
         self.logger.info(f"Combined data from {len(result_dfs)} asset-interval groups")
         
+        try:
+            self.logger.info("Joining Macro Features (Matching Interval)...")
+            macro_query = "SELECT * FROM clean_macro_features"
+            df_macro_all = self.conn.execute(macro_query).df()
+            
+            final_df = pd.merge(final_df, df_macro_all, on=['date', 'interval'], how='left')
+            
+            macro_cols = ['dxy_close', 'vix_close', 'tnx_close']
+            final_df[macro_cols] = final_df.groupby(['asset_symbol', 'interval'])[macro_cols].ffill()
+            self.logger.info(f"Macro features joined for {len(final_df)} rows.")
+        except Exception as e:
+            self.logger.warning(f"Could not join macro features: {e}. Proceeding with technical indicators only.")
+
         initial_rows = len(final_df)
         final_df = final_df.dropna()
         dropped_rows = initial_rows - len(final_df)
