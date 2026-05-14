@@ -20,7 +20,7 @@ class TechnicalIndicatorProcessor:
         with open("configs/settings.yml", "r") as f:
             self.config = yaml.safe_load(f)
             
-        self.db_path = self.config["paths"]["database"]
+        self.db_path = os.getenv("DATABASE_PATH", self.config["paths"]["database"])
         self.analytics_bucket = self.config["paths"].get("analytics_bucket", "analytics-data")
         self.conn = duckdb.connect(self.db_path)
         
@@ -158,7 +158,16 @@ class TechnicalIndicatorProcessor:
             macro_query = "SELECT * FROM clean_macro_features"
             df_macro_all = self.conn.execute(macro_query).df()
             
-            final_df = pd.merge(final_df, df_macro_all, on=['date', 'interval'], how='left')
+            final_df['join_date'] = pd.to_datetime(final_df['date']).dt.floor('h')
+            df_macro_all['join_date'] = pd.to_datetime(df_macro_all['date']).dt.floor('h')
+            
+            final_df = pd.merge(
+                final_df, 
+                df_macro_all.drop(columns=['date']), 
+                on=['join_date', 'interval'], 
+                how='left'
+            )
+            final_df.drop(columns=['join_date'], inplace=True)
             
             macro_cols = ['dxy_close', 'vix_close', 'tnx_close']
             final_df[macro_cols] = final_df.groupby(['asset_symbol', 'interval'])[macro_cols].ffill()
