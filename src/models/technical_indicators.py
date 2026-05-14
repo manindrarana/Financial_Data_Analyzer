@@ -20,7 +20,7 @@ class TechnicalIndicatorProcessor:
         with open("configs/settings.yml", "r") as f:
             self.config = yaml.safe_load(f)
             
-        self.db_path = os.getenv("DATABASE_PATH", self.config["paths"]["database"])
+        self.db_path = self.config["paths"]["database"]
         self.analytics_bucket = self.config["paths"].get("analytics_bucket", "analytics-data")
         self.conn = duckdb.connect(self.db_path)
         
@@ -153,34 +153,10 @@ class TechnicalIndicatorProcessor:
         final_df = pd.concat(result_dfs, ignore_index=True)
         self.logger.info(f"Combined data from {len(result_dfs)} asset-interval groups")
         
-        try:
-            self.logger.info("Joining Macro Features (Matching Interval)...")
-            macro_query = "SELECT * FROM clean_macro_features"
-            df_macro_all = self.conn.execute(macro_query).df()
-            
-            final_df['join_date'] = pd.to_datetime(final_df['date']).dt.floor('h')
-            df_macro_all['join_date'] = pd.to_datetime(df_macro_all['date']).dt.floor('h')
-            
-            df_macro_all = df_macro_all.groupby(['join_date', 'interval']).first().reset_index()
-            
-            final_df = pd.merge(
-                final_df, 
-                df_macro_all.drop(columns=['date']), 
-                on=['join_date', 'interval'], 
-                how='left'
-            )
-            final_df.drop(columns=['join_date'], inplace=True)
-            
-            self.logger.info(f"Macro features joined for {len(final_df)} rows.")
-        except Exception as e:
-            self.logger.warning(f"Could not join macro features: {e}. Proceeding with technical indicators only.")
-
         initial_rows = len(final_df)
-        
         final_df = final_df.dropna()
-        
         dropped_rows = initial_rows - len(final_df)
-        self.logger.info(f"Dropped {dropped_rows} rows with NaN values (Strict data cleaning)")
+        self.logger.info(f"Dropped {dropped_rows} rows with NaN values (indicator warm-up period)")
         
         self.conn.execute("DROP TABLE IF EXISTS gold_ml_features")
         self.conn.execute("""

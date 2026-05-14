@@ -11,7 +11,7 @@ class DataCleaner:
         
         with open("configs/settings.yml", "r") as f:
             cfg = yaml.safe_load(f)
-        self.db_path = os.getenv("DATABASE_PATH", cfg["paths"]["database"])
+        self.db_path = cfg["paths"]["database"]
         self.processed_bucket = cfg["paths"].get("processed_bucket", "processed-data")
         self.conn = duckdb.connect(self.db_path)
         
@@ -95,76 +95,14 @@ class DataCleaner:
         """)
         self.logger.info("Export successful!")
 
-    def clean_macro(self):
-        """Build a universal macro table for all intervals (1h, 1d, 1wk, 1mo)."""
-        self.logger.info("=" * 60)
-        self.logger.info("Building clean_macro_features for all intervals...")
-        self.logger.info("=" * 60)
-
-        self.conn.execute("DROP TABLE IF EXISTS clean_macro_features")
-        self.conn.execute("""
-            CREATE TABLE clean_macro_features (
-                interval VARCHAR,
-                date TIMESTAMP,
-                dxy_close DOUBLE,
-                vix_close DOUBLE,
-                tnx_close DOUBLE
-            )
-        """)
-
-        intervals = ["1h", "1d", "1wk", "1mo"]
-        for interval in intervals:
-            try:
-                self.logger.info(f"  Processing macro data for interval: {interval}")
-                self.conn.execute(f"""
-                    INSERT INTO clean_macro_features
-                    WITH dxy AS (
-                        SELECT CAST(date AS TIMESTAMP) AS date, close AS dxy_close
-                        FROM read_parquet('s3://raw-data/DX-Y.NYB_{interval}.parquet')
-                        WHERE close IS NOT NULL AND close > 0
-                    ),
-                    vix AS (
-                        SELECT CAST(date AS TIMESTAMP) AS date, close AS vix_close
-                        FROM read_parquet('s3://raw-data/^VIX_{interval}.parquet')
-                        WHERE close IS NOT NULL AND close > 0
-                    ),
-                    tnx AS (
-                        SELECT CAST(date AS TIMESTAMP) AS date, close AS tnx_close
-                        FROM read_parquet('s3://raw-data/^TNX_{interval}.parquet')
-                        WHERE close IS NOT NULL AND close > 0
-                    )
-                    SELECT
-                        '{interval}' AS interval,
-                        COALESCE(dxy.date, vix.date, tnx.date) AS date,
-                        dxy.dxy_close,
-                        vix.vix_close,
-                        tnx.tnx_close
-                    FROM dxy
-                    FULL OUTER JOIN vix ON dxy.date = vix.date
-                    FULL OUTER JOIN tnx ON dxy.date = tnx.date
-                """)
-            except Exception as e:
-                self.logger.warning(f"  Skipped interval {interval} for macro features: {e}")
-
-        cnt = self.conn.execute("SELECT COUNT(*) FROM clean_macro_features").fetchone()[0]
-        self.logger.info(f"Total rows in clean_macro_features: {cnt}")
-
-        self.logger.info(f"Exporting clean_macro_features to MinIO...")
-        self.conn.execute(f"""
-            COPY clean_macro_features 
-            TO 's3://{self.processed_bucket}/clean_macro_features.parquet' (FORMAT PARQUET)
-        """)
-        self.logger.info("Export successful!")
-
     def run(self):
         self.logger.info("*" * 60)
         self.logger.info("Starting Data Cleaning Process")
         self.logger.info("*" * 60)
-
+        
         self.clean_yahoo()
         self.clean_bybit()
-        self.clean_macro()
-
+        
         self.logger.info("*" * 60)
         self.logger.info("Data Cleaning Completed")
         self.logger.info("*" * 60)

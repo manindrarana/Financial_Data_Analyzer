@@ -5,9 +5,12 @@ import pandas as pd
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import yfinance as yf
+import requests
 from src.utils import get_logger
 import duckdb
-from requests_ratelimiter import LimiterSession
+from pyrate_limiter import Duration, RequestRate, Limiter
+from requests_cache import CacheMixin, SQLiteCache
+from requests_ratelimiter import  LimiterSession
 import random
 
 
@@ -26,43 +29,22 @@ class YahooFinanceClient:
         })
 
     def get_last_fetched_date(self, ticker: str, interval: str):
-        """Query DuckDB or S3 for the latest date of fetched data."""
+        """Query DuckDB for the latest date of fetched data for the given ticker and interval."""
         db_path = self.config["paths"]["database"]
+        if not os.path.exists(db_path):
+            return None
         
-        if os.path.exists(db_path):
-            conn = None
-            try:
-                conn = duckdb.connect(db_path, read_only=True)
-                query = f"SELECT MAX(date) FROM clean_yahoo_stocks WHERE ticker='{ticker}' AND interval='{interval}'"
-                res = conn.execute(query).fetchone()
-                if res and res[0]:
-                    return res[0]
-            except Exception:
-                pass
-            finally:
-                if conn:
-                    conn.close()
-        
-        s3_bucket = self.config["paths"].get("s3_bucket", "raw-data")
-        file_path = f"s3://{s3_bucket}/{ticker}_{interval}.parquet"
-        
-        default_endpoint = "http://minio:9000" if os.path.exists("/.dockerenv") else "http://localhost:9000"
-        s3_endpoint = os.getenv("S3_ENDPOINT_URL", default_endpoint)
-        
-        s3_storage_options = {
-            "client_kwargs": {"endpoint_url": s3_endpoint},
-            "key": os.getenv("AWS_ACCESS_KEY_ID"),
-            "secret": os.getenv("AWS_SECRET_ACCESS_KEY")
-        }
-        
+        conn = None
         try:
-            df = pd.read_parquet(file_path, storage_options=s3_storage_options, columns=['date'])
-            if not df.empty:
-                return df['date'].max()
+            conn = duckdb.connect(db_path, read_only=True)
+            query = f"SELECT MAX(date) FROM clean_yahoo_stocks WHERE ticker='{ticker}' AND interval='{interval}'"
+            res = conn.execute(query).fetchone()
+            return res[0] if res and res[0] else None
         except Exception:
-            pass
-            
-        return None
+            return None
+        finally:
+            if conn:
+                conn.close()
 
     def fetch_data(self, ticker: str):
         """
@@ -94,11 +76,20 @@ class YahooFinanceClient:
                 retry_count = 0
                 df = pd.DataFrame()
                 
+                USER_AGENTS = [
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0",
+                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+                ]
 
                 while retry_count < max_retries:
                     try:
-                        time.sleep(1 + (retry_count * 2))
-                        df = yf.download(ticker, start=start_date, interval=interval, progress=False)
+                        time.sleep(1 + (retry_count * 2)) 
+                        with requests.Session() as fresh_session:
+                            fresh_session.headers.update({"User-Agent": random.choice(USER_AGENTS)})
+                            
+                            df = yf.download(ticker, start=start_date, interval=interval, progress=False, session=fresh_session)
                         
                         if not df.empty:
                             break  
@@ -140,11 +131,8 @@ class YahooFinanceClient:
                 s3_bucket = self.config["paths"].get("s3_bucket", "raw-data")
                 file_path = f"s3://{s3_bucket}/{filename}"
                 
-                default_endpoint = "http://minio:9000" if os.path.exists("/.dockerenv") else "http://localhost:9000"
-                s3_endpoint = os.getenv("S3_ENDPOINT_URL", default_endpoint)
-                
                 s3_storage_options = {
-                    "client_kwargs": {"endpoint_url": s3_endpoint},
+                    "client_kwargs": {"endpoint_url": os.getenv("S3_ENDPOINT_URL", "http://localhost:9000")},
                     "key": os.getenv("AWS_ACCESS_KEY_ID"),
                     "secret": os.getenv("AWS_SECRET_ACCESS_KEY")
                 }
@@ -177,4 +165,3 @@ if __name__ == "__main__":
     client = YahooFinanceClient()
     client.fetch_data("AAPL")
     client.close()
-
