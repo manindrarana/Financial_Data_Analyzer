@@ -176,9 +176,11 @@ class TechnicalIndicatorProcessor:
             self.logger.warning(f"Could not join macro features: {e}. Proceeding with technical indicators only.")
 
         initial_rows = len(final_df)
+        
         final_df = final_df.dropna()
+        
         dropped_rows = initial_rows - len(final_df)
-        self.logger.info(f"Dropped {dropped_rows} rows with NaN values (indicator warm-up period)")
+        self.logger.info(f"Dropped {dropped_rows} rows with NaN values (Strict data cleaning)")
         
         self.conn.execute("DROP TABLE IF EXISTS gold_ml_features")
         self.conn.execute("""
