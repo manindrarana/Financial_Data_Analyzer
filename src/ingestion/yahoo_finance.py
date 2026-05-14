@@ -165,4 +165,3 @@ if __name__ == "__main__":
     client = YahooFinanceClient()
     client.fetch_data("AAPL")
     client.close()
-
