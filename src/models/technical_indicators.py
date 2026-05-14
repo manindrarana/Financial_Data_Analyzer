@@ -171,8 +171,6 @@ class TechnicalIndicatorProcessor:
             )
             final_df.drop(columns=['join_date'], inplace=True)
             
-            macro_cols = ['dxy_close', 'vix_close', 'tnx_close']
-            final_df[macro_cols] = final_df.groupby(['asset_symbol', 'interval'])[macro_cols].ffill()
             self.logger.info(f"Macro features joined for {len(final_df)} rows.")
         except Exception as e:
             self.logger.warning(f"Could not join macro features: {e}. Proceeding with technical indicators only.")
