@@ -31,66 +31,54 @@ class GoldLayerProcessor:
             );
         """)
         
-    def generate_unified_gold_layer(self):
-        """Build Gold layer from fact_price_history with dimension"""
+    def generate_intermediate_gold_layers(self):
+        """Build specialized intermediate tables for Crypto and Stocks"""
         self.logger.info("=" * 60)
-        self.logger.info("Building Intermediate Analytics Table (input for Technical Indicators)...")
+        self.logger.info("Building Specialized Intermediate Gold Layers")
         self.logger.info("=" * 60)
         
-        self.conn.execute("DROP TABLE IF EXISTS gold_financial_analytics")
-        
+        self.logger.info("--- Generating gold_crypto_analytics ---")
+        self.conn.execute("DROP TABLE IF EXISTS gold_crypto_analytics")
         self.conn.execute("""
-            CREATE TABLE gold_financial_analytics AS
+            CREATE TABLE gold_crypto_analytics AS
             SELECT 
-                da.asset_symbol,
-                da.asset_class,
-                da.exchange,
-                di.interval_code AS interval,
-                f.timestamp AS date,
-                f.open,
-                f.high,
-                f.low,
-                f.close,
-                f.volume,
-                f.daily_volatility,
-                
-                -- 7-Period Simple Moving Average (partitioned by asset + interval)
-                AVG(f.close) OVER (
-                    PARTITION BY da.asset_symbol, di.interval_code 
-                    ORDER BY f.timestamp 
-                    ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
-                ) AS sma_7,
-                
-                -- 30-Period Simple Moving Average (partitioned by asset + interval)
-                AVG(f.close) OVER (
-                    PARTITION BY da.asset_symbol, di.interval_code 
-                    ORDER BY f.timestamp 
-                    ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
-                ) AS sma_30
-                
+                da.asset_symbol, da.asset_class, da.exchange,
+                di.interval_code AS interval, f.timestamp AS date,
+                f.open, f.high, f.low, f.close, f.volume, f.daily_volatility,
+                AVG(f.close) OVER (PARTITION BY da.asset_symbol, di.interval_code ORDER BY f.timestamp ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS sma_7,
+                AVG(f.close) OVER (PARTITION BY da.asset_symbol, di.interval_code ORDER BY f.timestamp ROWS BETWEEN 29 PRECEDING AND CURRENT ROW) AS sma_30
             FROM fact_price_history f
             JOIN dim_assets da ON f.asset_id = da.asset_id
-            JOIN dim_date dd ON f.date_id = dd.date_id
             JOIN dim_interval di ON f.interval_id = di.interval_id
-            ORDER BY da.asset_class, da.asset_symbol, di.interval_code, f.timestamp;
+            WHERE da.asset_class = 'crypto'
+            ORDER BY da.asset_symbol, di.interval_code, f.timestamp;
         """)
         
-        cnt = self.conn.execute("SELECT COUNT(*) FROM gold_financial_analytics").fetchone()[0]
-        self.logger.info(f"Successfully generated Unified Gold Table with {cnt} rows!")
-        
-        out_path = f"s3://{self.analytics_bucket}/gold_financial_analytics.parquet"
-        try:
-            self.conn.execute(f"COPY gold_financial_analytics TO '{out_path}' (FORMAT PARQUET)")
-            self.logger.info(f"Successfully exported Unified Gold Layer to MinIO: {out_path}")
-        except Exception as e:
-            self.logger.error(f"Failed to export Unified Gold Layer to MinIO: {e}")
+        self.logger.info("--- Generating gold_stock_analytics ---")
+        self.conn.execute("DROP TABLE IF EXISTS gold_stock_analytics")
+        self.conn.execute("""
+            CREATE TABLE gold_stock_analytics AS
+            SELECT 
+                da.asset_symbol, da.asset_class, da.exchange,
+                di.interval_code AS interval, f.timestamp AS date,
+                f.open, f.high, f.low, f.close, f.volume, f.daily_volatility,
+                AVG(f.close) OVER (PARTITION BY da.asset_symbol, di.interval_code ORDER BY f.timestamp ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS sma_7,
+                AVG(f.close) OVER (PARTITION BY da.asset_symbol, di.interval_code ORDER BY f.timestamp ROWS BETWEEN 29 PRECEDING AND CURRENT ROW) AS sma_30
+            FROM fact_price_history f
+            JOIN dim_assets da ON f.asset_id = da.asset_id
+            JOIN dim_interval di ON f.interval_id = di.interval_id
+            WHERE da.asset_class = 'stock'
+            ORDER BY da.asset_symbol, di.interval_code, f.timestamp;
+        """)
+
+        self.logger.info("Successfully generated specialized Intermediate Gold Layers!")
 
     def run(self):
         self.logger.info("*" * 60)
         self.logger.info("Starting Gold/Analytics Generation Process")
         self.logger.info("*" * 60)
         
-        self.generate_unified_gold_layer()
+        self.generate_intermediate_gold_layers()
         
         self.logger.info("*" * 60)
         self.logger.info("Analytics Processing Completed")
