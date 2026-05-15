@@ -105,9 +105,9 @@ class TechnicalIndicatorProcessor:
         return df
     
     def generate_ml_features_table(self):
-        """Generate gold_ml_features table with all technical indicators"""
+        """Generate asset-class specific gold feature tables with all technical indicators"""
         self.logger.info("=" * 60)
-        self.logger.info("Building ML Features Table: gold_ml_features")
+        self.logger.info("Building Specialized Gold Feature Stores")
         self.logger.info("=" * 60)
         
         query = """
@@ -153,33 +153,30 @@ class TechnicalIndicatorProcessor:
         final_df = pd.concat(result_dfs, ignore_index=True)
         self.logger.info(f"Combined data from {len(result_dfs)} asset-interval groups")
         
-        initial_rows = len(final_df)
-        final_df = final_df.dropna()
-        dropped_rows = initial_rows - len(final_df)
-        self.logger.info(f"Dropped {dropped_rows} rows with NaN values (indicator warm-up period)")
-        
-        self.conn.execute("DROP TABLE IF EXISTS gold_ml_features")
-        self.conn.execute("""
-            CREATE TABLE gold_ml_features AS 
-            SELECT * FROM final_df
-            ORDER BY asset_class, asset_symbol, interval, date
-        """)
-        
-        cnt = self.conn.execute("SELECT COUNT(*) FROM gold_ml_features").fetchone()[0]
-        self.logger.info(f"Successfully created gold_ml_features with {cnt} rows!")
-        
-        indicator_cols = [col for col in final_df.columns if col not in 
-                         ['asset_symbol', 'asset_class', 'exchange', 'interval', 'date', 
-                          'open', 'high', 'low', 'close', 'volume']]
-        self.logger.info(f"Total indicators calculated: {len(indicator_cols)}")
-        self.logger.info(f"Indicators: {', '.join(indicator_cols[:10])}...")
-        
-        out_path = f"s3://{self.analytics_bucket}/ml_features.parquet"
-        try:
-            self.conn.execute(f"COPY gold_ml_features TO '{out_path}' (FORMAT PARQUET)")
-            self.logger.info(f"Successfully exported ML Features to MinIO: {out_path}")
-        except Exception as e:
-            self.logger.error(f"Failed to export ML Features to MinIO: {e}")
+        for asset_class in final_df['asset_class'].unique():
+            class_df = final_df[final_df['asset_class'] == asset_class].copy()
+            initial_rows = len(class_df)
+            class_df = class_df.dropna()
+            
+            self.logger.info(f"--- Processing {asset_class.upper()} Gold Store ---")
+            self.logger.info(f"Dropped {initial_rows - len(class_df)} rows with NaNs (warm-up)")
+            
+            table_name = f"gold_{asset_class}_features"
+            self.conn.execute(f"DROP TABLE IF EXISTS {table_name}")
+            
+            self.conn.register('temp_class_df', class_df)
+            self.conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM temp_class_df ORDER BY asset_symbol, interval, date")
+            self.conn.unregister('temp_class_df')
+            
+            cnt = self.conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
+            self.logger.info(f"Successfully created {table_name} with {cnt} rows!")
+            
+            out_path = f"s3://{self.analytics_bucket}/{asset_class}_features.parquet"
+            try:
+                self.conn.execute(f"COPY {table_name} TO '{out_path}' (FORMAT PARQUET)")
+                self.logger.info(f"Exported to MinIO: {out_path}")
+            except Exception as e:
+                self.logger.error(f"Failed to export {asset_class} Features to MinIO: {e}")
     
     def run(self):
         self.logger.info("*" * 60)
