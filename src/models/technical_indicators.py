@@ -148,7 +148,8 @@ class TechnicalIndicatorProcessor:
             self.logger.info(f"--- Processing {asset_class.upper()} Gold Store ---")
             self.logger.info(f"Dropped {initial_rows - len(class_df)} rows with NaNs (warm-up)")
             
-            table_name = f"gold_{asset_class}_features"
+            class_key = asset_class.lower()
+            table_name = f"gold_{class_key}_features"
             self.conn.execute(f"DROP TABLE IF EXISTS {table_name}")
             
             self.conn.register('temp_class_df', class_df)
@@ -158,7 +159,7 @@ class TechnicalIndicatorProcessor:
             cnt = self.conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
             self.logger.info(f"Successfully created {table_name} with {cnt} rows!")
             
-            out_path = f"s3://{self.analytics_bucket}/{asset_class}_features.parquet"
+            out_path = f"s3://{self.analytics_bucket}/{class_key}_features.parquet"
             try:
                 self.conn.execute(f"COPY {table_name} TO '{out_path}' (FORMAT PARQUET)")
                 self.logger.info(f"Exported to MinIO: {out_path}")
