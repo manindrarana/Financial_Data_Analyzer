@@ -50,7 +50,7 @@ class GoldLayerProcessor:
             FROM fact_price_history f
             JOIN dim_assets da ON f.asset_id = da.asset_id
             JOIN dim_interval di ON f.interval_id = di.interval_id
-            WHERE da.asset_class = 'crypto'
+            WHERE da.asset_class = 'Crypto'
             ORDER BY da.asset_symbol, di.interval_code, f.timestamp;
         """)
         
@@ -67,7 +67,7 @@ class GoldLayerProcessor:
             FROM fact_price_history f
             JOIN dim_assets da ON f.asset_id = da.asset_id
             JOIN dim_interval di ON f.interval_id = di.interval_id
-            WHERE da.asset_class = 'stock'
+            WHERE da.asset_class = 'Stock'
             ORDER BY da.asset_symbol, di.interval_code, f.timestamp;
         """)
 
