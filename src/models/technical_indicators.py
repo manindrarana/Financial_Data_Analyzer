@@ -111,25 +111,12 @@ class TechnicalIndicatorProcessor:
         self.logger.info("=" * 60)
         
         query = """
-            SELECT 
-                asset_symbol,
-                asset_class,
-                exchange,
-                interval,
-                date,
-                open,
-                high,
-                low,
-                close,
-                volume,
-                daily_volatility,
-                sma_7,
-                sma_30
-            FROM gold_financial_analytics
-            ORDER BY asset_symbol, interval, date
+            SELECT * FROM gold_crypto_analytics
+            UNION ALL
+            SELECT * FROM gold_stock_analytics
         """
         df_all = self.conn.execute(query).df()
-        self.logger.info(f"Loaded {len(df_all)} rows from gold_financial_analytics")
+        self.logger.info(f"Loaded {len(df_all)} rows from specialized intermediate layers")
 
         result_dfs = []
         total_groups = df_all.groupby(['asset_symbol', 'interval']).ngroups
