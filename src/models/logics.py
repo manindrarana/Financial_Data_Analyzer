@@ -62,8 +62,7 @@ class GoldLayerProcessor:
             SELECT
                 da.asset_symbol, da.asset_class, da.exchange,
                 di.interval_code AS interval, f.timestamp AS date,
-                f.open, f.high, f.low, f.close, f.volume, f.turnover,
-                f.open_interest, f.open_interest_value, f.daily_volatility,
+                f.open, f.high, f.low, f.close, f.volume, f.daily_volatility,
                 AVG(f.close) OVER (PARTITION BY da.asset_symbol, di.interval_code ORDER BY f.timestamp ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS sma_7,
                 AVG(f.close) OVER (PARTITION BY da.asset_symbol, di.interval_code ORDER BY f.timestamp ROWS BETWEEN 29 PRECEDING AND CURRENT ROW) AS sma_30
             FROM fact_price_history f
