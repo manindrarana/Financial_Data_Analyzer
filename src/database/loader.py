@@ -113,7 +113,7 @@ class DatabaseLoader:
                             '{symbol}' as symbol,
                             '{readable_interval}' as interval,
                             date, open, high, low, close, volume, turnover,
-                            open_interest, open_interest_value
+                            open_interest, open_interest_value, funding_rate
                         FROM read_parquet('{file_path}')
                     """)
                     self.logger.info(f"Loaded {symbol} [{interval}] from S3")
