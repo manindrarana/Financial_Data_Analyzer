@@ -93,7 +93,8 @@ class DatabaseLoader:
                 volume DOUBLE,
                 turnover DOUBLE,
                 open_interest DOUBLE,
-                open_interest_value DOUBLE
+                open_interest_value DOUBLE,
+                funding_rate DOUBLE
             )
         """)
         
