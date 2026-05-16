@@ -47,9 +47,77 @@ class BybitClient:
             if conn:
                 conn.close()
     
+    def _map_to_oi_interval(self, kline_interval: str):
+        """Map kline interval to open interest interval supported by Bybit API"""
+        mapping = {
+            "60": "1h",
+            "D": "1d",
+        }
+        return mapping.get(kline_interval)
+
+    def fetch_open_interest(self, symbol: str, interval: str, start_ts: int, end_ts: int):
+        """Fetch open interest data for a symbol, aligned to the given interval."""
+        oi_interval = self._map_to_oi_interval(interval)
+        if oi_interval is None:
+            self.logger.info(f"  No OI interval mapping for {interval}, skipping OI fetch")
+            return None
+
+        self.logger.info(f"  Fetching Open Interest for {symbol} at {oi_interval}...")
+
+        all_oi = []
+        cursor = None
+
+        while True:
+            try:
+                params = {
+                    "category": "linear",
+                    "symbol": symbol,
+                    "intervalTime": oi_interval,
+                    "limit": 200
+                }
+                if cursor:
+                    params["cursor"] = cursor
+
+                response = self.session.get_open_interest(**params)
+                raw_list = response.get('result', {}).get('list', [])
+
+                if not raw_list:
+                    break
+
+                for item in raw_list:
+                    ts = int(item[0])
+                    if ts < start_ts:
+                        continue
+                    if ts > end_ts:
+                        continue
+                    all_oi.append({
+                        "timestamp": ts,
+                        "open_interest": float(item[1]),
+                        "open_interest_value": float(item[2])
+                    })
+
+                cursor = response.get('result', {}).get('nextPageCursor')
+                if not cursor:
+                    break
+
+                time.sleep(0.1)
+
+            except Exception as e:
+                self.logger.error(f"  Error fetching OI: {e}")
+                break
+
+        if not all_oi:
+            self.logger.info(f"  No OI data fetched for {symbol}")
+            return None
+
+        oi_df = pd.DataFrame(all_oi)
+        oi_df = oi_df.sort_values("timestamp").drop_duplicates(subset=["timestamp"])
+        self.logger.info(f"  Fetched {len(oi_df)} OI data points")
+        return oi_df
+
     def fetch_data(self, symbol: str):
         """
-        Fetches candlestick data from Bybit.
+        Fetches candlestick data from Bybit, enriched with Open Interest.
         """
         provider_config = self.config["providers"]["bybit"]
         intervals = provider_config.get("intervals", ["60"])
@@ -73,7 +141,7 @@ class BybitClient:
             self.logger.info(f"Time Range: {datetime.fromtimestamp(start_ts/1000)} to Now ({start_ts} to {end_ts})")
 
             all_data = []
-            cursor_end = end_ts 
+            cursor_end = end_ts
             
             while cursor_end > start_ts:
                 try:
@@ -126,8 +194,20 @@ class BybitClient:
             df["date"] = pd.to_datetime(df["timestamp"], unit="ms")
             
             df = df.sort_values(by="date").reset_index(drop=True)
-            
-            df = df[["date", "open", "high", "low", "close", "volume"]]
+
+            oi_df = self.fetch_open_interest(symbol, interval, start_ts, end_ts)
+            if oi_df is not None:
+                df = df.merge(oi_df, on="timestamp", how="left")
+                df["open_interest"] = df["open_interest"].ffill()
+                df["open_interest_value"] = df["open_interest_value"].ffill()
+                self.logger.info(f"  Merged OI data: {df['open_interest'].notna().sum()} non-null rows")
+            else:
+                df["open_interest"] = None
+                df["open_interest_value"] = None
+
+            output_columns = ["date", "open", "high", "low", "close", "volume", "turnover",
+                              "open_interest", "open_interest_value"]
+            df = df[output_columns]
 
             readable_interval = "1h" if interval == "60" else ("1d" if interval == "D" else interval)
             
