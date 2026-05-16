@@ -75,7 +75,7 @@ class DataCleaner:
                 interval,
                 CAST(date AS TIMESTAMP) AS date,
                 open, high, low, close, volume, turnover,
-                open_interest, open_interest_value
+                open_interest, open_interest_value, funding_rate
             FROM (
                 SELECT *,
                     ROW_NUMBER() OVER (PARTITION BY symbol, interval, date ORDER BY volume DESC) AS rn
