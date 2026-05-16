@@ -196,6 +196,9 @@ class BybitClient:
             all_data = []
             cursor_end = end_ts
             
+            rate_limit_retries = 0
+            max_rate_limit_retries = 5
+
             while cursor_end > start_ts:
                 try:
                     response = self.session.get_kline(
@@ -229,10 +232,19 @@ class BybitClient:
                     
                     self.logger.info(f"Fetched {len(batch_df)} rows. Oldest in batch: {datetime.fromtimestamp(min_ts/1000)}")
                     time.sleep(0.1)
+                    
+                    rate_limit_retries = 0
 
                 except Exception as e:
-                    self.logger.error(f"Error fetching {symbol} [{interval}]: {e}")
-                    break
+                    error_str = str(e)
+                    if "ErrCode: 10006" in error_str and rate_limit_retries < max_rate_limit_retries:
+                        rate_limit_retries += 1
+                        wait_time = 2 ** rate_limit_retries
+                        self.logger.warning(f"Rate limited on {symbol} [{interval}]. Retry {rate_limit_retries}/{max_rate_limit_retries}, waiting {wait_time}s...")
+                        time.sleep(wait_time)
+                    else:
+                        self.logger.error(f"Error fetching {symbol} [{interval}]: {e}")
+                        break
 
             if not all_data:
                  self.logger.warning(f"No new data found for {symbol} at interval {interval}")
