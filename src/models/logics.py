@@ -41,10 +41,11 @@ class GoldLayerProcessor:
         self.conn.execute("DROP TABLE IF EXISTS gold_crypto_analytics")
         self.conn.execute("""
             CREATE TABLE gold_crypto_analytics AS
-            SELECT 
+            SELECT
                 da.asset_symbol, da.asset_class, da.exchange,
                 di.interval_code AS interval, f.timestamp AS date,
-                f.open, f.high, f.low, f.close, f.volume, f.daily_volatility,
+                f.open, f.high, f.low, f.close, f.volume, f.turnover,
+                f.open_interest, f.funding_rate, f.daily_volatility,
                 AVG(f.close) OVER (PARTITION BY da.asset_symbol, di.interval_code ORDER BY f.timestamp ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS sma_7,
                 AVG(f.close) OVER (PARTITION BY da.asset_symbol, di.interval_code ORDER BY f.timestamp ROWS BETWEEN 29 PRECEDING AND CURRENT ROW) AS sma_30
             FROM fact_price_history f
@@ -58,7 +59,7 @@ class GoldLayerProcessor:
         self.conn.execute("DROP TABLE IF EXISTS gold_stock_analytics")
         self.conn.execute("""
             CREATE TABLE gold_stock_analytics AS
-            SELECT 
+            SELECT
                 da.asset_symbol, da.asset_class, da.exchange,
                 di.interval_code AS interval, f.timestamp AS date,
                 f.open, f.high, f.low, f.close, f.volume, f.daily_volatility,

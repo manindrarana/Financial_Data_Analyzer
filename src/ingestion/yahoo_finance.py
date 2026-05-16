@@ -5,12 +5,13 @@ import pandas as pd
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import yfinance as yf
+from yfinance.exceptions import YFRateLimitError
 import requests
 from src.utils import get_logger
 import duckdb
 from pyrate_limiter import Duration, RequestRate, Limiter
 from requests_cache import CacheMixin, SQLiteCache
-from requests_ratelimiter import  LimiterSession
+from requests_ratelimiter import LimiterSession
 import random
 
 
@@ -27,6 +28,7 @@ class YahooFinanceClient:
         self.session.headers.update({
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         })
+        self._rate_limited = False
 
     def get_last_fetched_date(self, ticker: str, interval: str):
         """Query DuckDB for the latest date of fetched data for the given ticker and interval."""
@@ -56,6 +58,10 @@ class YahooFinanceClient:
         intervals = self.config["providers"]["yfinance"]["intervals"] 
         
         for interval in intervals:
+            if self._rate_limited:
+                self.logger.warning(f"Yahoo Finance rate limit detected earlier — skipping {ticker} [{interval}] (existing data will be used)")
+                continue
+
             self.logger.info(f"Fetching data for {ticker} using yfinance... [{interval}]")
             
             last_date = self.get_last_fetched_date(ticker, interval)
@@ -72,7 +78,7 @@ class YahooFinanceClient:
                         start_date = limit_date
             
             try:
-                max_retries = 3
+                max_retries = 2
                 retry_count = 0
                 df = pd.DataFrame()
                 
@@ -80,36 +86,53 @@ class YahooFinanceClient:
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
                     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0",
-                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
                 ]
 
                 while retry_count < max_retries:
                     try:
-                        time.sleep(1 + (retry_count * 2)) 
-                        with requests.Session() as fresh_session:
-                            fresh_session.headers.update({"User-Agent": random.choice(USER_AGENTS)})
-                            
-                            df = yf.download(ticker, start=start_date, interval=interval, progress=False, session=fresh_session)
+                        base_wait = 2 ** retry_count
+                        jitter = random.uniform(0.5, 1.5)
+                        time.sleep(base_wait * jitter)
+                        
+                        self.session.headers.update({"User-Agent": random.choice(USER_AGENTS)})
+                        
+                        df = yf.download(ticker, start=start_date, interval=interval, progress=False, session=self.session)
                         
                         if not df.empty:
-                            break  
+                            break
                             
-                        self.logger.warning(f"Empty data or Rate Limited for {ticker} at {interval} (Attempt {retry_count + 1}/{max_retries})")
+                        self.logger.warning(f"Empty data for {ticker} at {interval} (Attempt {retry_count + 1}/{max_retries})")
                         
                         if last_date and (datetime.now() - timedelta(days=5)).strftime("%Y-%m-%d") <= start_date:
                             self.logger.info(f"Assuming market is closed (weekend/holiday) and no new data for {ticker} [{interval}]. Moving on.")
                             break
 
                         retry_count += 1
-                        time.sleep(5)
+
+                    except YFRateLimitError as e:
+                        self._rate_limited = True
+                        self.logger.warning(
+                            f"Yahoo Finance rate limited for {ticker} [{interval}]. "
+                            f"IP-level block detected — skipping all remaining Yahoo fetches. "
+                            f"Existing data in S3 will be used by the loader."
+                        )
+                        break
+
                     except Exception as e:
-                        if "429" in str(e) or "Rate limit" in str(e):
-                            self.logger.warning(f"Hard 429 block for {ticker} at {interval} (Attempt {retry_count + 1}/{max_retries})")
-                            time.sleep(10)
+                        if "429" in str(e) or "Rate limit" in str(e) or "Too Many Requests" in str(e):
+                            self._rate_limited = True
+                            self.logger.warning(
+                                f"HTTP 429 block for {ticker} [{interval}]. "
+                                f"IP-level block detected — skipping all remaining Yahoo fetches."
+                            )
+                            break
                         else:
-                            self.logger.error(f"Error fetching {ticker} at {interval} (Attempt {retry_count + 1}): {e}")
-                            time.sleep(3)
-                        retry_count += 1
+                            retry_count += 1
+                            self.logger.error(f"Error fetching {ticker} [{interval}] (Attempt {retry_count}): {e}")
+                            time.sleep(5)
                 
                 if df.empty:
                     self.logger.error(f"Failed to fetch {ticker} [{interval}] after {max_retries} retries. Skipping.")

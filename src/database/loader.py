@@ -90,7 +90,10 @@ class DatabaseLoader:
                 high DOUBLE,
                 low DOUBLE,
                 close DOUBLE,
-                volume DOUBLE
+                volume DOUBLE,
+                turnover DOUBLE,
+                open_interest DOUBLE,
+                funding_rate DOUBLE
             )
         """)
         
@@ -104,11 +107,12 @@ class DatabaseLoader:
                 file_path = f"s3://{self.s3_bucket}/{symbol}_{readable_interval}.parquet"
                 try:
                     self.conn.execute(f"""
-                        INSERT INTO bybit_crypto 
-                        SELECT 
+                        INSERT INTO bybit_crypto
+                        SELECT
                             '{symbol}' as symbol,
                             '{readable_interval}' as interval,
-                            date, open, high, low, close, volume
+                            date, open, high, low, close, volume, turnover,
+                            open_interest, funding_rate
                         FROM read_parquet('{file_path}')
                     """)
                     self.logger.info(f"Loaded {symbol} [{interval}] from S3")

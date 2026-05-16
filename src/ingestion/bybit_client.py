@@ -47,9 +47,130 @@ class BybitClient:
             if conn:
                 conn.close()
     
+    def _map_to_oi_interval(self, kline_interval: str):
+        """Map kline interval to open interest interval supported by Bybit API"""
+        mapping = {
+            "60": "1h",
+            "D": "1d",
+        }
+        return mapping.get(kline_interval)
+
+    def fetch_open_interest(self, symbol: str, interval: str, start_ts: int, end_ts: int):
+        """Fetch open interest data for a symbol, aligned to the given interval."""
+        oi_interval = self._map_to_oi_interval(interval)
+        if oi_interval is None:
+            self.logger.info(f"  No OI interval mapping for {interval}, skipping OI fetch")
+            return None
+
+        self.logger.info(f"  Fetching Open Interest for {symbol} at {oi_interval}...")
+
+        all_oi = []
+        cursor = None
+
+        while True:
+            try:
+                params = {
+                    "category": "linear",
+                    "symbol": symbol,
+                    "intervalTime": oi_interval,
+                    "limit": 200
+                }
+                if cursor:
+                    params["cursor"] = cursor
+
+                response = self.session.get_open_interest(**params)
+                raw_list = response.get('result', {}).get('list', [])
+
+                if not raw_list:
+                    break
+
+                for item in raw_list:
+                    ts = int(item["timestamp"])
+                    if ts < start_ts:
+                        continue
+                    if ts > end_ts:
+                        continue
+                    oi_value = float(item["openInterest"])
+                    all_oi.append({
+                        "timestamp": ts,
+                        "open_interest": oi_value
+                    })
+
+                cursor = response.get('result', {}).get('nextPageCursor')
+                if not cursor:
+                    break
+
+                time.sleep(0.1)
+
+            except Exception as e:
+                self.logger.error(f"  Error fetching OI: {e}")
+                break
+
+        if not all_oi:
+            self.logger.info(f"  No OI data fetched for {symbol}")
+            return None
+
+        oi_df = pd.DataFrame(all_oi)
+        oi_df = oi_df.sort_values("timestamp").drop_duplicates(subset=["timestamp"])
+        self.logger.info(f"  Fetched {len(oi_df)} OI data points")
+        return oi_df
+
+    def fetch_funding_rate(self, symbol: str, start_ts: int, end_ts: int):
+        """Fetch historical funding rate data and resample to target interval."""
+        self.logger.info(f"  Fetching Funding Rate for {symbol}...")
+
+        all_fr = []
+        cursor = None
+
+        while True:
+            try:
+                params = {
+                    "category": "linear",
+                    "symbol": symbol,
+                    "limit": 200
+                }
+                if cursor:
+                    params["cursor"] = cursor
+
+                response = self.session.get_funding_rate_history(**params)
+                raw_list = response.get('result', {}).get('list', [])
+
+                if not raw_list:
+                    break
+
+                for item in raw_list:
+                    ts = int(item["fundingRateTimestamp"])
+                    if ts < start_ts:
+                        continue
+                    if ts > end_ts:
+                        continue
+                    all_fr.append({
+                        "timestamp": ts,
+                        "funding_rate": float(item["fundingRate"])
+                    })
+
+                cursor = response.get('result', {}).get('nextPageCursor')
+                if not cursor:
+                    break
+
+                time.sleep(0.1)
+
+            except Exception as e:
+                self.logger.error(f"  Error fetching funding rate: {e}")
+                break
+
+        if not all_fr:
+            self.logger.info(f"  No funding rate data fetched for {symbol}")
+            return None
+
+        fr_df = pd.DataFrame(all_fr)
+        fr_df = fr_df.sort_values("timestamp").drop_duplicates(subset=["timestamp"])
+        self.logger.info(f"  Fetched {len(fr_df)} funding rate data points")
+        return fr_df
+
     def fetch_data(self, symbol: str):
         """
-        Fetches candlestick data from Bybit.
+        Fetches candlestick data from Bybit, enriched with Open Interest.
         """
         provider_config = self.config["providers"]["bybit"]
         intervals = provider_config.get("intervals", ["60"])
@@ -73,8 +194,11 @@ class BybitClient:
             self.logger.info(f"Time Range: {datetime.fromtimestamp(start_ts/1000)} to Now ({start_ts} to {end_ts})")
 
             all_data = []
-            cursor_end = end_ts 
+            cursor_end = end_ts
             
+            rate_limit_retries = 0
+            max_rate_limit_retries = 5
+
             while cursor_end > start_ts:
                 try:
                     response = self.session.get_kline(
@@ -108,10 +232,19 @@ class BybitClient:
                     
                     self.logger.info(f"Fetched {len(batch_df)} rows. Oldest in batch: {datetime.fromtimestamp(min_ts/1000)}")
                     time.sleep(0.1)
+                    
+                    rate_limit_retries = 0
 
                 except Exception as e:
-                    self.logger.error(f"Error fetching {symbol} [{interval}]: {e}")
-                    break
+                    error_str = str(e)
+                    if "ErrCode: 10006" in error_str and rate_limit_retries < max_rate_limit_retries:
+                        rate_limit_retries += 1
+                        wait_time = 2 ** rate_limit_retries
+                        self.logger.warning(f"Rate limited on {symbol} [{interval}]. Retry {rate_limit_retries}/{max_rate_limit_retries}, waiting {wait_time}s...")
+                        time.sleep(wait_time)
+                    else:
+                        self.logger.error(f"Error fetching {symbol} [{interval}]: {e}")
+                        break
 
             if not all_data:
                  self.logger.warning(f"No new data found for {symbol} at interval {interval}")
@@ -126,8 +259,26 @@ class BybitClient:
             df["date"] = pd.to_datetime(df["timestamp"], unit="ms")
             
             df = df.sort_values(by="date").reset_index(drop=True)
-            
-            df = df[["date", "open", "high", "low", "close", "volume"]]
+
+            oi_df = self.fetch_open_interest(symbol, interval, start_ts, end_ts)
+            if oi_df is not None:
+                df = df.merge(oi_df, on="timestamp", how="left")
+                df["open_interest"] = df["open_interest"].ffill()
+                self.logger.info(f"  Merged OI data: {df['open_interest'].notna().sum()} non-null rows")
+            else:
+                df["open_interest"] = None
+
+            fr_df = self.fetch_funding_rate(symbol, start_ts, end_ts)
+            if fr_df is not None:
+                df = df.merge(fr_df, on="timestamp", how="left")
+                df["funding_rate"] = df["funding_rate"].ffill()
+                self.logger.info(f"  Merged funding rate data: {df['funding_rate'].notna().sum()} non-null rows")
+            else:
+                df["funding_rate"] = None
+
+            output_columns = ["date", "open", "high", "low", "close", "volume", "turnover",
+                              "open_interest", "funding_rate"]
+            df = df[output_columns]
 
             readable_interval = "1h" if interval == "60" else ("1d" if interval == "D" else interval)
             

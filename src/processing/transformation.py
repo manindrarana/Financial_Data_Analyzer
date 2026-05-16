@@ -70,11 +70,12 @@ class DataCleaner:
         self.conn.execute("DROP TABLE IF EXISTS clean_bybit_crypto")
         self.conn.execute("""
             CREATE TABLE clean_bybit_crypto AS
-            SELECT 
+            SELECT
                 symbol,
                 interval,
                 CAST(date AS TIMESTAMP) AS date,
-                open, high, low, close, volume
+                open, high, low, close, volume, turnover,
+                open_interest, funding_rate
             FROM (
                 SELECT *,
                     ROW_NUMBER() OVER (PARTITION BY symbol, interval, date ORDER BY volume DESC) AS rn

@@ -109,14 +109,23 @@ class TechnicalIndicatorProcessor:
         self.logger.info("=" * 60)
         self.logger.info("Building Specialized Gold Feature Stores")
         self.logger.info("=" * 60)
-        
         query = """
-            SELECT * FROM gold_crypto_analytics
+            SELECT asset_symbol, asset_class, exchange, interval, date,
+                   open, high, low, close, volume, daily_volatility, sma_7, sma_30
+            FROM gold_crypto_analytics
             UNION ALL
-            SELECT * FROM gold_stock_analytics
+            SELECT asset_symbol, asset_class, exchange, interval, date,
+                   open, high, low, close, volume, daily_volatility, sma_7, sma_30
+            FROM gold_stock_analytics
         """
         df_all = self.conn.execute(query).df()
         self.logger.info(f"Loaded {len(df_all)} rows from specialized intermediate layers")
+
+        crypto_extra = self.conn.execute("""
+            SELECT asset_symbol, interval, date,
+                   turnover, open_interest, funding_rate
+            FROM gold_crypto_analytics
+        """).df()
 
         result_dfs = []
         total_groups = df_all.groupby(['asset_symbol', 'interval']).ngroups
@@ -143,7 +152,21 @@ class TechnicalIndicatorProcessor:
         for asset_class in final_df['asset_class'].unique():
             class_df = final_df[final_df['asset_class'] == asset_class].copy()
             initial_rows = len(class_df)
-            class_df = class_df.dropna()
+            indicator_cols = ['rsi_14', 'macd', 'macd_signal', 'macd_histogram', 'roc_10', 'roc_20',
+                              'stoch_k', 'stoch_d', 'ema_12', 'ema_26', 'ema_50', 'ema_200',
+                              'sma_50', 'sma_100', 'sma_200', 'bb_upper', 'bb_middle', 'bb_lower',
+                              'bb_width', 'bb_percentage', 'atr_14', 'obv', 'vwap',
+                              'volume_sma_20', 'volume_ratio', 'returns_1p', 'returns_5p',
+                              'returns_10p', 'returns_20p', 'log_returns', 'hl_ratio', 'close_position']
+            cols_to_check = [c for c in indicator_cols if c in class_df.columns]
+            class_df = class_df.dropna(subset=cols_to_check)
+            
+            if asset_class.lower() == 'crypto':
+                merge_keys = ['asset_symbol', 'interval', 'date']
+                class_df = class_df.merge(
+                    crypto_extra[merge_keys + ['turnover', 'open_interest', 'funding_rate']],
+                    on=merge_keys, how='left'
+                )
             
             self.logger.info(f"--- Processing {asset_class.upper()} Gold Store ---")
             self.logger.info(f"Dropped {initial_rows - len(class_df)} rows with NaNs (warm-up)")

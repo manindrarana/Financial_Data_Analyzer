@@ -50,6 +50,9 @@ class FactLoader:
                 low DOUBLE,
                 close DOUBLE,
                 volume DOUBLE,
+                turnover DOUBLE,
+                open_interest DOUBLE,
+                funding_rate DOUBLE,
                 daily_volatility DOUBLE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
@@ -89,9 +92,10 @@ class FactLoader:
         self.conn.execute(f"""
             INSERT INTO fact_price_history (
                 price_id, asset_id, date_id, interval_id, timestamp,
-                open, high, low, close, volume, daily_volatility
+                open, high, low, close, volume, turnover,
+                open_interest, funding_rate, daily_volatility
             )
-            SELECT 
+            SELECT
                 ROW_NUMBER() OVER (ORDER BY s.date) + {max_id} AS price_id,
                 da.asset_id,
                 dd.date_id,
@@ -102,6 +106,9 @@ class FactLoader:
                 s.low,
                 s.close,
                 s.volume,
+                NULL AS turnover,
+                NULL AS open_interest,
+                NULL AS funding_rate,
                 (s.high - s.low) AS daily_volatility
             FROM clean_yahoo_stocks s
             JOIN dim_assets da ON s.ticker = da.asset_symbol
@@ -128,9 +135,10 @@ class FactLoader:
         self.conn.execute(f"""
             INSERT INTO fact_price_history (
                 price_id, asset_id, date_id, interval_id, timestamp,
-                open, high, low, close, volume, daily_volatility
+                open, high, low, close, volume, turnover,
+                open_interest, funding_rate, daily_volatility
             )
-            SELECT 
+            SELECT
                 ROW_NUMBER() OVER (ORDER BY c.date) + {max_id} AS price_id,
                 da.asset_id,
                 dd.date_id,
@@ -141,6 +149,9 @@ class FactLoader:
                 c.low,
                 c.close,
                 c.volume,
+                c.turnover,
+                c.open_interest,
+                c.funding_rate,
                 (c.high - c.low) AS daily_volatility
             FROM clean_bybit_crypto c
             JOIN dim_assets da ON REPLACE(c.symbol, 'USDT', '') = da.asset_symbol
