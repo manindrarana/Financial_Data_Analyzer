@@ -85,15 +85,15 @@ class BybitClient:
                     break
 
                 for item in raw_list:
-                    ts = int(item[0])
+                    ts = int(item["timestamp"])
                     if ts < start_ts:
                         continue
                     if ts > end_ts:
                         continue
                     all_oi.append({
                         "timestamp": ts,
-                        "open_interest": float(item[1]),
-                        "open_interest_value": float(item[2])
+                        "open_interest": float(item["openInterest"]),
+                        "open_interest_value": float(item["openInterestValue"])
                     })
 
                 cursor = response.get('result', {}).get('nextPageCursor')
@@ -139,14 +139,14 @@ class BybitClient:
                     break
 
                 for item in raw_list:
-                    ts = int(item[0])
+                    ts = int(item["timestamp"])
                     if ts < start_ts:
                         continue
                     if ts > end_ts:
                         continue
                     all_fr.append({
                         "timestamp": ts,
-                        "funding_rate": float(item[1])
+                        "funding_rate": float(item["fundingRate"])
                     })
 
                 cursor = response.get('result', {}).get('nextPageCursor')
