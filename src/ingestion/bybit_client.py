@@ -115,6 +115,59 @@ class BybitClient:
         self.logger.info(f"  Fetched {len(oi_df)} OI data points")
         return oi_df
 
+    def fetch_funding_rate(self, symbol: str, start_ts: int, end_ts: int):
+        """Fetch historical funding rate data and resample to target interval."""
+        self.logger.info(f"  Fetching Funding Rate for {symbol}...")
+
+        all_fr = []
+        cursor = None
+
+        while True:
+            try:
+                params = {
+                    "category": "linear",
+                    "symbol": symbol,
+                    "limit": 200
+                }
+                if cursor:
+                    params["cursor"] = cursor
+
+                response = self.session.get_funding_rate_history(**params)
+                raw_list = response.get('result', {}).get('list', [])
+
+                if not raw_list:
+                    break
+
+                for item in raw_list:
+                    ts = int(item[0])
+                    if ts < start_ts:
+                        continue
+                    if ts > end_ts:
+                        continue
+                    all_fr.append({
+                        "timestamp": ts,
+                        "funding_rate": float(item[1])
+                    })
+
+                cursor = response.get('result', {}).get('nextPageCursor')
+                if not cursor:
+                    break
+
+                time.sleep(0.1)
+
+            except Exception as e:
+                self.logger.error(f"  Error fetching funding rate: {e}")
+                break
+
+        if not all_fr:
+            self.logger.info(f"  No funding rate data fetched for {symbol}")
+            return None
+
+        fr_df = pd.DataFrame(all_fr)
+        fr_df = fr_df.sort_values("timestamp").drop_duplicates(subset=["timestamp"])
+        self.logger.info(f"  Fetched {len(fr_df)} funding rate data points")
+        return fr_df
+
     def fetch_data(self, symbol: str):
         """
         Fetches candlestick data from Bybit, enriched with Open Interest.
@@ -205,8 +258,16 @@ class BybitClient:
                 df["open_interest"] = None
                 df["open_interest_value"] = None
 
+            fr_df = self.fetch_funding_rate(symbol, start_ts, end_ts)
+            if fr_df is not None:
+                df = df.merge(fr_df, on="timestamp", how="left")
+                df["funding_rate"] = df["funding_rate"].ffill()
+                self.logger.info(f"  Merged funding rate data: {df['funding_rate'].notna().sum()} non-null rows")
+            else:
+                df["funding_rate"] = None
+
             output_columns = ["date", "open", "high", "low", "close", "volume", "turnover",
-                              "open_interest", "open_interest_value"]
+                              "open_interest", "open_interest_value", "funding_rate"]
             df = df[output_columns]
 
             readable_interval = "1h" if interval == "60" else ("1d" if interval == "D" else interval)
