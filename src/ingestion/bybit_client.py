@@ -90,10 +90,10 @@ class BybitClient:
                         continue
                     if ts > end_ts:
                         continue
+                    oi_value = float(item["openInterest"])
                     all_oi.append({
                         "timestamp": ts,
-                        "open_interest": float(item["openInterest"]),
-                        "open_interest_value": float(item["openInterestValue"])
+                        "open_interest": oi_value
                     })
 
                 cursor = response.get('result', {}).get('nextPageCursor')
@@ -139,7 +139,7 @@ class BybitClient:
                     break
 
                 for item in raw_list:
-                    ts = int(item["timestamp"])
+                    ts = int(item["fundingRateTimestamp"])
                     if ts < start_ts:
                         continue
                     if ts > end_ts:
@@ -264,11 +264,9 @@ class BybitClient:
             if oi_df is not None:
                 df = df.merge(oi_df, on="timestamp", how="left")
                 df["open_interest"] = df["open_interest"].ffill()
-                df["open_interest_value"] = df["open_interest_value"].ffill()
                 self.logger.info(f"  Merged OI data: {df['open_interest'].notna().sum()} non-null rows")
             else:
                 df["open_interest"] = None
-                df["open_interest_value"] = None
 
             fr_df = self.fetch_funding_rate(symbol, start_ts, end_ts)
             if fr_df is not None:
@@ -279,7 +277,7 @@ class BybitClient:
                 df["funding_rate"] = None
 
             output_columns = ["date", "open", "high", "low", "close", "volume", "turnover",
-                              "open_interest", "open_interest_value", "funding_rate"]
+                              "open_interest", "funding_rate"]
             df = df[output_columns]
 
             readable_interval = "1h" if interval == "60" else ("1d" if interval == "D" else interval)

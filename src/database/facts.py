@@ -52,7 +52,6 @@ class FactLoader:
                 volume DOUBLE,
                 turnover DOUBLE,
                 open_interest DOUBLE,
-                open_interest_value DOUBLE,
                 funding_rate DOUBLE,
                 daily_volatility DOUBLE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -94,7 +93,7 @@ class FactLoader:
             INSERT INTO fact_price_history (
                 price_id, asset_id, date_id, interval_id, timestamp,
                 open, high, low, close, volume, turnover,
-                open_interest, open_interest_value, funding_rate, daily_volatility
+                open_interest, funding_rate, daily_volatility
             )
             SELECT
                 ROW_NUMBER() OVER (ORDER BY s.date) + {max_id} AS price_id,
@@ -109,7 +108,6 @@ class FactLoader:
                 s.volume,
                 NULL AS turnover,
                 NULL AS open_interest,
-                NULL AS open_interest_value,
                 NULL AS funding_rate,
                 (s.high - s.low) AS daily_volatility
             FROM clean_yahoo_stocks s
@@ -138,7 +136,7 @@ class FactLoader:
             INSERT INTO fact_price_history (
                 price_id, asset_id, date_id, interval_id, timestamp,
                 open, high, low, close, volume, turnover,
-                open_interest, open_interest_value, funding_rate, daily_volatility
+                open_interest, funding_rate, daily_volatility
             )
             SELECT
                 ROW_NUMBER() OVER (ORDER BY c.date) + {max_id} AS price_id,
@@ -153,7 +151,6 @@ class FactLoader:
                 c.volume,
                 c.turnover,
                 c.open_interest,
-                c.open_interest_value,
                 c.funding_rate,
                 (c.high - c.low) AS daily_volatility
             FROM clean_bybit_crypto c
