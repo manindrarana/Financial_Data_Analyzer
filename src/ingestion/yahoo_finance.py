@@ -28,6 +28,7 @@ class YahooFinanceClient:
         self.session.headers.update({
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         })
+        self._rate_limited = False
 
     def get_last_fetched_date(self, ticker: str, interval: str):
         """Query DuckDB for the latest date of fetched data for the given ticker and interval."""
@@ -57,6 +58,10 @@ class YahooFinanceClient:
         intervals = self.config["providers"]["yfinance"]["intervals"] 
         
         for interval in intervals:
+            if self._rate_limited:
+                self.logger.warning(f"Yahoo Finance rate limit detected earlier — skipping {ticker} [{interval}] (existing data will be used)")
+                continue
+
             self.logger.info(f"Fetching data for {ticker} using yfinance... [{interval}]")
             
             last_date = self.get_last_fetched_date(ticker, interval)
@@ -73,7 +78,7 @@ class YahooFinanceClient:
                         start_date = limit_date
             
             try:
-                max_retries = 8
+                max_retries = 2
                 retry_count = 0
                 df = pd.DataFrame()
                 
@@ -108,23 +113,22 @@ class YahooFinanceClient:
                         retry_count += 1
 
                     except YFRateLimitError as e:
-                        retry_count += 1
-                        wait_time = (2 ** retry_count) * 10
+                        self._rate_limited = True
                         self.logger.warning(
-                            f"Yahoo rate limited for {ticker} [{interval}]. "
-                            f"Retry {retry_count}/{max_retries}, waiting {wait_time}s..."
+                            f"Yahoo Finance rate limited for {ticker} [{interval}]. "
+                            f"IP-level block detected — skipping all remaining Yahoo fetches. "
+                            f"Existing data in S3 will be used by the loader."
                         )
-                        time.sleep(wait_time)
+                        break
 
                     except Exception as e:
                         if "429" in str(e) or "Rate limit" in str(e) or "Too Many Requests" in str(e):
-                            retry_count += 1
-                            wait_time = (2 ** retry_count) * 10
+                            self._rate_limited = True
                             self.logger.warning(
                                 f"HTTP 429 block for {ticker} [{interval}]. "
-                                f"Retry {retry_count}/{max_retries}, waiting {wait_time}s..."
+                                f"IP-level block detected — skipping all remaining Yahoo fetches."
                             )
-                            time.sleep(wait_time)
+                            break
                         else:
                             retry_count += 1
                             self.logger.error(f"Error fetching {ticker} [{interval}] (Attempt {retry_count}): {e}")
