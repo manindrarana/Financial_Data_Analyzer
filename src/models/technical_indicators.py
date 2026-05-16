@@ -111,9 +111,15 @@ class TechnicalIndicatorProcessor:
         self.logger.info("=" * 60)
         
         query = """
-            SELECT * FROM gold_crypto_analytics
+            SELECT asset_symbol, asset_class, exchange, interval, date,
+                   open, high, low, close, volume, daily_volatility, sma_7, sma_30,
+                   turnover, open_interest, open_interest_value, funding_rate
+            FROM gold_crypto_analytics
             UNION ALL
-            SELECT * FROM gold_stock_analytics
+            SELECT asset_symbol, asset_class, exchange, interval, date,
+                   open, high, low, close, volume, daily_volatility, sma_7, sma_30,
+                   NULL as turnover, NULL as open_interest, NULL as open_interest_value, NULL as funding_rate
+            FROM gold_stock_analytics
         """
         df_all = self.conn.execute(query).df()
         self.logger.info(f"Loaded {len(df_all)} rows from specialized intermediate layers")
