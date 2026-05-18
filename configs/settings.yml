@@ -47,5 +47,5 @@ providers:
 
   bybit:
     category: "linear"
-    intervals: ["60", "D", "W", "M"] # 60=1hr, D=Daily, W=Weekly, M=Monthly
+    intervals: ["60", "240", "D", "W", "M"] # 60=1hr, 240=4hr, D=Daily, W=Weekly, M=Monthly
     limit: 1000

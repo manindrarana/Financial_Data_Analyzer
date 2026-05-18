@@ -102,7 +102,7 @@ class DatabaseLoader:
         
         for symbol in targets:
             for interval in intervals:
-                readable_interval = "1h" if interval == "60" else ("1d" if interval == "D" else interval)
+                readable_interval = "1h" if interval == "60" else ("4h" if interval == "240" else ("1d" if interval == "D" else interval))
                 
                 file_path = f"s3://{self.s3_bucket}/{symbol}_{readable_interval}.parquet"
                 try:
