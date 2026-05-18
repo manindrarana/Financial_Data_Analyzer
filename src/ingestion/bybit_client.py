@@ -280,7 +280,7 @@ class BybitClient:
                               "open_interest", "funding_rate"]
             df = df[output_columns]
 
-            readable_interval = "1h" if interval == "60" else ("1d" if interval == "D" else interval)
+            readable_interval = "1h" if interval == "60" else ("4h" if interval == "240" else ("1d" if interval == "D" else interval))
             
             filename = f"{symbol}_{readable_interval}.parquet"
             s3_bucket = self.config["paths"].get("s3_bucket", "raw-data")
