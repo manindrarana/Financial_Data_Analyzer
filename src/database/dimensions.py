@@ -170,16 +170,11 @@ class DimensionBuilder:
     def populate_dim_interval(self):
         """Populate interval dimension with known intervals"""
         self.logger.info("=" * 60)
-        self.logger.info("Populating dim_interval (one-time)")
+        self.logger.info("Populating dim_interval")
         self.logger.info("=" * 60)
         
-        existing = self.conn.execute("SELECT COUNT(*) FROM dim_interval").fetchone()[0]
-        if existing > 0:
-            self.logger.info(f"dim_interval already populated with {existing} intervals, skipping...")
-            return
-        
         self.conn.execute("""
-            INSERT INTO dim_interval (interval_id, interval_code, interval_minutes, interval_description) VALUES
+            INSERT OR IGNORE INTO dim_interval (interval_id, interval_code, interval_minutes, interval_description) VALUES
             (1, '1h', 60, 'Hourly'),
             (2, '60', 60, 'Hourly (Bybit)'),
             (3, '1d', 1440, 'Daily'),
@@ -187,11 +182,13 @@ class DimensionBuilder:
             (5, '1wk', 10080, 'Weekly'),
             (6, 'W', 10080, 'Weekly (Bybit)'),
             (7, '1mo', 43200, 'Monthly'),
-            (8, 'M', 43200, 'Monthly (Bybit)');
+            (8, 'M', 43200, 'Monthly (Bybit)'),
+            (9, '4h', 240, '4-Hour'),
+            (10, '240', 240, '4-Hour (Bybit)');
         """)
         
         count = self.conn.execute("SELECT COUNT(*) FROM dim_interval").fetchone()[0]
-        self.logger.info(f"dim_interval populated with {count} intervals")
+        self.logger.info(f"dim_interval now has {count} intervals")
 
     def run(self):
         """Execute full dimension build process"""
