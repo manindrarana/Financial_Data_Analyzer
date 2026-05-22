@@ -1,6 +1,6 @@
 **Date:** 2026-05-22
 
-## Experiment #97 — LSTM Raw OHLCV Feature Engineering
+## Experiment — LSTM Raw OHLCV Feature Engineering
 
 ### 1. Data Source
 
