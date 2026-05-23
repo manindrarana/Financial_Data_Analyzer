@@ -7,7 +7,7 @@ from src.ingestion import YahooFinanceClient, BybitClient
 from src.database import DatabaseLoader, DimensionBuilder, FactLoader
 from src.processing import DataCleaner
 import schedule
-from src.models import GoldLayerProcessor, TechnicalIndicatorProcessor, ModelPredictor
+from src.models import GoldLayerProcessor, TechnicalIndicatorProcessor
 
 def run_pipeline():
     logger = get_logger("Orchestrator")
@@ -83,13 +83,6 @@ def run_pipeline():
         indicator_processor.run()
         indicator_processor.close()
         logger.info(f"Step 7 completed in {time.time() - step_start:.1f}s")
-        
-        logger.info("*** STEP 8: MODEL PREDICTIONS (XGBoost inference on Gold layer) ***")
-        step_start = time.time()
-        predictor = ModelPredictor()
-        predictor.run()
-        predictor.close()
-        logger.info(f"Step 8 completed in {time.time() - step_start:.1f}s")
         
         logger.info("*** PIPELINE EXECUTED SUCCESSFULLY!!!! ***")
         logger.info(f"Total pipeline runtime: {time.time() - pipeline_start:.1f}s")
