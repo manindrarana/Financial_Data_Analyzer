@@ -50,6 +50,7 @@ app.layout = dbc.Container(
     dash.Output("tab-content", "children"),
     dash.Input("main-tabs", "active_tab"),
 )
+
 def render_tab(active_tab: str):
     """Route to the correct tab layout based on the active tab ID."""
     if active_tab == "tab-price":
@@ -61,3 +62,55 @@ def render_tab(active_tab: str):
     elif active_tab == "tab-explorer":
         return render_explorer()
     return html.P("Select a tab.", className="text-muted")
+
+def render_price_dashboard():
+    return dbc.Row(
+        dbc.Col(
+            html.Div(
+                [
+                    html.H3("BTC/USDT — Price History", className="text-light"),
+                    html.P("Candlestick chart and volume bars.", className="text-muted"),
+                ]
+            ),
+            width=12,
+        )
+    )
+
+def render_predictions():
+    return dbc.Row(
+        dbc.Col(
+            html.Div(
+                [
+                    html.H3("Model Predictions — Actual vs Predicted", className="text-light"),
+                    html.P("Accuracy gauge, confusion matrix, and prediction overlay charts.", className="text-muted"),
+                ]
+            ),
+            width=12,
+        )
+    )
+
+def render_indicators():
+    return dbc.Row(
+        dbc.Col(
+            html.Div(
+                [
+                    html.H3("Technical Indicators", className="text-light"),
+                    html.P("RSI, MACD, Bollinger Bands, and SMA crossovers.", className="text-muted"),
+                ]
+            ),
+            width=12,
+        )
+    )
+
+def render_explorer():
+    return dbc.Row(
+        dbc.Col(
+            html.Div(
+                [
+                    html.H3("Data Explorer", className="text-light"),
+                    html.P("Sortable tables from gold_crypto_analytics, gold_crypto_features, gold_crypto_predictions, and gold_stock_analytics.", className="text-muted"),
+                ]
+            ),
+            width=12,
+        )
+    )
