@@ -334,17 +334,70 @@ def render_predictions():
         return dbc.Alert(f"Error loading predictions: {e}", color="danger")
 
 def render_indicators():
-    return dbc.Row(
-        dbc.Col(
-            html.Div(
-                [
-                    html.H3("Technical Indicators", className="text-light"),
-                    html.P("RSI, MACD, Bollinger Bands, and SMA crossovers.", className="text-muted"),
-                ]
-            ),
-            width=12,
+    """RSI, MACD, Bollinger Bands, and SMA crossover charts from gold_crypto_features."""
+    try:
+        conn = duckdb.connect(DB_PATH, read_only=True)
+        df = conn.execute("""
+            SELECT date, close, rsi_14, macd, macd_signal, macd_histogram,
+                   bb_upper, bb_middle, bb_lower,
+                   sma_7, sma_30, sma_50, sma_200, volume_ratio
+            FROM gold_crypto_features
+            WHERE asset_symbol = 'BTC' AND interval = '1h'
+            ORDER BY date
+        """).df()
+        conn.close()
+        if df.empty:
+            return dbc.Alert("No technical indicator data available. Run the pipeline first.", color="warning")
+        df["date"] = pd.to_datetime(df["date"])
+
+        fig = make_subplots(
+            rows=4, cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.03,
+            row_heights=[0.35, 0.20, 0.25, 0.20],
+            subplot_titles=("Price + Bollinger Bands (20,2)", "RSI (14)", "MACD (12,26,9)", "SMA Crossover (7/30/50/200)"),
         )
-    )
+
+        fig.add_trace(go.Scatter(x=df["date"], y=df["close"], name="Close", line=dict(color="#17BECF", width=1.5)), row=1, col=1)
+        fig.add_trace(go.Scatter(x=df["date"], y=df["bb_upper"], name="BB Upper", line=dict(color="rgba(255,255,255,0.25)", width=0.8)), row=1, col=1)
+        fig.add_trace(go.Scatter(x=df["date"], y=df["bb_middle"], name="BB Middle", line=dict(color="rgba(255,255,255,0.35)", width=0.8, dash="dot")), row=1, col=1)
+        fig.add_trace(go.Scatter(x=df["date"], y=df["bb_lower"], name="BB Lower", line=dict(color="rgba(255,255,255,0.25)", width=0.8), fill="tonexty", fillcolor="rgba(255,255,255,0.05)"), row=1, col=1)
+
+        fig.add_trace(go.Scatter(x=df["date"], y=df["rsi_14"], name="RSI (14)", line=dict(color="#F39C12", width=1.2)), row=2, col=1)
+        fig.add_hline(y=70, line_dash="dash", line_color="rgba(255,80,80,0.5)", row=2, col=1)
+        fig.add_hline(y=30, line_dash="dash", line_color="rgba(80,255,80,0.5)", row=2, col=1)
+        fig.add_hrect(y0=70, y1=100, fillcolor="rgba(255,0,0,0.06)", line_width=0, row=2, col=1)
+        fig.add_hrect(y0=0, y1=30, fillcolor="rgba(0,255,0,0.06)", line_width=0, row=2, col=1)
+
+        colors_macd = ["#2ECC40" if v >= 0 else "#FF4136" for v in df["macd_histogram"]]
+        fig.add_trace(go.Bar(x=df["date"], y=df["macd_histogram"], name="Histogram", marker_color=colors_macd, marker_line_width=0), row=3, col=1)
+        fig.add_trace(go.Scatter(x=df["date"], y=df["macd"], name="MACD", line=dict(color="#3498DB", width=1.2)), row=3, col=1)
+        fig.add_trace(go.Scatter(x=df["date"], y=df["macd_signal"], name="Signal", line=dict(color="#E74C3C", width=1.0)), row=3, col=1)
+
+        fig.add_trace(go.Scatter(x=df["date"], y=df["close"], name="Close", line=dict(color="rgba(255,255,255,0.3)", width=0.8)), row=4, col=1)
+        fig.add_trace(go.Scatter(x=df["date"], y=df["sma_7"], name="SMA 7", line=dict(color="#1ABC9C", width=1.2)), row=4, col=1)
+        fig.add_trace(go.Scatter(x=df["date"], y=df["sma_30"], name="SMA 30", line=dict(color="#9B59B6", width=1.2)), row=4, col=1)
+        fig.add_trace(go.Scatter(x=df["date"], y=df["sma_50"], name="SMA 50", line=dict(color="#E67E22", width=1.0, dash="dot"),), row=4, col=1)
+        fig.add_trace(go.Scatter(x=df["date"], y=df["sma_200"], name="SMA 200", line=dict(color="#E74C3C", width=1.2, dash="dot"),), row=4, col=1)
+
+        fig.update_xaxes(showgrid=True, gridcolor="rgba(255,255,255,0.05)", showline=True, linecolor="rgba(255,255,255,0.15)", row=4, col=1)
+        fig.update_yaxes(showgrid=True, gridcolor="rgba(255,255,255,0.05)", showline=True, linecolor="rgba(255,255,255,0.15)", zeroline=True, zerolinecolor="rgba(255,255,255,0.15)")
+        fig.update_layout(
+            template="plotly_dark",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            height=900,
+            hovermode="x unified",
+            margin=dict(l=10, r=10, t=50, b=10),
+            showlegend=False,
+        )
+
+        return html.Div([
+            html.H3("BTC/USDT 1H - Technical Indicators", className="text-light mb-3"),
+            dbc.Row(dbc.Col(dcc.Graph(figure=fig, config={"displayModeBar": True, "responsive": True}), width=12)),
+        ])
+    except Exception as e:
+        return dbc.Alert(f"Error loading indicators: {e}", color="danger")
 
 def render_explorer():
     return dbc.Row(
