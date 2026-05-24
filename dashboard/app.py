@@ -3,6 +3,11 @@ Financial Data Analyzer — Plotly Dash Dashboard
 Multi-tab web UI reading directly from DuckDB gold tables.
 """
 
+import os
+import sys
+_project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
 import dash
 from dash import dcc, html, dash_table
 import dash_bootstrap_components as dbc
@@ -10,12 +15,10 @@ import duckdb
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import os
 from dotenv import load_dotenv
 from dashboard.predictor import run_prediction
 
 load_dotenv()
-
 DB_PATH = os.path.join("database", "financial_data.duckdb")
 
 app = dash.Dash(
