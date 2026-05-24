@@ -65,11 +65,15 @@ def _make_stationary(df):
     return df
 
 
-def load_model():
-    """Load the trained XGBoost classifier from disk."""
-    model = xgb.XGBClassifier()
-    model.load_model(MODEL_PATH)
-    return model
+_model_cache = None
+def _get_model():
+    """Return the cached XGBoost model, loading it once on first call."""
+    global _model_cache
+    if _model_cache is None:
+        model = xgb.XGBClassifier()
+        model.load_model(MODEL_PATH)
+        _model_cache = model
+    return _model_cache
 
 
 def run_prediction(asset="BTC", interval="1h"):
@@ -80,9 +84,21 @@ def run_prediction(asset="BTC", interval="1h"):
     or None if no data is available.
     """
     conn = duckdb.connect(DB_PATH, read_only=True)
+    needed_cols = [
+        "date", "close",
+        "sma_7", "sma_30", "sma_50", "sma_100", "sma_200",
+        "ema_12", "ema_26", "ema_50", "ema_200",
+        "vwap", "macd", "macd_signal", "macd_histogram",
+        "atr_14", "daily_volatility",
+        "rsi_14", "roc_10", "roc_20", "stoch_k", "stoch_d",
+        "bb_percentage", "volume_ratio",
+        "returns_1p", "returns_5p", "returns_10p", "returns_20p",
+        "log_returns", "hl_ratio", "close_position",
+    ]
+    col_list = ", ".join(needed_cols)
 
     df = conn.execute(f"""
-        SELECT *
+        SELECT {col_list}
         FROM gold_crypto_features
         WHERE asset_symbol = '{asset}' AND interval = '{interval}'
         ORDER BY date
@@ -107,7 +123,7 @@ def run_prediction(asset="BTC", interval="1h"):
     if df_clean.empty:
         return None
 
-    model = load_model()
+    model = _get_model()
     X = df_clean[available_features]
     predictions = model.predict(X)
     probabilities = model.predict_proba(X)
