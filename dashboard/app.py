@@ -7,6 +7,9 @@ import dash
 from dash import dcc, html
 import dash_bootstrap_components as dbc
 import duckdb
+import pandas as pd
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import os
 from dotenv import load_dotenv
 
@@ -64,17 +67,80 @@ def render_tab(active_tab: str):
     return html.P("Select a tab.", className="text-muted")
 
 def render_price_dashboard():
-    return dbc.Row(
-        dbc.Col(
-            html.Div(
-                [
-                    html.H3("BTC/USDT — Price History", className="text-light"),
-                    html.P("Candlestick chart and volume bars.", className="text-muted"),
-                ]
-            ),
-            width=12,
+    """BTC/USDT candlestick chart + volume bars from gold_crypto_analytics."""
+    try:
+        conn = duckdb.connect(DB_PATH, read_only=True)
+        df = conn.execute("""
+            SELECT date, open, high, low, close, volume
+            FROM gold_crypto_analytics
+            WHERE asset_symbol = 'BTC' AND interval = '1h'
+            ORDER BY date
+        """).df()
+        conn.close()
+
+        if df.empty:
+            return dbc.Alert("No data found in gold_crypto_analytics for BTC 1h.", color="warning")
+
+        df["date"] = pd.to_datetime(df["date"])
+
+        fig = make_subplots(
+            rows=2, cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.03,
+            row_heights=[0.7, 0.3],
+            subplot_titles=("BTC/USDT — 1H Candlesticks", "Volume"),
         )
-    )
+
+        fig.add_trace(
+            go.Candlestick(
+                x=df["date"],
+                open=df["open"],
+                high=df["high"],
+                low=df["low"],
+                close=df["close"],
+                name="BTC/USDT",
+                increasing_line_color="#26a69a",
+                decreasing_line_color="#ef5350",
+            ),
+            row=1, col=1,
+        )
+
+        colors = ["#26a69a" if c >= o else "#ef5350" for o, c in zip(df["open"], df["close"])]
+        fig.add_trace(
+            go.Bar(
+                x=df["date"],
+                y=df["volume"],
+                name="Volume",
+                marker_color=colors,
+                opacity=0.6,
+            ),
+            row=2, col=1,
+        )
+
+        fig.update_layout(
+            template="plotly_dark",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            height=700,
+            hovermode="x unified",
+            showlegend=False,
+            margin=dict(l=10, r=10, t=40, b=10),
+            xaxis_rangeslider_visible=False,
+        )
+        fig.update_yaxes(title_text="Price (USD)", row=1, col=1)
+        fig.update_yaxes(title_text="Volume", row=2, col=1)
+
+        return dbc.Row(
+            dbc.Col(
+                [
+                    html.H3(" BTC/USDT — Price History", className="text-light mb-3"),
+                    dcc.Graph(figure=fig, config={"displayModeBar": True, "responsive": True}),
+                ],
+                width=12,
+            )
+        )
+    except Exception as e:
+        return dbc.Alert(f"Error loading price dashboard: {e}", color="danger")
 
 def render_predictions():
     return dbc.Row(
