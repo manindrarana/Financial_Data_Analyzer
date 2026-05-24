@@ -4,7 +4,7 @@ Multi-tab web UI reading directly from DuckDB gold tables.
 """
 
 import dash
-from dash import dcc, html
+from dash import dcc, html, dash_table
 import dash_bootstrap_components as dbc
 import duckdb
 import pandas as pd
@@ -400,17 +400,85 @@ def render_indicators():
         return dbc.Alert(f"Error loading indicators: {e}", color="danger")
 
 def render_explorer():
-    return dbc.Row(
-        dbc.Col(
-            html.Div(
-                [
-                    html.H3("Data Explorer", className="text-light"),
-                    html.P("Sortable tables from gold_crypto_analytics, gold_crypto_features, gold_crypto_predictions, and gold_stock_analytics.", className="text-muted"),
-                ]
+    """Dropdown-driven sortable data table explorer for all gold layer tables."""
+    TABLE_OPTIONS = [
+        {"label": "Crypto Analytics (gold_crypto_analytics)", "value": "gold_crypto_analytics"},
+        {"label": "Crypto Features (gold_crypto_features)", "value": "gold_crypto_features"},
+        {"label": "Crypto Predictions (gold_crypto_predictions)", "value": "gold_crypto_predictions"},
+        {"label": "Stock Analytics (gold_stock_analytics)", "value": "gold_stock_analytics"},
+        {"label": "Stock Features (gold_stock_features)", "value": "gold_stock_features"},
+    ]
+    return html.Div([
+        html.H3("Data Explorer", className="text-light mb-3"),
+        dbc.Row([
+            dbc.Col(
+                dcc.Dropdown(
+                    id="explorer-table-selector",
+                    options=TABLE_OPTIONS,
+                    value="gold_crypto_analytics",
+                    clearable=False,
+                    className="mb-3",
+                    style={"backgroundColor": "#303030", "color": "#212529"},
+                ),
+                width=6,
             ),
-            width=12,
+            dbc.Col(html.Div(id="explorer-row-count", className="text-muted mt-2"), width=6),
+        ]),
+        dbc.Row(dbc.Col(html.Div(id="explorer-table-container"), width=12)),
+    ])
+
+
+@app.callback(
+    dash.Output("explorer-table-container", "children"),
+    dash.Output("explorer-row-count", "children"),
+    dash.Input("explorer-table-selector", "value"),
+)
+def update_explorer_table(table_name):
+    """Query the selected gold table and render a sortable DataTable."""
+    try:
+        conn = duckdb.connect(DB_PATH, read_only=True)
+        df = conn.execute(f"SELECT * FROM {table_name} ORDER BY date DESC LIMIT 5000").df()
+        conn.close()
+        if df.empty:
+            return dbc.Alert(f"Table '{table_name}' is empty. Run the pipeline first.", color="warning"), ""
+        df["date"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d %H:%M")
+        total = len(df)
+        row_text = f"Showing {total} row{'s' if total != 1 else ''} (latest 5,000)"
+        columns = [{"name": col, "id": col} for col in df.columns]
+        table = dash_table.DataTable(
+            data=df.to_dict("records"),
+            columns=columns,
+            page_size=25,
+            sort_action="native",
+            filter_action="native",
+            style_table={"overflowX": "auto"},
+            style_cell={
+                "backgroundColor": "#222222",
+                "color": "#e0e0e0",
+                "borderColor": "#404040",
+                "fontSize": "12px",
+                "padding": "4px 8px",
+                "minWidth": "80px",
+            },
+            style_header={
+                "backgroundColor": "#333333",
+                "fontWeight": "bold",
+                "borderColor": "#555555",
+            },
+            style_filter={
+                "backgroundColor": "#2a2a2a",
+                "borderColor": "#555555",
+            },
+            style_data_conditional=[
+                {
+                    "if": {"row_index": "odd"},
+                    "backgroundColor": "#262626",
+                },
+            ],
         )
-    )
+        return table, row_text
+    except Exception as e:
+        return dbc.Alert(f"Error loading table '{table_name}': {e}", color="danger"), ""
     
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=8050)
