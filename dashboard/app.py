@@ -45,3 +45,19 @@ app.layout = dbc.Container(
         html.Div(id="tab-content"),
     ],
 )
+
+@app.callback(
+    dash.Output("tab-content", "children"),
+    dash.Input("main-tabs", "active_tab"),
+)
+def render_tab(active_tab: str):
+    """Route to the correct tab layout based on the active tab ID."""
+    if active_tab == "tab-price":
+        return render_price_dashboard()
+    elif active_tab == "tab-predictions":
+        return render_predictions()
+    elif active_tab == "tab-indicators":
+        return render_indicators()
+    elif active_tab == "tab-explorer":
+        return render_explorer()
+    return html.P("Select a tab.", className="text-muted")
