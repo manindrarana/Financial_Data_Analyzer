@@ -91,6 +91,24 @@ services:
     networks:
       - custom_net
 
+  dashboard:
+    build: .
+    container_name: financial_data_dashboard
+    env_file:
+      - .env
+    ports:
+      - "8050:8050"
+    volumes:
+      - ./database:/app/database
+      - .:/app
+    restart: unless-stopped
+    depends_on:
+      pipeline:
+        condition: service_started
+    networks:
+      - custom_net
+    command: python dashboard/app.py
+
 volumes:
   minio_data:
   superset_home:
