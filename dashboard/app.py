@@ -12,6 +12,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import os
 from dotenv import load_dotenv
+from dashboard.predictor import run_prediction
 
 load_dotenv()
 
@@ -143,17 +144,194 @@ def render_price_dashboard():
         return dbc.Alert(f"Error loading price dashboard: {e}", color="danger")
 
 def render_predictions():
-    return dbc.Row(
-        dbc.Col(
-            html.Div(
-                [
-                    html.H3("Model Predictions — Actual vs Predicted", className="text-light"),
-                    html.P("Accuracy gauge, confusion matrix, and prediction overlay charts.", className="text-muted"),
-                ]
-            ),
-            width=12,
+    """XGBoost model predictions: actual vs predicted direction chart, accuracy, and confidence distribution."""
+    try:
+        results = run_prediction(asset="BTC", interval="1h")
+
+        if results is None or results.empty:
+            return dbc.Alert("No prediction data available. Run the full pipeline first to populate gold_crypto_features.", color="warning")
+
+        total = len(results)
+        correct = (results["prediction"] == results["actual_direction"]).sum()
+        accuracy = correct / total if total > 0 else 0
+        up_pred_pct = (results["prediction"] == 1).sum() / total * 100
+
+        summary_cards = dbc.Row(
+            [
+                dbc.Col(
+                    dbc.Card(
+                        dbc.CardBody([
+                            html.H5(f"{total:,}", className="card-title text-info"),
+                            html.P("Total Predictions", className="card-text text-muted small"),
+                        ]),
+                        color="dark", outline=True,
+                    ),
+                    width=3,
+                ),
+                dbc.Col(
+                    dbc.Card(
+                        dbc.CardBody([
+                            html.H5(f"{accuracy:.1%}", className="card-title text-info"),
+                            html.P("Accuracy (52.6% baseline)", className="card-text text-muted small"),
+                        ]),
+                        color="dark", outline=True,
+                    ),
+                    width=3,
+                ),
+                dbc.Col(
+                    dbc.Card(
+                        dbc.CardBody([
+                            html.H5(f"{up_pred_pct:.1f}%", className="card-title text-info"),
+                            html.P("UP Predictions", className="card-text text-muted small"),
+                        ]),
+                        color="dark", outline=True,
+                    ),
+                    width=3,
+                ),
+                dbc.Col(
+                    dbc.Card(
+                        dbc.CardBody([
+                            html.H5(f"{correct:,}", className="card-title text-info"),
+                            html.P("Correct Predictions", className="card-text text-muted small"),
+                        ]),
+                        color="dark", outline=True,
+                    ),
+                    width=3,
+                ),
+            ],
+            className="mb-3",
         )
-    )
+
+        fig_overlay = make_subplots(
+            rows=2, cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.05,
+            row_heights=[0.7, 0.3],
+            subplot_titles=("Close Price with Prediction Markers", "Confidence Over Time"),
+        )
+
+        fig_overlay.add_trace(
+            go.Scatter(
+                x=results["date"], y=results["close"],
+                mode="lines", name="Close Price",
+                line=dict(color="#17a2b8", width=1),
+            ),
+            row=1, col=1,
+        )
+
+        correct_mask = results["prediction"] == results["actual_direction"]
+        wrong_mask = ~correct_mask
+
+        for mask, color, label in [
+            (correct_mask, "#26a69a", "Correct"),
+            (wrong_mask, "#ef5350", "Wrong"),
+        ]:
+            subset = results[mask]
+            if not subset.empty:
+                fig_overlay.add_trace(
+                    go.Scatter(
+                        x=subset["date"], y=subset["close"],
+                        mode="markers", name=label,
+                        marker=dict(color=color, size=5, symbol="circle"),
+                    ),
+                    row=1, col=1,
+                )
+
+        fig_overlay.add_trace(
+            go.Scatter(
+                x=results["date"], y=results["confidence"],
+                mode="lines", name="Confidence",
+                line=dict(color="#ffc107", width=1),
+                fill="tozeroy", fillcolor="rgba(255,193,7,0.1)",
+            ),
+            row=2, col=1,
+        )
+
+        fig_overlay.update_layout(
+            template="plotly_dark",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            height=650,
+            hovermode="x unified",
+            showlegend=True,
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            margin=dict(l=10, r=10, t=40, b=10),
+        )
+        fig_overlay.update_yaxes(title_text="Price (USD)", row=1, col=1)
+        fig_overlay.update_yaxes(title_text="Confidence", row=2, col=1)
+
+        fig_hist = go.Figure()
+        fig_hist.add_trace(
+            go.Histogram(
+                x=results["confidence"], nbinsx=40,
+                marker_color="#17a2b8", opacity=0.8,
+                name="Confidence",
+            )
+        )
+        fig_hist.add_vline(
+            x=0.5, line_dash="dash", line_color="#ef5350",
+            annotation_text="Random (0.5)", annotation_position="top left",
+        )
+        fig_hist.update_layout(
+            template="plotly_dark",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            height=350,
+            title="Confidence Distribution",
+            xaxis_title="Prediction Confidence",
+            yaxis_title="Count",
+            margin=dict(l=10, r=10, t=40, b=10),
+        )
+
+        fig_gauge = go.Figure(
+            go.Indicator(
+                mode="gauge+number",
+                value=accuracy * 100,
+                number={"suffix": "%", "font": {"size": 48, "color": "#17a2b8"}},
+                title={"text": "Model Accuracy", "font": {"size": 14}},
+                gauge={
+                    "axis": {"range": [0, 100], "tickcolor": "#adb5bd"},
+                    "bar": {"color": "#26a69a" if accuracy >= 0.5 else "#ef5350"},
+                    "steps": [
+                        {"range": [0, 50], "color": "rgba(239,83,80,0.3)"},
+                        {"range": [50, 52], "color": "rgba(255,193,7,0.3)"},
+                        {"range": [52, 60], "color": "rgba(38,166,154,0.3)"},
+                        {"range": [60, 100], "color": "rgba(38,166,154,0.5)"},
+                    ],
+                    "threshold": {
+                        "line": {"color": "white", "width": 2},
+                        "value": 52.6,
+                    },
+                },
+            )
+        )
+        fig_gauge.update_layout(
+            template="plotly_dark",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            height=350,
+            margin=dict(l=10, r=10, t=40, b=10),
+        )
+
+        return html.Div([
+            html.H3("BTC/USDT 1H -- XGBoost Direction Predictions", className="text-light mb-3"),
+            summary_cards,
+            dbc.Row(
+                [
+                    dbc.Col(dcc.Graph(figure=fig_gauge, config={"responsive": True}), width=4),
+                    dbc.Col(dcc.Graph(figure=fig_hist, config={"responsive": True}), width=8),
+                ],
+                className="mb-3",
+            ),
+            dbc.Row(
+                dbc.Col(
+                    dcc.Graph(figure=fig_overlay, config={"displayModeBar": True, "responsive": True}),
+                    width=12,
+                )
+            ),
+        ])
+    except Exception as e:
+        return dbc.Alert(f"Error loading predictions: {e}", color="danger")
 
 def render_indicators():
     return dbc.Row(
