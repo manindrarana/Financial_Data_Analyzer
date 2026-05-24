@@ -71,80 +71,51 @@ def render_tab(active_tab: str):
     return html.P("Select a tab.", className="text-muted")
 
 def render_price_dashboard():
-    """BTC/USDT candlestick chart + volume bars from gold_crypto_analytics."""
+    """BTC/USDT candlestick chart with time-range selector (default: 7 days for performance)."""
     try:
-        conn = duckdb.connect(DB_PATH, read_only=True)
-        df = conn.execute("""
-            SELECT date, open, high, low, close, volume
-            FROM gold_crypto_analytics
-            WHERE asset_symbol = 'BTC' AND interval = '1h'
-            ORDER BY date
-        """).df()
-        conn.close()
-
-        if df.empty:
-            return dbc.Alert("No data found in gold_crypto_analytics for BTC 1h.", color="warning")
-
-        df["date"] = pd.to_datetime(df["date"])
-
-        fig = make_subplots(
-            rows=2, cols=1,
-            shared_xaxes=True,
-            vertical_spacing=0.03,
-            row_heights=[0.7, 0.3],
-            subplot_titles=("BTC/USDT — 1H Candlesticks", "Volume"),
-        )
-
-        fig.add_trace(
-            go.Candlestick(
-                x=df["date"],
-                open=df["open"],
-                high=df["high"],
-                low=df["low"],
-                close=df["close"],
-                name="BTC/USDT",
-                increasing_line_color="#26a69a",
-                decreasing_line_color="#ef5350",
-            ),
-            row=1, col=1,
-        )
-
-        colors = ["#26a69a" if c >= o else "#ef5350" for o, c in zip(df["open"], df["close"])]
-        fig.add_trace(
-            go.Bar(
-                x=df["date"],
-                y=df["volume"],
-                name="Volume",
-                marker_color=colors,
-                opacity=0.6,
-            ),
-            row=2, col=1,
-        )
-
-        fig.update_layout(
-            template="plotly_dark",
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            height=700,
-            hovermode="x unified",
-            showlegend=False,
-            margin=dict(l=10, r=10, t=40, b=10),
-            xaxis_rangeslider_visible=False,
-        )
-        fig.update_yaxes(title_text="Price (USD)", row=1, col=1)
-        fig.update_yaxes(title_text="Volume", row=2, col=1)
+        range_options = [
+            {"label": "1 Day", "value": "1d"},
+            {"label": "3 Days", "value": "3d"},
+            {"label": "1 Week", "value": "7d"},
+            {"label": "1 Month", "value": "30d"},
+            {"label": "3 Months", "value": "90d"},
+            {"label": "6 Months", "value": "180d"},
+            {"label": "1 Year", "value": "365d"},
+            {"label": "All Data", "value": "all"},
+        ]
 
         return dbc.Row(
             dbc.Col(
                 [
-                    html.H3(" BTC/USDT — Price History", className="text-light mb-3"),
-                    dcc.Graph(figure=fig, config={"displayModeBar": True, "responsive": True}),
+                    html.H3("BTC/USDT — Price History", className="text-light mb-3"),
+                    dbc.Row(
+                        dbc.Col(
+                            dcc.Dropdown(
+                                id="price-range-dropdown",
+                                options=range_options,
+                                value="7d",
+                                clearable=False,
+                                searchable=False,
+                                className="mb-3",
+                                style={"color": "#000"},
+                            ),
+                            width=3,
+                        ),
+                    ),
+                    dcc.Loading(
+                        id="loading-price",
+                        type="circle",
+                        children=dcc.Graph(
+                            id="price-chart",
+                            config={"displayModeBar": True, "responsive": True},
+                        ),
+                    ),
                 ],
                 width=12,
             )
         )
     except Exception as e:
-        return dbc.Alert(f"Error loading price dashboard: {e}", color="danger")
+        return dbc.Alert(f"Error: {e}", color="danger")
 
 def render_predictions():
     """XGBoost model predictions: actual vs predicted direction chart, accuracy, and confidence distribution."""
@@ -483,5 +454,147 @@ def update_explorer_table(table_name):
     except Exception as e:
         return dbc.Alert(f"Error loading table '{table_name}': {e}", color="danger"), ""
     
+PRICE_RANGE_MAP = {
+    "1d": 1, "3d": 3, "7d": 7, "30d": 30,
+    "90d": 90, "180d": 180, "365d": 365,
+}
+
+MAX_CANDLES_DISPLAY = 2000
+
+
+def _downsample_ohlcv(df, max_points):
+    """Downsample OHLCV data by merging candles so total points <= max_points."""
+    n = len(df)
+    if n <= max_points:
+        return df
+
+    group_size = (n + max_points - 1) // max_points
+    df = df.copy()
+    df["_group"] = df.index // group_size
+
+    resampled = df.groupby("_group").agg(
+        date=("date", "first"),
+        open=("open", "first"),
+        high=("high", "max"),
+        low=("low", "min"),
+        close=("close", "last"),
+        volume=("volume", "sum"),
+    ).reset_index(drop=True)
+
+    return resampled
+
+
+@app.callback(
+    dash.Output("price-chart", "figure"),
+    dash.Input("price-range-dropdown", "value"),
+)
+def build_price_chart(range_value):
+    """Query the database, downsample if needed, and build the OHLCV figure."""
+    conn = duckdb.connect(DB_PATH, read_only=True)
+
+    if range_value == "all":
+        df = conn.execute("""
+            SELECT date, open, high, low, close, volume
+            FROM gold_crypto_analytics
+            WHERE asset_symbol = 'BTC' AND interval = '1h'
+            ORDER BY date
+        """).df()
+    else:
+        days = PRICE_RANGE_MAP[range_value]
+        df = conn.execute(f"""
+            SELECT date, open, high, low, close, volume
+            FROM gold_crypto_analytics
+            WHERE asset_symbol = 'BTC' AND interval = '1h'
+              AND date >= (SELECT MAX(date) FROM gold_crypto_analytics
+                           WHERE asset_symbol = 'BTC' AND interval = '1h')
+                           - INTERVAL '{days} days'
+            ORDER BY date
+        """).df()
+
+    conn.close()
+
+    if df.empty:
+        return go.Figure().update_layout(
+            template="plotly_dark",
+            title="No data available",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+        )
+
+    df["date"] = pd.to_datetime(df["date"])
+
+    original_count = len(df)
+    df = _downsample_ohlcv(df, MAX_CANDLES_DISPLAY)
+
+    fig = make_subplots(
+        rows=2, cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.03,
+        row_heights=[0.7, 0.3],
+        subplot_titles=(
+            f"BTC/USDT — 1H Candlesticks ({len(df)} candles, from {original_count} raw)",
+            "Volume",
+        ),
+    )
+
+    fig.add_trace(
+        go.Candlestick(
+            x=df["date"],
+            open=df["open"],
+            high=df["high"],
+            low=df["low"],
+            close=df["close"],
+            name="BTC/USDT",
+            increasing_line_color="#26a69a",
+            decreasing_line_color="#ef5350",
+        ),
+        row=1, col=1,
+    )
+
+    colors = ["#26a69a" if c >= o else "#ef5350" for o, c in zip(df["open"], df["close"])]
+    fig.add_trace(
+        go.Bar(
+            x=df["date"],
+            y=df["volume"],
+            name="Volume",
+            marker_color=colors,
+            opacity=0.6,
+        ),
+        row=2, col=1,
+    )
+
+    fig.update_layout(
+        template="plotly_dark",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=700,
+        hovermode="x unified",
+        showlegend=False,
+        margin=dict(l=10, r=10, t=40, b=10),
+        xaxis_rangeslider_visible=True,
+        xaxis=dict(
+            rangeselector=dict(
+                buttons=list([
+                    dict(count=1, label="1d", step="day", stepmode="backward"),
+                    dict(count=3, label="3d", step="day", stepmode="backward"),
+                    dict(count=7, label="1w", step="day", stepmode="backward"),
+                    dict(count=1, label="1m", step="month", stepmode="backward"),
+                    dict(count=3, label="3m", step="month", stepmode="backward"),
+                    dict(count=6, label="6m", step="month", stepmode="backward"),
+                    dict(count=1, label="1y", step="year", stepmode="backward"),
+                    dict(step="all", label="All"),
+                ]),
+                bgcolor="#2a2a2a",
+                activecolor="#375a7f",
+                font=dict(color="#aaa"),
+            ),
+        ),
+    )
+    fig.update_yaxes(title_text="Price (USD)", row=1, col=1)
+    fig.update_yaxes(title_text="Volume", row=2, col=1)
+
+    return fig
+
+
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=8050)
