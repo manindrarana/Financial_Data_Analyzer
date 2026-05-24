@@ -71,7 +71,7 @@ def render_tab(active_tab: str):
     return html.P("Select a tab.", className="text-muted")
 
 def render_price_dashboard():
-    """BTC/USDT candlestick chart with time-range selector (default: 7 days for performance)."""
+    """Multi-asset candlestick chart with asset class, asset, interval, and time-range selectors."""
     try:
         range_options = [
             {"label": "1 Day", "value": "1d"},
@@ -87,20 +87,66 @@ def render_price_dashboard():
         return dbc.Row(
             dbc.Col(
                 [
-                    html.H3("BTC/USDT — Price History", className="text-light mb-3"),
+                    html.H3("Price Dashboard", className="text-light mb-3"),
                     dbc.Row(
-                        dbc.Col(
-                            dcc.Dropdown(
-                                id="price-range-dropdown",
-                                options=range_options,
-                                value="7d",
-                                clearable=False,
-                                searchable=False,
-                                className="mb-3",
-                                style={"color": "#000"},
+                        [
+                            dbc.Col(
+                                [
+                                    html.Label("Asset Class", className="text-muted small mb-1"),
+                                    dcc.Dropdown(
+                                        id="price-class-dropdown",
+                                        options=[
+                                            {"label": "Crypto", "value": "crypto"},
+                                            {"label": "Stocks", "value": "stocks"},
+                                        ],
+                                        value="crypto",
+                                        clearable=False,
+                                        searchable=False,
+                                        style={"color": "#000"},
+                                    ),
+                                ],
+                                width=2,
                             ),
-                            width=3,
-                        ),
+                            dbc.Col(
+                                [
+                                    html.Label("Asset", className="text-muted small mb-1"),
+                                    dcc.Dropdown(
+                                        id="price-asset-dropdown",
+                                        clearable=False,
+                                        searchable=True,
+                                        style={"color": "#000"},
+                                    ),
+                                ],
+                                width=2,
+                            ),
+                            dbc.Col(
+                                [
+                                    html.Label("Interval", className="text-muted small mb-1"),
+                                    dcc.Dropdown(
+                                        id="price-interval-dropdown",
+                                        clearable=False,
+                                        searchable=False,
+                                        style={"color": "#000"},
+                                    ),
+                                ],
+                                width=2,
+                            ),
+                            dbc.Col(
+                                [
+                                    html.Label("Time Range", className="text-muted small mb-1"),
+                                    dcc.Dropdown(
+                                        id="price-range-dropdown",
+                                        options=range_options,
+                                        value="7d",
+                                        clearable=False,
+                                        searchable=False,
+                                        style={"color": "#000"},
+                                    ),
+                                ],
+                                width=2,
+                            ),
+                        ],
+                        className="mb-3",
                     ),
                     dcc.Loading(
                         id="loading-price",
@@ -401,7 +447,6 @@ def render_explorer():
         dbc.Row(dbc.Col(html.Div(id="explorer-table-container"), width=12)),
     ])
 
-
 @app.callback(
     dash.Output("explorer-table-container", "children"),
     dash.Output("explorer-row-count", "children"),
@@ -461,6 +506,34 @@ PRICE_RANGE_MAP = {
 
 MAX_CANDLES_DISPLAY = 2000
 
+CRYPTO_INTERVALS = ["1h", "4h", "1d", "W", "M"]
+STOCK_INTERVALS  = ["1h", "1d", "1wk", "1mo"]
+
+INTERVAL_LABELS = {
+    "1h": "1 Hour",
+    "4h": "4 Hours",
+    "1d": "1 Day",
+    "W":  "1 Week",
+    "M":  "1 Month",
+    "1wk": "1 Week",
+    "1mo": "1 Month",
+}
+
+def _load_asset_list():
+    """Read all distinct crypto symbols from DuckDB (gold_crypto_analytics)."""
+    try:
+        conn = duckdb.connect(DB_PATH, read_only=True)
+        crypto = conn.execute(
+            "SELECT DISTINCT asset_symbol FROM gold_crypto_analytics ORDER BY asset_symbol"
+        ).df()["asset_symbol"].tolist()
+        conn.close()
+        return crypto
+    except Exception:
+        return ["BTC"]
+
+CRYPTO_ASSETS = _load_asset_list()
+STOCK_ASSETS  = ["AAPL", "AMZN", "GOOGL", "META", "MSFT", "TSLA"]
+
 
 def _downsample_ohlcv(df, max_points):
     """Downsample OHLCV data by merging candles so total points <= max_points."""
@@ -483,40 +556,88 @@ def _downsample_ohlcv(df, max_points):
 
     return resampled
 
+@app.callback(
+    dash.Output("price-asset-dropdown", "options"),
+    dash.Output("price-asset-dropdown", "value"),
+    dash.Input("price-class-dropdown", "value"),
+)
+def update_asset_dropdown(asset_class):
+    """When asset class changes, update the asset dropdown with the correct list."""
+    if asset_class == "crypto":
+        assets = CRYPTO_ASSETS
+        default = "BTC" if "BTC" in assets else (assets[0] if assets else None)
+    else:
+        assets = STOCK_ASSETS
+        default = assets[0] if assets else None
+
+    options = [{"label": a, "value": a} for a in assets]
+    return options, default
+
+
+@app.callback(
+    dash.Output("price-interval-dropdown", "options"),
+    dash.Output("price-interval-dropdown", "value"),
+    dash.Input("price-class-dropdown", "value"),
+)
+def update_interval_dropdown(asset_class):
+    """When asset class changes, update the interval dropdown with the correct intervals."""
+    if asset_class == "crypto":
+        intervals = CRYPTO_INTERVALS
+        default = "1h"
+    else:
+        intervals = STOCK_INTERVALS
+        default = "1h"
+
+    options = [{"label": INTERVAL_LABELS.get(iv, iv), "value": iv} for iv in intervals]
+    return options, default
 
 @app.callback(
     dash.Output("price-chart", "figure"),
+    dash.Input("price-class-dropdown", "value"),
+    dash.Input("price-asset-dropdown", "value"),
+    dash.Input("price-interval-dropdown", "value"),
     dash.Input("price-range-dropdown", "value"),
 )
-def build_price_chart(range_value):
+def build_price_chart(asset_class, asset_symbol, interval, range_value):
     """Query the database, downsample if needed, and build the OHLCV figure."""
+
+    if not asset_symbol or not interval or not asset_class:
+        return go.Figure().update_layout(
+            template="plotly_dark",
+            title="Select an asset and interval",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+        )
+
+    table = "gold_crypto_analytics" if asset_class == "crypto" else "gold_stock_analytics"
+
     conn = duckdb.connect(DB_PATH, read_only=True)
 
     if range_value == "all":
-        df = conn.execute("""
+        df = conn.execute(f"""
             SELECT date, open, high, low, close, volume
-            FROM gold_crypto_analytics
-            WHERE asset_symbol = 'BTC' AND interval = '1h'
+            FROM {table}
+            WHERE asset_symbol = ? AND interval = ?
             ORDER BY date
-        """).df()
+        """, [asset_symbol, interval]).df()
     else:
         days = PRICE_RANGE_MAP[range_value]
         df = conn.execute(f"""
             SELECT date, open, high, low, close, volume
-            FROM gold_crypto_analytics
-            WHERE asset_symbol = 'BTC' AND interval = '1h'
-              AND date >= (SELECT MAX(date) FROM gold_crypto_analytics
-                           WHERE asset_symbol = 'BTC' AND interval = '1h')
+            FROM {table}
+            WHERE asset_symbol = ? AND interval = ?
+              AND date >= (SELECT MAX(date) FROM {table}
+                           WHERE asset_symbol = ? AND interval = ?)
                            - INTERVAL '{days} days'
             ORDER BY date
-        """).df()
+        """, [asset_symbol, interval, asset_symbol, interval]).df()
 
     conn.close()
 
     if df.empty:
         return go.Figure().update_layout(
             template="plotly_dark",
-            title="No data available",
+            title=f"No data for {asset_symbol} @ {INTERVAL_LABELS.get(interval, interval)}",
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
         )
@@ -526,13 +647,16 @@ def build_price_chart(range_value):
     original_count = len(df)
     df = _downsample_ohlcv(df, MAX_CANDLES_DISPLAY)
 
+    symbol_label = f"{asset_symbol}/USDT" if asset_class == "crypto" else asset_symbol
+    interval_label = INTERVAL_LABELS.get(interval, interval)
+
     fig = make_subplots(
         rows=2, cols=1,
         shared_xaxes=True,
         vertical_spacing=0.03,
         row_heights=[0.7, 0.3],
         subplot_titles=(
-            f"BTC/USDT — 1H Candlesticks ({len(df)} candles, from {original_count} raw)",
+            f"{symbol_label} - {interval_label} ({len(df)} candles, from {original_count} raw)",
             "Volume",
         ),
     )
@@ -544,7 +668,7 @@ def build_price_chart(range_value):
             high=df["high"],
             low=df["low"],
             close=df["close"],
-            name="BTC/USDT",
+            name=symbol_label,
             increasing_line_color="#26a69a",
             decreasing_line_color="#ef5350",
         ),
@@ -575,13 +699,13 @@ def build_price_chart(range_value):
         xaxis=dict(
             rangeselector=dict(
                 buttons=list([
-                    dict(count=1, label="1d", step="day", stepmode="backward"),
-                    dict(count=3, label="3d", step="day", stepmode="backward"),
-                    dict(count=7, label="1w", step="day", stepmode="backward"),
-                    dict(count=1, label="1m", step="month", stepmode="backward"),
-                    dict(count=3, label="3m", step="month", stepmode="backward"),
-                    dict(count=6, label="6m", step="month", stepmode="backward"),
-                    dict(count=1, label="1y", step="year", stepmode="backward"),
+                    dict(count=1, label="1D", step="day", stepmode="backward"),
+                    dict(count=3, label="3D", step="day", stepmode="backward"),
+                    dict(count=7, label="1W", step="day", stepmode="backward"),
+                    dict(count=1, label="1M", step="month", stepmode="backward"),
+                    dict(count=3, label="3M", step="month", stepmode="backward"),
+                    dict(count=6, label="6M", step="month", stepmode="backward"),
+                    dict(count=1, label="1Y", step="year", stepmode="backward"),
                     dict(step="all", label="All"),
                 ]),
                 bgcolor="#2a2a2a",
