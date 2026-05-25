@@ -229,70 +229,87 @@ def render_predictions():
         return dbc.Alert(f"Error: {e}", color="danger")
 
 def render_indicators():
-    """RSI, MACD, Bollinger Bands, and SMA crossover charts from gold_crypto_features."""
+    """RSI, MACD, Bollinger Bands, and SMA crossover charts with multi-asset dropdowns."""
     try:
-        conn = duckdb.connect(DB_PATH, read_only=True)
-        df = conn.execute("""
-            SELECT date, close, rsi_14, macd, macd_signal, macd_histogram,
-                   bb_upper, bb_middle, bb_lower,
-                   sma_7, sma_30, sma_50, sma_200, volume_ratio
-            FROM gold_crypto_features
-            WHERE asset_symbol = 'BTC' AND interval = '1h'
-            ORDER BY date
-        """).df()
-        conn.close()
-        if df.empty:
-            return dbc.Alert("No technical indicator data available. Run the pipeline first.", color="warning")
-        df["date"] = pd.to_datetime(df["date"])
-
-        fig = make_subplots(
-            rows=4, cols=1,
-            shared_xaxes=True,
-            vertical_spacing=0.03,
-            row_heights=[0.35, 0.20, 0.25, 0.20],
-            subplot_titles=("Price + Bollinger Bands (20,2)", "RSI (14)", "MACD (12,26,9)", "SMA Crossover (7/30/50/200)"),
+        range_options = [{"label": "1 Day", "value": "1d"}, {"label": "3 Days", "value": "3d"},
+                         {"label": "1 Week", "value": "7d"}, {"label": "1 Month", "value": "30d"},
+                         {"label": "3 Months", "value": "90d"}, {"label": "6 Months", "value": "180d"},
+                         {"label": "1 Year", "value": "365d"}, {"label": "All Time", "value": "all"}]
+        return dbc.Row(
+            dbc.Col(
+                [
+                    html.H3("Technical Indicators", className="text-light mb-3"),
+                    dbc.Row(
+                        [
+                            dbc.Col(
+                                [
+                                    html.Label("Asset Class", className="text-muted small mb-1"),
+                                    dcc.Dropdown(
+                                        id="ind-class-dropdown",
+                                        options=[
+                                            {"label": "Crypto", "value": "crypto"},
+                                            {"label": "Stocks", "value": "stocks"},
+                                        ],
+                                        value="crypto",
+                                        clearable=False,
+                                        searchable=False,
+                                        style={"color": "#000"},
+                                    ),
+                                ],
+                                width=2,
+                            ),
+                            dbc.Col(
+                                [
+                                    html.Label("Asset", className="text-muted small mb-1"),
+                                    dcc.Dropdown(
+                                        id="ind-asset-dropdown",
+                                        clearable=False,
+                                        searchable=True,
+                                        style={"color": "#000"},
+                                    ),
+                                ],
+                                width=2,
+                            ),
+                            dbc.Col(
+                                [
+                                    html.Label("Interval", className="text-muted small mb-1"),
+                                    dcc.Dropdown(
+                                        id="ind-interval-dropdown",
+                                        clearable=False,
+                                        searchable=False,
+                                        style={"color": "#000"},
+                                    ),
+                                ],
+                                width=2,
+                            ),
+                            dbc.Col(
+                                [
+                                    html.Label("Time Range", className="text-muted small mb-1"),
+                                    dcc.Dropdown(
+                                        id="ind-range-dropdown",
+                                        options=range_options,
+                                        value="90d",
+                                        clearable=False,
+                                        searchable=False,
+                                        style={"color": "#000"},
+                                    ),
+                                ],
+                                width=2,
+                            ),
+                        ],
+                        className="mb-3",
+                    ),
+                    dcc.Loading(
+                        id="loading-ind",
+                        type="circle",
+                        children=html.Div(id="ind-content"),
+                    ),
+                ],
+                width=12,
+            )
         )
-
-        fig.add_trace(go.Scatter(x=df["date"], y=df["close"], name="Close", line=dict(color="#17BECF", width=1.5)), row=1, col=1)
-        fig.add_trace(go.Scatter(x=df["date"], y=df["bb_upper"], name="BB Upper", line=dict(color="rgba(255,255,255,0.25)", width=0.8)), row=1, col=1)
-        fig.add_trace(go.Scatter(x=df["date"], y=df["bb_middle"], name="BB Middle", line=dict(color="rgba(255,255,255,0.35)", width=0.8, dash="dot")), row=1, col=1)
-        fig.add_trace(go.Scatter(x=df["date"], y=df["bb_lower"], name="BB Lower", line=dict(color="rgba(255,255,255,0.25)", width=0.8), fill="tonexty", fillcolor="rgba(255,255,255,0.05)"), row=1, col=1)
-
-        fig.add_trace(go.Scatter(x=df["date"], y=df["rsi_14"], name="RSI (14)", line=dict(color="#F39C12", width=1.2)), row=2, col=1)
-        fig.add_hline(y=70, line_dash="dash", line_color="rgba(255,80,80,0.5)", row=2, col=1)
-        fig.add_hline(y=30, line_dash="dash", line_color="rgba(80,255,80,0.5)", row=2, col=1)
-        fig.add_hrect(y0=70, y1=100, fillcolor="rgba(255,0,0,0.06)", line_width=0, row=2, col=1)
-        fig.add_hrect(y0=0, y1=30, fillcolor="rgba(0,255,0,0.06)", line_width=0, row=2, col=1)
-
-        colors_macd = ["#2ECC40" if v >= 0 else "#FF4136" for v in df["macd_histogram"]]
-        fig.add_trace(go.Bar(x=df["date"], y=df["macd_histogram"], name="Histogram", marker_color=colors_macd, marker_line_width=0), row=3, col=1)
-        fig.add_trace(go.Scatter(x=df["date"], y=df["macd"], name="MACD", line=dict(color="#3498DB", width=1.2)), row=3, col=1)
-        fig.add_trace(go.Scatter(x=df["date"], y=df["macd_signal"], name="Signal", line=dict(color="#E74C3C", width=1.0)), row=3, col=1)
-
-        fig.add_trace(go.Scatter(x=df["date"], y=df["close"], name="Close", line=dict(color="rgba(255,255,255,0.3)", width=0.8)), row=4, col=1)
-        fig.add_trace(go.Scatter(x=df["date"], y=df["sma_7"], name="SMA 7", line=dict(color="#1ABC9C", width=1.2)), row=4, col=1)
-        fig.add_trace(go.Scatter(x=df["date"], y=df["sma_30"], name="SMA 30", line=dict(color="#9B59B6", width=1.2)), row=4, col=1)
-        fig.add_trace(go.Scatter(x=df["date"], y=df["sma_50"], name="SMA 50", line=dict(color="#E67E22", width=1.0, dash="dot"),), row=4, col=1)
-        fig.add_trace(go.Scatter(x=df["date"], y=df["sma_200"], name="SMA 200", line=dict(color="#E74C3C", width=1.2, dash="dot"),), row=4, col=1)
-
-        fig.update_xaxes(showgrid=True, gridcolor="rgba(255,255,255,0.05)", showline=True, linecolor="rgba(255,255,255,0.15)", row=4, col=1)
-        fig.update_yaxes(showgrid=True, gridcolor="rgba(255,255,255,0.05)", showline=True, linecolor="rgba(255,255,255,0.15)", zeroline=True, zerolinecolor="rgba(255,255,255,0.15)")
-        fig.update_layout(
-            template="plotly_dark",
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            height=900,
-            hovermode="x unified",
-            margin=dict(l=10, r=10, t=50, b=10),
-            showlegend=False,
-        )
-
-        return html.Div([
-            html.H3("BTC/USDT 1H - Technical Indicators", className="text-light mb-3"),
-            dbc.Row(dbc.Col(dcc.Graph(figure=fig, config={"displayModeBar": True, "responsive": True}), width=12)),
-        ])
     except Exception as e:
-        return dbc.Alert(f"Error loading indicators: {e}", color="danger")
+        return dbc.Alert(f"Error: {e}", color="danger")
 
 def render_explorer():
     """Dropdown-driven sortable data table explorer for all gold layer tables."""
@@ -313,7 +330,7 @@ def render_explorer():
                     value="gold_crypto_analytics",
                     clearable=False,
                     className="mb-3",
-                    style={"backgroundColor": "#303030", "color": "#212529"},
+                    style={"color": "#000"},
                 ),
                 width=6,
             ),
@@ -756,6 +773,7 @@ def build_prediction_charts(asset_class, asset_symbol, interval):
         plot_bgcolor="rgba(0,0,0,0)",
         height=650,
         hovermode="x unified",
+        hoverlabel=dict(bgcolor="#212529", font_size=13),
         showlegend=True,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         margin=dict(l=10, r=10, t=40, b=10),
@@ -780,6 +798,7 @@ def build_prediction_charts(asset_class, asset_symbol, interval):
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         height=350,
+        hoverlabel=dict(bgcolor="#212529", font_size=13),
         title="Confidence Distribution",
         xaxis_title="Prediction Confidence",
         yaxis_title="Count",
@@ -836,6 +855,233 @@ def build_prediction_charts(asset_class, asset_symbol, interval):
             )
         ),
     ])
+
+
+@app.callback(
+    dash.Output("ind-asset-dropdown", "options"),
+    dash.Output("ind-asset-dropdown", "value"),
+    dash.Input("ind-class-dropdown", "value"),
+)
+def update_ind_asset_dropdown(asset_class):
+    """When asset class changes, update the indicators asset dropdown."""
+    if asset_class == "crypto":
+        assets = CRYPTO_ASSETS
+        default = "BTC" if "BTC" in assets else (assets[0] if assets else None)
+    else:
+        assets = STOCK_ASSETS
+        default = assets[0] if assets else None
+    options = [{"label": a, "value": a} for a in assets]
+    return options, default
+
+
+@app.callback(
+    dash.Output("ind-interval-dropdown", "options"),
+    dash.Output("ind-interval-dropdown", "value"),
+    dash.Input("ind-class-dropdown", "value"),
+)
+def update_ind_interval_dropdown(asset_class):
+    """When asset class changes, update the indicators interval dropdown."""
+    if asset_class == "crypto":
+        intervals = CRYPTO_INTERVALS
+        default = "1h"
+    else:
+        intervals = STOCK_INTERVALS
+        default = "1h"
+    options = [{"label": INTERVAL_LABELS.get(iv, iv), "value": iv} for iv in intervals]
+    return options, default
+
+
+@app.callback(
+    dash.Output("ind-content", "children"),
+    dash.Input("ind-class-dropdown", "value"),
+    dash.Input("ind-asset-dropdown", "value"),
+    dash.Input("ind-interval-dropdown", "value"),
+    dash.Input("ind-range-dropdown", "value"),
+)
+def build_indicators_chart(asset_class, asset_symbol, interval, range_value):
+    """Query the database, compute technical indicators, and render multi-panel chart."""
+    if not asset_symbol or not interval or not asset_class:
+        return dbc.Alert("Select an asset and interval.", color="info")
+
+    table = "gold_crypto_analytics" if asset_class == "crypto" else "gold_stock_analytics"
+
+    conn = duckdb.connect(DB_PATH, read_only=True)
+
+    if range_value == "all":
+        df = conn.execute(f"""
+            SELECT date, open, high, low, close, volume
+            FROM {table}
+            WHERE asset_symbol = ? AND interval = ?
+            ORDER BY date
+        """, [asset_symbol, interval]).df()
+    else:
+        days = PRICE_RANGE_MAP.get(range_value, 90)
+        df = conn.execute(f"""
+            SELECT date, open, high, low, close, volume
+            FROM {table}
+            WHERE asset_symbol = ? AND interval = ?
+              AND date >= (SELECT MAX(date) FROM {table}
+                           WHERE asset_symbol = ? AND interval = ?)
+                           - INTERVAL '{days} days'
+            ORDER BY date
+        """, [asset_symbol, interval, asset_symbol, interval]).df()
+
+    conn.close()
+
+    if df.empty:
+        return dbc.Alert(
+            f"No data for {asset_symbol} @ {INTERVAL_LABELS.get(interval, interval)}",
+            color="warning",
+        )
+
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.sort_values("date").reset_index(drop=True)
+
+    delta = df["close"].diff()
+    gain = delta.clip(lower=0)
+    loss = (-delta).clip(lower=0)
+    avg_gain = gain.rolling(window=14).mean()
+    avg_loss = loss.rolling(window=14).mean()
+    rs = avg_gain / avg_loss.replace(0, 1e-10)
+    df["rsi"] = 100.0 - (100.0 / (1.0 + rs))
+
+    ema12 = df["close"].ewm(span=12, adjust=False).mean()
+    ema26 = df["close"].ewm(span=26, adjust=False).mean()
+    df["macd"] = ema12 - ema26
+    df["macd_signal"] = df["macd"].ewm(span=9, adjust=False).mean()
+    df["macd_hist"] = df["macd"] - df["macd_signal"]
+
+    sma20 = df["close"].rolling(window=20).mean()
+    std20 = df["close"].rolling(window=20).std()
+    df["bb_upper"] = sma20 + 2 * std20
+    df["bb_middle"] = sma20
+    df["bb_lower"] = sma20 - 2 * std20
+
+    df["sma50"] = df["close"].rolling(window=50).mean()
+    df["sma200"] = df["close"].rolling(window=200).mean()
+
+    symbol_label = f"{asset_symbol}/USDT" if asset_class == "crypto" else asset_symbol
+    interval_label = INTERVAL_LABELS.get(interval, interval)
+
+    fig = make_subplots(
+        rows=4, cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.04,
+        row_heights=[0.35, 0.22, 0.22, 0.21],
+        subplot_titles=(
+            f"{symbol_label} — Bollinger Bands ({interval_label})",
+            "RSI (14)",
+            "MACD (12, 26, 9)",
+            "SMA Crossover (50 / 200)",
+        ),
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=df["date"], y=df["close"], mode="lines",
+            name="Close", line=dict(color="#17a2b8", width=1.5),
+        ),
+        row=1, col=1,
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=df["date"], y=df["bb_upper"], mode="lines",
+            name="BB Upper", line=dict(color="rgba(255,255,255,0.3)", width=0.8),
+        ),
+        row=1, col=1,
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=df["date"], y=df["bb_middle"], mode="lines",
+            name="BB Middle", line=dict(color="rgba(255,255,255,0.5)", width=0.8, dash="dash"),
+        ),
+        row=1, col=1,
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=df["date"], y=df["bb_lower"], mode="lines",
+            name="BB Lower", line=dict(color="rgba(255,255,255,0.3)", width=0.8),
+            fill="tonexty", fillcolor="rgba(23,162,184,0.08)",
+        ),
+        row=1, col=1,
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=df["date"], y=df["rsi"], mode="lines",
+            name="RSI", line=dict(color="#f39c12", width=1.5),
+        ),
+        row=2, col=1,
+    )
+    fig.add_hline(y=70, line_dash="dash", line_color="rgba(239,83,80,0.6)", row=2, col=1)
+    fig.add_hline(y=30, line_dash="dash", line_color="rgba(38,166,154,0.6)", row=2, col=1)
+
+    fig.add_trace(
+        go.Bar(
+            x=df["date"], y=df["macd_hist"],
+            name="MACD Hist",
+            marker_color=[
+                "#26a69a" if v >= 0 else "#ef5350" for v in df["macd_hist"]
+            ],
+            opacity=0.7,
+        ),
+        row=3, col=1,
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=df["date"], y=df["macd"], mode="lines",
+            name="MACD", line=dict(color="#17a2b8", width=1.5),
+        ),
+        row=3, col=1,
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=df["date"], y=df["macd_signal"], mode="lines",
+            name="Signal", line=dict(color="#e83e8c", width=1.2),
+        ),
+        row=3, col=1,
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=df["date"], y=df["close"], mode="lines",
+            name="Close", line=dict(color="rgba(255,255,255,0.4)", width=1),
+            showlegend=False,
+        ),
+        row=4, col=1,
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=df["date"], y=df["sma50"], mode="lines",
+            name="SMA 50", line=dict(color="#f39c12", width=1.5),
+        ),
+        row=4, col=1,
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=df["date"], y=df["sma200"], mode="lines",
+            name="SMA 200", line=dict(color="#e83e8c", width=1.5),
+        ),
+        row=4, col=1,
+    )
+
+    fig.update_layout(
+        template="plotly_dark",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=900,
+        hovermode="x unified",
+        hoverlabel=dict(bgcolor="#212529", font_size=13),
+        showlegend=True,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        margin=dict(l=10, r=10, t=60, b=10),
+    )
+    fig.update_yaxes(title_text="Price", row=1, col=1)
+    fig.update_yaxes(title_text="RSI", range=[0, 100], row=2, col=1)
+    fig.update_yaxes(title_text="MACD", row=3, col=1)
+    fig.update_yaxes(title_text="Price", row=4, col=1)
+
+    return dcc.Graph(figure=fig, config={"displayModeBar": True, "responsive": True})
 
 
 if __name__ == "__main__":
