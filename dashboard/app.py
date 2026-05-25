@@ -164,194 +164,69 @@ def render_price_dashboard():
         return dbc.Alert(f"Error: {e}", color="danger")
 
 def render_predictions():
-    """XGBoost model predictions: actual vs predicted direction chart, accuracy, and confidence distribution."""
+    """XGBoost model predictions with asset class, asset, and interval selectors."""
     try:
-        results = run_prediction(asset="BTC", interval="1h")
-
-        if results is None or results.empty:
-            return dbc.Alert("No prediction data available. Run the full pipeline first to populate gold_crypto_features.", color="warning")
-
-        total = len(results)
-        correct = (results["prediction"] == results["actual_direction"]).sum()
-        accuracy = correct / total if total > 0 else 0
-        up_pred_pct = (results["prediction"] == 1).sum() / total * 100
-
-        summary_cards = dbc.Row(
-            [
-                dbc.Col(
-                    dbc.Card(
-                        dbc.CardBody([
-                            html.H5(f"{total:,}", className="card-title text-info"),
-                            html.P("Total Predictions", className="card-text text-muted small"),
-                        ]),
-                        color="dark", outline=True,
-                    ),
-                    width=3,
-                ),
-                dbc.Col(
-                    dbc.Card(
-                        dbc.CardBody([
-                            html.H5(f"{accuracy:.1%}", className="card-title text-info"),
-                            html.P("Accuracy (52.6% baseline)", className="card-text text-muted small"),
-                        ]),
-                        color="dark", outline=True,
-                    ),
-                    width=3,
-                ),
-                dbc.Col(
-                    dbc.Card(
-                        dbc.CardBody([
-                            html.H5(f"{up_pred_pct:.1f}%", className="card-title text-info"),
-                            html.P("UP Predictions", className="card-text text-muted small"),
-                        ]),
-                        color="dark", outline=True,
-                    ),
-                    width=3,
-                ),
-                dbc.Col(
-                    dbc.Card(
-                        dbc.CardBody([
-                            html.H5(f"{correct:,}", className="card-title text-info"),
-                            html.P("Correct Predictions", className="card-text text-muted small"),
-                        ]),
-                        color="dark", outline=True,
-                    ),
-                    width=3,
-                ),
-            ],
-            className="mb-3",
-        )
-
-        fig_overlay = make_subplots(
-            rows=2, cols=1,
-            shared_xaxes=True,
-            vertical_spacing=0.05,
-            row_heights=[0.7, 0.3],
-            subplot_titles=("Close Price with Prediction Markers", "Confidence Over Time"),
-        )
-
-        fig_overlay.add_trace(
-            go.Scatter(
-                x=results["date"], y=results["close"],
-                mode="lines", name="Close Price",
-                line=dict(color="#17a2b8", width=1),
-            ),
-            row=1, col=1,
-        )
-
-        correct_mask = results["prediction"] == results["actual_direction"]
-        wrong_mask = ~correct_mask
-
-        for mask, color, label in [
-            (correct_mask, "#26a69a", "Correct"),
-            (wrong_mask, "#ef5350", "Wrong"),
-        ]:
-            subset = results[mask]
-            if not subset.empty:
-                fig_overlay.add_trace(
-                    go.Scatter(
-                        x=subset["date"], y=subset["close"],
-                        mode="markers", name=label,
-                        marker=dict(color=color, size=5, symbol="circle"),
-                    ),
-                    row=1, col=1,
-                )
-
-        fig_overlay.add_trace(
-            go.Scatter(
-                x=results["date"], y=results["confidence"],
-                mode="lines", name="Confidence",
-                line=dict(color="#ffc107", width=1),
-                fill="tozeroy", fillcolor="rgba(255,193,7,0.1)",
-            ),
-            row=2, col=1,
-        )
-
-        fig_overlay.update_layout(
-            template="plotly_dark",
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            height=650,
-            hovermode="x unified",
-            showlegend=True,
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            margin=dict(l=10, r=10, t=40, b=10),
-        )
-        fig_overlay.update_yaxes(title_text="Price (USD)", row=1, col=1)
-        fig_overlay.update_yaxes(title_text="Confidence", row=2, col=1)
-
-        fig_hist = go.Figure()
-        fig_hist.add_trace(
-            go.Histogram(
-                x=results["confidence"], nbinsx=40,
-                marker_color="#17a2b8", opacity=0.8,
-                name="Confidence",
-            )
-        )
-        fig_hist.add_vline(
-            x=0.5, line_dash="dash", line_color="#ef5350",
-            annotation_text="Random (0.5)", annotation_position="top left",
-        )
-        fig_hist.update_layout(
-            template="plotly_dark",
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            height=350,
-            title="Confidence Distribution",
-            xaxis_title="Prediction Confidence",
-            yaxis_title="Count",
-            margin=dict(l=10, r=10, t=40, b=10),
-        )
-
-        fig_gauge = go.Figure(
-            go.Indicator(
-                mode="gauge+number",
-                value=accuracy * 100,
-                number={"suffix": "%", "font": {"size": 48, "color": "#17a2b8"}},
-                title={"text": "Model Accuracy", "font": {"size": 14}},
-                gauge={
-                    "axis": {"range": [0, 100], "tickcolor": "#adb5bd"},
-                    "bar": {"color": "#26a69a" if accuracy >= 0.5 else "#ef5350"},
-                    "steps": [
-                        {"range": [0, 50], "color": "rgba(239,83,80,0.3)"},
-                        {"range": [50, 52], "color": "rgba(255,193,7,0.3)"},
-                        {"range": [52, 60], "color": "rgba(38,166,154,0.3)"},
-                        {"range": [60, 100], "color": "rgba(38,166,154,0.5)"},
-                    ],
-                    "threshold": {
-                        "line": {"color": "white", "width": 2},
-                        "value": 52.6,
-                    },
-                },
-            )
-        )
-        fig_gauge.update_layout(
-            template="plotly_dark",
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            height=350,
-            margin=dict(l=10, r=10, t=40, b=10),
-        )
-
-        return html.Div([
-            html.H3("BTC/USDT 1H -- XGBoost Direction Predictions", className="text-light mb-3"),
-            summary_cards,
-            dbc.Row(
+        return dbc.Row(
+            dbc.Col(
                 [
-                    dbc.Col(dcc.Graph(figure=fig_gauge, config={"responsive": True}), width=4),
-                    dbc.Col(dcc.Graph(figure=fig_hist, config={"responsive": True}), width=8),
+                    html.H3("XGBoost Direction Predictions", className="text-light mb-3"),
+                    dbc.Row(
+                        [
+                            dbc.Col(
+                                [
+                                    html.Label("Asset Class", className="text-muted small mb-1"),
+                                    dcc.Dropdown(
+                                        id="pred-class-dropdown",
+                                        options=[
+                                            {"label": "Crypto", "value": "crypto"},
+                                            {"label": "Stocks", "value": "stocks"},
+                                        ],
+                                        value="crypto",
+                                        clearable=False,
+                                        searchable=False,
+                                        style={"color": "#000"},
+                                    ),
+                                ],
+                                width=2,
+                            ),
+                            dbc.Col(
+                                [
+                                    html.Label("Asset", className="text-muted small mb-1"),
+                                    dcc.Dropdown(
+                                        id="pred-asset-dropdown",
+                                        clearable=False,
+                                        searchable=True,
+                                        style={"color": "#000"},
+                                    ),
+                                ],
+                                width=2,
+                            ),
+                            dbc.Col(
+                                [
+                                    html.Label("Interval", className="text-muted small mb-1"),
+                                    dcc.Dropdown(
+                                        id="pred-interval-dropdown",
+                                        clearable=False,
+                                        searchable=False,
+                                        style={"color": "#000"},
+                                    ),
+                                ],
+                                width=2,
+                            ),
+                        ],
+                        className="mb-3",
+                    ),
+                    dcc.Loading(
+                        id="loading-pred",
+                        type="circle",
+                        children=html.Div(id="pred-content"),
+                    ),
                 ],
-                className="mb-3",
-            ),
-            dbc.Row(
-                dbc.Col(
-                    dcc.Graph(figure=fig_overlay, config={"displayModeBar": True, "responsive": True}),
-                    width=12,
-                )
-            ),
-        ])
+                width=12,
+            )
+        )
     except Exception as e:
-        return dbc.Alert(f"Error loading predictions: {e}", color="danger")
+        return dbc.Alert(f"Error: {e}", color="danger")
 
 def render_indicators():
     """RSI, MACD, Bollinger Bands, and SMA crossover charts from gold_crypto_features."""
@@ -718,6 +593,249 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value):
     fig.update_yaxes(title_text="Volume", row=2, col=1)
 
     return fig
+
+
+@app.callback(
+    dash.Output("pred-asset-dropdown", "options"),
+    dash.Output("pred-asset-dropdown", "value"),
+    dash.Input("pred-class-dropdown", "value"),
+)
+def update_pred_asset_dropdown(asset_class):
+    """When asset class changes, update the predictions asset dropdown."""
+    if asset_class == "crypto":
+        assets = CRYPTO_ASSETS
+        default = "BTC" if "BTC" in assets else (assets[0] if assets else None)
+    else:
+        assets = STOCK_ASSETS
+        default = assets[0] if assets else None
+    options = [{"label": a, "value": a} for a in assets]
+    return options, default
+
+
+@app.callback(
+    dash.Output("pred-interval-dropdown", "options"),
+    dash.Output("pred-interval-dropdown", "value"),
+    dash.Input("pred-class-dropdown", "value"),
+)
+def update_pred_interval_dropdown(asset_class):
+    """When asset class changes, update the predictions interval dropdown."""
+    if asset_class == "crypto":
+        intervals = CRYPTO_INTERVALS
+        default = "1h"
+    else:
+        intervals = STOCK_INTERVALS
+        default = "1h"
+    options = [{"label": INTERVAL_LABELS.get(iv, iv), "value": iv} for iv in intervals]
+    return options, default
+
+
+@app.callback(
+    dash.Output("pred-content", "children"),
+    dash.Input("pred-class-dropdown", "value"),
+    dash.Input("pred-asset-dropdown", "value"),
+    dash.Input("pred-interval-dropdown", "value"),
+)
+def build_prediction_charts(asset_class, asset_symbol, interval):
+    """Run XGBoost prediction and render charts for the selected asset/interval."""
+    if not asset_symbol or not interval:
+        return dbc.Alert("Select an asset and interval.", color="info")
+
+    try:
+        results = run_prediction(asset=asset_symbol, interval=interval)
+    except Exception as e:
+        return dbc.Alert(
+            f"Prediction failed for {asset_symbol}/{interval}: {e}", color="warning"
+        )
+
+    if results is None or results.empty:
+        return dbc.Alert(
+            f"No prediction data for {asset_symbol}/{interval}. "
+            "Run the pipeline first or try BTC/1h.",
+            color="warning",
+        )
+
+    total = len(results)
+    correct = (results["prediction"] == results["actual_direction"]).sum()
+    accuracy = correct / total if total > 0 else 0
+    up_pred_pct = (results["prediction"] == 1).sum() / total * 100
+
+    summary_cards = dbc.Row(
+        [
+            dbc.Col(
+                dbc.Card(
+                    dbc.CardBody([
+                        html.H5(f"{total:,}", className="card-title text-info"),
+                        html.P("Total Predictions", className="card-text text-muted small"),
+                    ]),
+                    color="dark", outline=True,
+                ),
+                width=3,
+            ),
+            dbc.Col(
+                dbc.Card(
+                    dbc.CardBody([
+                        html.H5(f"{accuracy:.1%}", className="card-title text-info"),
+                        html.P("Accuracy (52.6% baseline)", className="card-text text-muted small"),
+                    ]),
+                    color="dark", outline=True,
+                ),
+                width=3,
+            ),
+            dbc.Col(
+                dbc.Card(
+                    dbc.CardBody([
+                        html.H5(f"{up_pred_pct:.1f}%", className="card-title text-info"),
+                        html.P("UP Predictions", className="card-text text-muted small"),
+                    ]),
+                    color="dark", outline=True,
+                ),
+                width=3,
+            ),
+            dbc.Col(
+                dbc.Card(
+                    dbc.CardBody([
+                        html.H5(f"{correct:,}", className="card-title text-info"),
+                        html.P("Correct Predictions", className="card-text text-muted small"),
+                    ]),
+                    color="dark", outline=True,
+                ),
+                width=3,
+            ),
+        ],
+        className="mb-3",
+    )
+
+    fig_overlay = make_subplots(
+        rows=2, cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.05,
+        row_heights=[0.7, 0.3],
+        subplot_titles=("Close Price with Prediction Markers", "Confidence Over Time"),
+    )
+
+    fig_overlay.add_trace(
+        go.Scatter(
+            x=results["date"], y=results["close"],
+            mode="lines", name="Close Price",
+            line=dict(color="#17a2b8", width=1),
+        ),
+        row=1, col=1,
+    )
+
+    correct_mask = results["prediction"] == results["actual_direction"]
+    wrong_mask = ~correct_mask
+
+    for mask, color, label in [
+        (correct_mask, "#26a69a", "Correct"),
+        (wrong_mask, "#ef5350", "Wrong"),
+    ]:
+        subset = results[mask]
+        if not subset.empty:
+            fig_overlay.add_trace(
+                go.Scatter(
+                    x=subset["date"], y=subset["close"],
+                    mode="markers", name=label,
+                    marker=dict(color=color, size=5, symbol="circle"),
+                ),
+                row=1, col=1,
+            )
+
+    fig_overlay.add_trace(
+        go.Scatter(
+            x=results["date"], y=results["confidence"],
+            mode="lines", name="Confidence",
+            line=dict(color="#ffc107", width=1),
+            fill="tozeroy", fillcolor="rgba(255,193,7,0.1)",
+        ),
+        row=2, col=1,
+    )
+
+    fig_overlay.update_layout(
+        template="plotly_dark",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=650,
+        hovermode="x unified",
+        showlegend=True,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        margin=dict(l=10, r=10, t=40, b=10),
+    )
+    fig_overlay.update_yaxes(title_text="Price (USD)", row=1, col=1)
+    fig_overlay.update_yaxes(title_text="Confidence", row=2, col=1)
+
+    fig_hist = go.Figure()
+    fig_hist.add_trace(
+        go.Histogram(
+            x=results["confidence"], nbinsx=40,
+            marker_color="#17a2b8", opacity=0.8,
+            name="Confidence",
+        )
+    )
+    fig_hist.add_vline(
+        x=0.5, line_dash="dash", line_color="#ef5350",
+        annotation_text="Random (0.5)", annotation_position="top left",
+    )
+    fig_hist.update_layout(
+        template="plotly_dark",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=350,
+        title="Confidence Distribution",
+        xaxis_title="Prediction Confidence",
+        yaxis_title="Count",
+        margin=dict(l=10, r=10, t=40, b=10),
+    )
+
+    fig_gauge = go.Figure(
+        go.Indicator(
+            mode="gauge+number",
+            value=accuracy * 100,
+            number={"suffix": "%", "font": {"size": 48, "color": "#17a2b8"}},
+            title={"text": "Model Accuracy", "font": {"size": 14}},
+            gauge={
+                "axis": {"range": [0, 100], "tickcolor": "#adb5bd"},
+                "bar": {"color": "#26a69a" if accuracy >= 0.5 else "#ef5350"},
+                "steps": [
+                    {"range": [0, 50], "color": "rgba(239,83,80,0.3)"},
+                    {"range": [50, 52], "color": "rgba(255,193,7,0.3)"},
+                    {"range": [52, 60], "color": "rgba(38,166,154,0.3)"},
+                    {"range": [60, 100], "color": "rgba(38,166,154,0.5)"},
+                ],
+                "threshold": {
+                    "line": {"color": "white", "width": 2},
+                    "value": 52.6,
+                },
+            },
+        )
+    )
+    fig_gauge.update_layout(
+        template="plotly_dark",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=350,
+        margin=dict(l=10, r=10, t=40, b=10),
+    )
+
+    interval_label = INTERVAL_LABELS.get(interval, interval)
+    title = f"{asset_symbol}/USDT {interval_label} -- XGBoost Direction Predictions"
+
+    return html.Div([
+        html.H3(title, className="text-light mb-3"),
+        summary_cards,
+        dbc.Row(
+            [
+                dbc.Col(dcc.Graph(figure=fig_gauge, config={"responsive": True}), width=4),
+                dbc.Col(dcc.Graph(figure=fig_hist, config={"responsive": True}), width=8),
+            ],
+            className="mb-3",
+        ),
+        dbc.Row(
+            dbc.Col(
+                dcc.Graph(figure=fig_overlay, config={"displayModeBar": True, "responsive": True}),
+                width=12,
+            )
+        ),
+    ])
 
 
 if __name__ == "__main__":
