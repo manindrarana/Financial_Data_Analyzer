@@ -1016,20 +1016,27 @@ def build_indicators_chart(asset_class, asset_symbol, interval, range_value):
     true_range = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
     df["atr"] = true_range.rolling(window=14).mean()
 
+    close_diff = df["close"].diff()
+    df["obv"] = (
+        df["volume"]
+        * (close_diff.gt(0).astype(int) - close_diff.lt(0).astype(int))
+    ).fillna(0).cumsum()
+
     symbol_label = f"{asset_symbol}/USDT" if asset_class == "crypto" else asset_symbol
     interval_label = INTERVAL_LABELS.get(interval, interval)
 
     fig = make_subplots(
-        rows=5, cols=1,
+        rows=6, cols=1,
         shared_xaxes=True,
-        vertical_spacing=0.03,
-        row_heights=[0.30, 0.18, 0.18, 0.18, 0.16],
+        vertical_spacing=0.025,
+        row_heights=[0.28, 0.14, 0.14, 0.14, 0.12, 0.18],
         subplot_titles=(
             f"{symbol_label} — Bollinger Bands ({interval_label})",
             "RSI (14)",
             "MACD (12, 26, 9)",
             "SMA Crossover (50 / 200)",
             "ATR (14)",
+            "OBV (On-Balance Volume)",
         ),
     )
 
@@ -1131,11 +1138,20 @@ def build_indicators_chart(asset_class, asset_symbol, interval, range_value):
         row=5, col=1,
     )
 
+    fig.add_trace(
+        go.Scatter(
+            x=df["date"], y=df["obv"], mode="lines",
+            name="OBV", line=dict(color="#00b894", width=1.5),
+            fill="tozeroy", fillcolor="rgba(0,184,148,0.10)",
+        ),
+        row=6, col=1,
+    )
+
     fig.update_layout(
         template="plotly_dark",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        height=1050,
+        height=1200,
         hovermode="x unified",
         hoverlabel=dict(bgcolor="#212529", font_size=13),
         showlegend=True,
@@ -1147,6 +1163,7 @@ def build_indicators_chart(asset_class, asset_symbol, interval, range_value):
     fig.update_yaxes(title_text="MACD", row=3, col=1)
     fig.update_yaxes(title_text="Price", row=4, col=1)
     fig.update_yaxes(title_text="ATR", row=5, col=1)
+    fig.update_yaxes(title_text="OBV", row=6, col=1)
 
     return dcc.Graph(figure=fig, config={"displayModeBar": True, "responsive": True})
 
