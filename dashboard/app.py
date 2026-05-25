@@ -568,10 +568,10 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value):
     fig = make_subplots(
         rows=2, cols=1,
         shared_xaxes=True,
-        vertical_spacing=0.03,
-        row_heights=[0.7, 0.3],
+        vertical_spacing=0.02,
+        row_heights=[0.78, 0.22],
         subplot_titles=(
-            f"{symbol_label} - {interval_label} ({len(df)} candles, from {original_count} raw)",
+            f"{symbol_label} · {interval_label}",
             "Volume",
         ),
     )
@@ -606,12 +606,14 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value):
         template="plotly_dark",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        height=700,
+        height=800,
         hovermode="x unified",
         showlegend=False,
-        margin=dict(l=10, r=10, t=40, b=10),
-        xaxis_rangeslider_visible=True,
+        margin=dict(l=15, r=15, t=45, b=10),
+        xaxis_rangeslider_visible=False,
         xaxis=dict(
+            showgrid=True,
+            gridcolor="rgba(255,255,255,0.06)",
             rangeselector=dict(
                 buttons=list([
                     dict(count=1, label="1D", step="day", stepmode="backward"),
@@ -623,14 +625,31 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value):
                     dict(count=1, label="1Y", step="year", stepmode="backward"),
                     dict(step="all", label="All"),
                 ]),
-                bgcolor="#2a2a2a",
+                bgcolor="#1e1e1e",
                 activecolor="#375a7f",
-                font=dict(color="#aaa"),
+                font=dict(color="#aaa", size=11),
             ),
         ),
+        annotations=[
+            dict(
+                x=1.0, y=0.0,
+                xref="paper", yref="paper",
+                text=f"{len(df):,} candles",
+                showarrow=False,
+                font=dict(size=10, color="#666"),
+                xanchor="right", yanchor="bottom",
+                xshift=0, yshift=16,
+            ),
+        ],
     )
-    fig.update_yaxes(title_text="Price (USD)", row=1, col=1)
-    fig.update_yaxes(title_text="Volume", row=2, col=1)
+    fig.update_yaxes(
+        title_text="Price (USD)", row=1, col=1,
+        showgrid=True, gridcolor="rgba(255,255,255,0.06)",
+    )
+    fig.update_yaxes(
+        title_text="Volume", row=2, col=1,
+        showgrid=True, gridcolor="rgba(255,255,255,0.04)",
+    )
 
     return fig
 
