@@ -213,6 +213,29 @@ def render_predictions():
                                 ],
                                 width=2,
                             ),
+                            dbc.Col(
+                                [
+                                    html.Label("Time Range", className="text-muted small mb-1"),
+                                    dcc.Dropdown(
+                                        id="pred-range-dropdown",
+                                        options=[
+                                            {"label": "1 Day", "value": "1d"},
+                                            {"label": "3 Days", "value": "3d"},
+                                            {"label": "1 Week", "value": "7d"},
+                                            {"label": "1 Month", "value": "30d"},
+                                            {"label": "3 Months", "value": "90d"},
+                                            {"label": "6 Months", "value": "180d"},
+                                            {"label": "1 Year", "value": "365d"},
+                                            {"label": "All Time", "value": "all"},
+                                        ],
+                                        value="90d",
+                                        clearable=False,
+                                        searchable=False,
+                                        style={"color": "#000"},
+                                    ),
+                                ],
+                                width=2,
+                            ),
                         ],
                         className="mb-3",
                     ),
@@ -651,8 +674,9 @@ def update_pred_interval_dropdown(asset_class):
     dash.Input("pred-class-dropdown", "value"),
     dash.Input("pred-asset-dropdown", "value"),
     dash.Input("pred-interval-dropdown", "value"),
+    dash.Input("pred-range-dropdown", "value"),
 )
-def build_prediction_charts(asset_class, asset_symbol, interval):
+def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
     """Run XGBoost prediction and render charts for the selected asset/interval."""
     if not asset_symbol or not interval:
         return dbc.Alert("Select an asset and interval.", color="info")
@@ -671,10 +695,34 @@ def build_prediction_charts(asset_class, asset_symbol, interval):
             color="warning",
         )
 
+    if range_value and range_value != "all":
+        days = PRICE_RANGE_MAP.get(range_value, 90)
+        cutoff = results["date"].max() - pd.Timedelta(days=days)
+        results = results[results["date"] >= cutoff]
+
+    if results.empty:
+        return dbc.Alert(
+            f"No prediction data in selected time range for {asset_symbol}/{interval}.",
+            color="warning",
+        )
+
     total = len(results)
     correct = (results["prediction"] == results["actual_direction"]).sum()
     accuracy = correct / total if total > 0 else 0
     up_pred_pct = (results["prediction"] == 1).sum() / total * 100
+
+    MAX_CHART_POINTS = 2000
+    MAX_MARKERS = 300
+    if len(results) > MAX_CHART_POINTS:
+        step = max(1, len(results) // MAX_CHART_POINTS)
+        chart_data = results.iloc[::step].copy()
+    else:
+        chart_data = results
+
+    if len(results) > MAX_MARKERS:
+        marker_data = results.iloc[-MAX_MARKERS:]
+    else:
+        marker_data = results
 
     summary_cards = dbc.Row(
         [
@@ -732,21 +780,21 @@ def build_prediction_charts(asset_class, asset_symbol, interval):
 
     fig_overlay.add_trace(
         go.Scatter(
-            x=results["date"], y=results["close"],
+            x=chart_data["date"], y=chart_data["close"],
             mode="lines", name="Close Price",
             line=dict(color="#17a2b8", width=1),
         ),
         row=1, col=1,
     )
 
-    correct_mask = results["prediction"] == results["actual_direction"]
+    correct_mask = marker_data["prediction"] == marker_data["actual_direction"]
     wrong_mask = ~correct_mask
 
     for mask, color, label in [
         (correct_mask, "#26a69a", "Correct"),
         (wrong_mask, "#ef5350", "Wrong"),
     ]:
-        subset = results[mask]
+        subset = marker_data[mask]
         if not subset.empty:
             fig_overlay.add_trace(
                 go.Scatter(
@@ -759,7 +807,7 @@ def build_prediction_charts(asset_class, asset_symbol, interval):
 
     fig_overlay.add_trace(
         go.Scatter(
-            x=results["date"], y=results["confidence"],
+            x=chart_data["date"], y=chart_data["confidence"],
             mode="lines", name="Confidence",
             line=dict(color="#ffc107", width=1),
             fill="tozeroy", fillcolor="rgba(255,193,7,0.1)",
@@ -836,7 +884,8 @@ def build_prediction_charts(asset_class, asset_symbol, interval):
     )
 
     interval_label = INTERVAL_LABELS.get(interval, interval)
-    title = f"{asset_symbol}/USDT {interval_label} -- XGBoost Direction Predictions"
+    range_label = f" ({range_value})" if range_value and range_value != "all" else " (all time)"
+    title = f"{asset_symbol}/USDT {interval_label}{range_label} -- XGBoost Direction Predictions"
 
     return html.Div([
         html.H3(title, className="text-light mb-3"),
