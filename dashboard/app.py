@@ -5,7 +5,7 @@ Multi-tab web UI reading directly from DuckDB gold tables.
 
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
@@ -1233,7 +1233,8 @@ def update_freshness_badge(_n):
         else:
             color = "danger"
 
-        label = latest.strftime("%Y-%m-%d %H:%M UTC")
+        WEST = timezone(timedelta(hours=1))
+        label = latest.astimezone(WEST).strftime("%Y-%m-%d %H:%M WEST")
         return dbc.Badge(
             f"Latest data: {label} ({age_hours:.1f}h ago)",
             color=color,
