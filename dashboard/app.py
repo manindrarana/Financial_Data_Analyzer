@@ -5,6 +5,7 @@ Multi-tab web UI reading directly from DuckDB gold tables.
 
 import os
 import sys
+from datetime import datetime, timezone
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
@@ -1193,6 +1194,53 @@ def build_indicators_chart(asset_class, asset_symbol, interval, range_value):
 
     return dcc.Graph(figure=fig, config={"displayModeBar": True, "responsive": True})
 
+@app.callback(
+    dash.Output("freshness-badge", "children"),
+    dash.Input("freshness-interval", "n_intervals"),
+)
+def update_freshness_badge(_n):
+    """Query gold tables for latest data dates and render a color-coded freshness badge."""
+    try:
+        conn = duckdb.connect(DB_PATH, read_only=True)
+        crypto_date = conn.execute(
+            "SELECT MAX(date) FROM gold_crypto_analytics"
+        ).fetchone()[0]
+        stock_date = conn.execute(
+            "SELECT MAX(date) FROM gold_stock_analytics"
+        ).fetchone()[0]
+        conn.close()
+
+        dates = []
+        for d in (crypto_date, stock_date):
+            if d is not None:
+                if isinstance(d, str):
+                    dates.append(datetime.fromisoformat(d))
+                else:
+                    dates.append(d)
+        if not dates:
+            return dbc.Badge("No data available", color="danger", className="px-3 py-2 fs-6")
+
+        latest = max(dates)
+        now = datetime.now(timezone.utc)
+        if latest.tzinfo is None:
+            latest = latest.replace(tzinfo=timezone.utc)
+        age_hours = (now - latest).total_seconds() / 3600
+
+        if age_hours < 1:
+            color = "success"
+        elif age_hours < 24:
+            color = "warning"
+        else:
+            color = "danger"
+
+        label = latest.strftime("%Y-%m-%d %H:%M UTC")
+        return dbc.Badge(
+            f"Latest data: {label} ({age_hours:.1f}h ago)",
+            color=color,
+            className="px-3 py-2 fs-6",
+        )
+    except Exception:
+        return dbc.Badge("Data freshness unavailable", color="secondary", className="px-3 py-2 fs-6")
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=8050)
