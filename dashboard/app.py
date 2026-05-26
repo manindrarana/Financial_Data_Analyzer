@@ -40,10 +40,16 @@ app.layout = dbc.Container(
             )
         ),
         dbc.Row(
-            dbc.Col(
-                html.Div(id="freshness-badge", className="text-center mb-2"),
-                width=12,
-            )
+            [
+                dbc.Col(
+                    html.Div(id="freshness-crypto-badge", className="text-center mb-2"),
+                    width=6,
+                ),
+                dbc.Col(
+                    html.Div(id="freshness-stock-badge", className="text-center mb-2"),
+                    width=6,
+                ),
+            ]
         ),
         dcc.Interval(id="freshness-interval", interval=60_000),
         dbc.Tabs(
@@ -1194,54 +1200,90 @@ def build_indicators_chart(asset_class, asset_symbol, interval, range_value):
 
     return dcc.Graph(figure=fig, config={"displayModeBar": True, "responsive": True})
 
+def _get_age_color(age_hours: float, is_crypto: bool):
+    """Return Bootstrap color string based on age and asset class.
+
+    Crypto thresholds (24/7 markets, strict):
+        green < 1h, yellow 1-24h, red > 24h
+
+    Stock thresholds (market hours, relaxed for nights/weekends):
+        green < 24h, yellow 24-72h, red > 72h
+    """
+    if is_crypto:
+        if age_hours < 1:
+            return "success"
+        elif age_hours < 24:
+            return "warning"
+        else:
+            return "danger"
+    else:
+        if age_hours < 24:
+            return "success"
+        elif age_hours < 72:
+            return "warning"
+        else:
+            return "danger"
+
+
+def _build_freshness_badge(max_date, now_utc, asset_label: str, is_crypto: bool):
+    """Build a dbc.Badge for a single asset class given its MAX(date)."""
+    if max_date is None:
+        return dbc.Badge(
+            f"{asset_label}: No data",
+            color="danger",
+            className="px-3 py-2 fs-6",
+        )
+    if isinstance(max_date, str):
+        latest = datetime.fromisoformat(max_date)
+    else:
+        latest = max_date
+    if latest.tzinfo is None:
+        latest = latest.replace(tzinfo=timezone.utc)
+
+    age_hours = (now_utc - latest).total_seconds() / 3600
+    color = _get_age_color(age_hours, is_crypto)
+
+    WEST = timezone(timedelta(hours=1))
+    label = latest.astimezone(WEST).strftime("%Y-%m-%d %H:%M WEST")
+    return dbc.Badge(
+        f"{asset_label}: {label} ({age_hours:.1f}h ago)",
+        color=color,
+        className="px-3 py-2 fs-6",
+    )
+
+
 @app.callback(
-    dash.Output("freshness-badge", "children"),
+    dash.Output("freshness-crypto-badge", "children"),
     dash.Input("freshness-interval", "n_intervals"),
 )
-def update_freshness_badge(_n):
-    """Query gold tables for latest data dates and render a color-coded freshness badge."""
+def update_crypto_freshness(_n):
+    """Crypto freshness badge with strict 24/7 thresholds."""
     try:
         conn = duckdb.connect(DB_PATH, read_only=True)
         crypto_date = conn.execute(
             "SELECT MAX(date) FROM gold_crypto_analytics"
         ).fetchone()[0]
+        conn.close()
+        return _build_freshness_badge(crypto_date, datetime.now(timezone.utc), "Crypto", True)
+    except Exception:
+        return dbc.Badge("Crypto: unavailable", color="secondary", className="px-3 py-2 fs-6")
+
+
+@app.callback(
+    dash.Output("freshness-stock-badge", "children"),
+    dash.Input("freshness-interval", "n_intervals"),
+)
+def update_stock_freshness(_n):
+    """Stock freshness badge with relaxed thresholds for market-hours trading."""
+    try:
+        conn = duckdb.connect(DB_PATH, read_only=True)
         stock_date = conn.execute(
             "SELECT MAX(date) FROM gold_stock_analytics"
         ).fetchone()[0]
         conn.close()
-
-        dates = []
-        for d in (crypto_date, stock_date):
-            if d is not None:
-                if isinstance(d, str):
-                    dates.append(datetime.fromisoformat(d))
-                else:
-                    dates.append(d)
-        if not dates:
-            return dbc.Badge("No data available", color="danger", className="px-3 py-2 fs-6")
-
-        latest = max(dates)
-        now = datetime.now(timezone.utc)
-        if latest.tzinfo is None:
-            latest = latest.replace(tzinfo=timezone.utc)
-        age_hours = (now - latest).total_seconds() / 3600
-
-        if age_hours < 1:
-            color = "success"
-        elif age_hours < 24:
-            color = "warning"
-        else:
-            color = "danger"
-
-        WEST = timezone(timedelta(hours=1))
-        label = latest.astimezone(WEST).strftime("%Y-%m-%d %H:%M WEST")
-        return dbc.Badge(
-            f"Latest data: {label} ({age_hours:.1f}h ago)",
-            color=color,
-            className="px-3 py-2 fs-6",
-        )
+        return _build_freshness_badge(stock_date, datetime.now(timezone.utc), "Stocks", False)
     except Exception:
-        return dbc.Badge("Data freshness unavailable", color="secondary", className="px-3 py-2 fs-6")
+        return dbc.Badge("Stocks: unavailable", color="secondary", className="px-3 py-2 fs-6")
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=8050)
