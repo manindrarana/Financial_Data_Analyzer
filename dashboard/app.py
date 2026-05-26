@@ -38,6 +38,13 @@ app.layout = dbc.Container(
                 width=12,
             )
         ),
+        dbc.Row(
+            dbc.Col(
+                html.Div(id="freshness-badge", className="text-center mb-2"),
+                width=12,
+            )
+        ),
+        dcc.Interval(id="freshness-interval", interval=60_000),
         dbc.Tabs(
             id="main-tabs",
             active_tab="tab-price",
