@@ -1,9 +1,12 @@
 """
 Prediction inference module for the Dash dashboard.
-Loads the trained XGBoost model, queries gold_crypto_features,
+Loads trained XGBoost models, queries gold_crypto_features or gold_stock_features,
 applies stationarity transformations, and runs inference.
-"""
 
+Also loads per-model metadata (train_end_date) to enable out-of-sample
+accuracy calculation and prevent training data leakage in the dashboard.
+"""
+import json
 import os
 import numpy as np
 import pandas as pd
@@ -14,7 +17,49 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DB_PATH = os.path.join("database", "financial_data.duckdb")
-MODEL_PATH = os.path.join("src", "models", "BTC_1h_xgboost_model.json")
+
+MODEL_PATHS = {
+    "crypto": os.path.join("src", "models", "BTC_1h_xgboost_model.json"),
+    "stocks": os.path.join("src", "models", "AAPL_1h_xgboost_model.json"),
+}
+
+META_PATHS = {
+    "crypto": os.path.join("src", "models", "BTC_1h_xgboost_metadata.json"),
+    "stocks": os.path.join("src", "models", "AAPL_1h_xgboost_metadata.json"),
+}
+
+_train_cutoffs = {}
+
+
+def get_train_cutoff(asset_class="crypto"):
+    """Return the training end date (pd.Timestamp) for the given asset class.
+
+    Reads the per-model metadata JSON to find the last date used in training.
+    Returns None if no metadata file exists (e.g., BTC model trained before
+    metadata tracking was added or training script hasn't been re-run).
+
+    The cutoff is cached in _train_cutoffs to avoid re-reading JSON on every
+    Dash callback invocation.
+    """
+    if asset_class in _train_cutoffs:
+        return _train_cutoffs[asset_class]
+
+    meta_path = META_PATHS.get(asset_class)
+    if meta_path and os.path.exists(meta_path):
+        with open(meta_path) as f:
+            meta = json.load(f)
+        cutoff = pd.Timestamp(meta["train_end_date"])
+        _train_cutoffs[asset_class] = cutoff
+        return cutoff
+
+    _train_cutoffs[asset_class] = None
+    return None
+
+
+FEATURE_TABLES = {
+    "crypto": "gold_crypto_features",
+    "stocks": "gold_stock_features",
+}
 
 MODEL_FEATURES = [
     "rsi_14", "roc_10", "roc_20", "stoch_k", "stoch_d", "bb_percentage",
@@ -65,24 +110,37 @@ def _make_stationary(df):
     return df
 
 
-_model_cache = None
-def _get_model():
-    """Return the cached XGBoost model, loading it once on first call."""
-    global _model_cache
-    if _model_cache is None:
+_model_cache = {}
+def _get_model(asset_class="crypto"):
+    """Return the cached XGBoost model for the given asset class, loading once."""
+    if asset_class not in _model_cache:
+        model_path = MODEL_PATHS.get(asset_class)
+        if model_path is None or not os.path.exists(model_path):
+            raise FileNotFoundError(
+                f"No model found for asset_class='{asset_class}'. "
+                f"Expected at: {model_path}. Run scripts/train_aapl_model.py first."
+            )
         model = xgb.XGBClassifier()
-        model.load_model(MODEL_PATH)
-        _model_cache = model
-    return _model_cache
+        model.load_model(model_path)
+        _model_cache[asset_class] = model
+    return _model_cache[asset_class]
 
 
-def run_prediction(asset="BTC", interval="1h"):
-    """Run the full prediction pipeline for a given asset and interval.
+def run_prediction(asset="BTC", interval="1h", asset_class="crypto"):
+    """Run the full prediction pipeline for a given asset, interval, and asset class.
+
+    Args:
+        asset: Asset symbol (e.g., "BTC", "AAPL").
+        interval: Candle interval (e.g., "1h", "4h").
+        asset_class: "crypto" or "stocks" — determines which gold features table
+                     and which XGBoost model to use.
 
     Returns a DataFrame with columns:
         date, close, prediction, confidence, actual_direction
     or None if no data is available.
     """
+    table_name = FEATURE_TABLES.get(asset_class, "gold_crypto_features")
+
     conn = duckdb.connect(DB_PATH, read_only=True)
     needed_cols = [
         "date", "close",
@@ -99,7 +157,7 @@ def run_prediction(asset="BTC", interval="1h"):
 
     df = conn.execute(f"""
         SELECT {col_list}
-        FROM gold_crypto_features
+        FROM {table_name}
         WHERE asset_symbol = '{asset}' AND interval = '{interval}'
         ORDER BY date
     """).df()
@@ -123,7 +181,7 @@ def run_prediction(asset="BTC", interval="1h"):
     if df_clean.empty:
         return None
 
-    model = _get_model()
+    model = _get_model(asset_class)
     X = df_clean[available_features]
     predictions = model.predict(X)
     probabilities = model.predict_proba(X)
@@ -140,5 +198,11 @@ def run_prediction(asset="BTC", interval="1h"):
 
     results = results.dropna(subset=["actual_direction"])
     results["actual_direction"] = results["actual_direction"].astype(int)
+
+    train_cutoff = get_train_cutoff(asset_class)
+    if train_cutoff is not None:
+        results["is_oos"] = results["date"] > train_cutoff
+    else:
+        results["is_oos"] = True
 
     return results
