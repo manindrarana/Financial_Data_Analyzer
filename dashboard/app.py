@@ -715,7 +715,7 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
         return dbc.Alert("Select an asset and interval.", color="info")
 
     try:
-        results = run_prediction(asset=asset_symbol, interval=interval)
+        results = run_prediction(asset=asset_symbol, interval=interval, asset_class=asset_class)
     except Exception as e:
         return dbc.Alert(
             f"Prediction failed for {asset_symbol}/{interval}: {e}", color="warning"
@@ -739,9 +739,20 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
             color="warning",
         )
 
+    if "is_oos" in results.columns:
+        oos = results[results["is_oos"]]
+        oos_total = len(oos)
+    else:
+        oos = results
+        oos_total = len(oos)
+
     total = len(results)
     correct = (results["prediction"] == results["actual_direction"]).sum()
     accuracy = correct / total if total > 0 else 0
+
+    oos_correct = (oos["prediction"] == oos["actual_direction"]).sum()
+    oos_accuracy = oos_correct / oos_total if oos_total > 0 else 0
+
     up_pred_pct = (results["prediction"] == 1).sum() / total * 100
 
     MAX_CHART_POINTS = 2000
@@ -772,8 +783,8 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
             dbc.Col(
                 dbc.Card(
                     dbc.CardBody([
-                        html.H5(f"{accuracy:.1%}", className="card-title text-info"),
-                        html.P("Accuracy (52.6% baseline)", className="card-text text-muted small"),
+                        html.H5(f"{oos_accuracy:.1%}", className="card-title text-info"),
+                        html.P("OOS Accuracy", className="card-text text-muted small"),
                     ]),
                     color="dark", outline=True,
                 ),
@@ -889,12 +900,12 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
     fig_gauge = go.Figure(
         go.Indicator(
             mode="gauge+number",
-            value=accuracy * 100,
+            value=oos_accuracy * 100,
             number={"suffix": "%", "font": {"size": 48, "color": "#17a2b8"}},
-            title={"text": "Model Accuracy", "font": {"size": 14}},
+            title={"text": "OOS Accuracy", "font": {"size": 14}},
             gauge={
                 "axis": {"range": [0, 100], "tickcolor": "#adb5bd"},
-                "bar": {"color": "#26a69a" if accuracy >= 0.5 else "#ef5350"},
+                "bar": {"color": "#26a69a" if oos_accuracy >= 0.5 else "#ef5350"},
                 "steps": [
                     {"range": [0, 50], "color": "rgba(239,83,80,0.3)"},
                     {"range": [50, 52], "color": "rgba(255,193,7,0.3)"},
