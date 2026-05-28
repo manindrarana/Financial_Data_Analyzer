@@ -163,6 +163,21 @@ def render_price_dashboard():
                         ],
                         className="mb-3",
                     ),
+                    dbc.Checklist(
+                        id="indicator-toggles",
+                        options=[
+                            {"label": "EMA 9", "value": "ema9"},
+                            {"label": "EMA 21", "value": "ema21"},
+                            {"label": "EMA 50", "value": "ema50"},
+                            {"label": "SMA 50", "value": "sma50"},
+                            {"label": "SMA 200", "value": "sma200"},
+                            {"label": "Bollinger Bands", "value": "bb"},
+                            {"label": "VWAP", "value": "vwap"},
+                        ],
+                        value=[],
+                        inline=True,
+                        className="mb-3",
+                    ),
                     dcc.Loading(
                         id="loading-price",
                         type="circle",
@@ -527,8 +542,9 @@ def update_interval_dropdown(asset_class):
     dash.Input("price-asset-dropdown", "value"),
     dash.Input("price-interval-dropdown", "value"),
     dash.Input("price-range-dropdown", "value"),
+    dash.Input("indicator-toggles", "value"),
 )
-def build_price_chart(asset_class, asset_symbol, interval, range_value):
+def build_price_chart(asset_class, asset_symbol, interval, range_value, indicators):
     """Query the database, downsample if needed, and build the OHLCV figure."""
 
     if not asset_symbol or not interval or not asset_class:
@@ -617,13 +633,58 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value):
         row=2, col=1,
     )
 
+    if indicators:
+        INDICATOR_CONFIG = {
+            "ema9":  {"type": "ema", "span": 9,  "name": "EMA 9",  "color": "#2196f3"},
+            "ema21": {"type": "ema", "span": 21, "name": "EMA 21", "color": "#ff9800"},
+            "ema50": {"type": "ema", "span": 50, "name": "EMA 50", "color": "#9c27b0"},
+            "sma50": {"type": "sma", "span": 50, "name": "SMA 50", "color": "#ffeb3b"},
+            "sma200":{"type": "sma", "span": 200,"name": "SMA 200","color": "#e91e63"},
+        }
+        for key in indicators:
+            cfg = INDICATOR_CONFIG.get(key)
+            if not cfg:
+                continue
+            if cfg["type"] == "ema":
+                series = df["close"].ewm(span=cfg["span"], adjust=False).mean()
+            else:
+                series = df["close"].rolling(window=cfg["span"]).mean()
+            fig.add_trace(
+                go.Scatter(
+                    x=df["date"], y=series,
+                    mode="lines", name=cfg["name"],
+                    line=dict(color=cfg["color"], width=1.2),
+                ),
+                row=1, col=1,
+            )
+
+        if "bb" in indicators:
+            sma20 = df["close"].rolling(window=20).mean()
+            std20 = df["close"].rolling(window=20).std()
+            bb_upper = sma20 + 2 * std20
+            bb_lower = sma20 - 2 * std20
+            fig.add_trace(go.Scatter(x=df["date"], y=bb_upper, mode="lines", name="BB Upper", line=dict(color="rgba(255,255,255,0.25)", width=0.8)), row=1, col=1)
+            fig.add_trace(go.Scatter(x=df["date"], y=sma20,   mode="lines", name="BB Mid",   line=dict(color="rgba(255,255,255,0.45)", width=0.8, dash="dash")), row=1, col=1)
+            fig.add_trace(go.Scatter(x=df["date"], y=bb_lower, mode="lines", name="BB Lower", line=dict(color="rgba(255,255,255,0.25)", width=0.8), fill="tonexty", fillcolor="rgba(255,255,255,0.04)"), row=1, col=1)
+
+        if "vwap" in indicators:
+            typical = (df["high"] + df["low"] + df["close"]) / 3
+            cvp = (typical * df["volume"]).cumsum()
+            cv = df["volume"].cumsum()
+            vwap = cvp / cv.replace(0, 1)
+            fig.add_trace(
+                go.Scatter(x=df["date"], y=vwap, mode="lines", name="VWAP",
+                           line=dict(color="#ffeb3b", width=1, dash="dot")),
+                row=1, col=1,
+            )
+
     fig.update_layout(
         template="plotly_dark",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         height=800,
         hovermode="x unified",
-        showlegend=False,
+        showlegend=bool(indicators),
         margin=dict(l=15, r=15, t=45, b=10),
         xaxis_rangeslider_visible=False,
         xaxis=dict(
