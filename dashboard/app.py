@@ -183,7 +183,7 @@ def render_price_dashboard():
                         type="circle",
                         children=dcc.Graph(
                             id="price-chart",
-                            config={"displayModeBar": True, "responsive": True},
+                            config={"displayModeBar": True, "responsive": True, "scrollZoom": True, "displaylogo": False},
                         ),
                     ),
                 ],
@@ -593,6 +593,16 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
     original_count = len(df)
     df = _downsample_ohlcv(df, MAX_CANDLES_DISPLAY)
 
+    max_price = df["close"].max()
+    if max_price < 0.01:
+        price_fmt = ".6f"
+    elif max_price < 1:
+        price_fmt = ".4f"
+    elif max_price < 1000:
+        price_fmt = ".2f"
+    else:
+        price_fmt = ".0f"
+
     symbol_label = f"{asset_symbol}/USDT" if asset_class == "crypto" else asset_symbol
     interval_label = INTERVAL_LABELS.get(interval, interval)
 
@@ -618,7 +628,10 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
             increasing_line_color="#26a69a",
             decreasing_line_color="#ef5350",
             hovertemplate=(
-                "O: %{open:.2f}<br>H: %{high:.2f}<br>L: %{low:.2f}<br>C: %{close:.2f}<extra></extra>"
+                f"O: %{{open:{price_fmt}}}<br>"
+                f"H: %{{high:{price_fmt}}}<br>"
+                f"L: %{{low:{price_fmt}}}<br>"
+                f"C: %{{close:{price_fmt}}}<extra></extra>"
             ),
         ),
         row=1, col=1,
@@ -689,6 +702,7 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         height=800,
+        dragmode="pan",
         hovermode="x",
         hoverdistance=20,
         hoverlabel=dict(bgcolor="rgba(33,37,41,0.85)", font_size=11),
@@ -703,7 +717,7 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
             spikesnap="cursor",
             spikethickness=1,
             spikecolor="rgba(255,255,255,0.25)",
-            spikedash="dot",
+            spikedash="dash",
             rangeselector=dict(
                 buttons=list([
                     dict(count=1, label="1D", step="day", stepmode="backward"),
@@ -735,12 +749,13 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
     fig.update_yaxes(
         title_text="Price (USD)", row=1, col=1,
         showgrid=True, gridcolor="rgba(255,255,255,0.06)",
-        showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikecolor="rgba(255,255,255,0.25)", spikedash="dot",
+        showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikecolor="rgba(255,255,255,0.25)", spikedash="dash",
+        tickformat=price_fmt,
     )
     fig.update_yaxes(
         title_text="Volume", row=2, col=1,
         showgrid=True, gridcolor="rgba(255,255,255,0.04)",
-        showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikecolor="rgba(255,255,255,0.25)", spikedash="dot",
+        showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikecolor="rgba(255,255,255,0.25)", spikedash="dash",
     )
 
     return fig
