@@ -632,6 +632,7 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
             name="Volume",
             marker_color=colors,
             opacity=0.6,
+            hovertemplate="%{y:,.0f}<extra>Volume</extra>",
         ),
         row=2, col=1,
     )
@@ -657,6 +658,7 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
                     x=df["date"], y=series,
                     mode="lines", name=cfg["name"],
                     line=dict(color=cfg["color"], width=1.2),
+                    hovertemplate=f"%{{y:.2f}}<extra>{cfg['name']}</extra>",
                 ),
                 row=1, col=1,
             )
@@ -666,9 +668,9 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
             std20 = df["close"].rolling(window=20).std()
             bb_upper = sma20 + 2 * std20
             bb_lower = sma20 - 2 * std20
-            fig.add_trace(go.Scatter(x=df["date"], y=bb_upper, mode="lines", name="BB Upper", line=dict(color="rgba(255,255,255,0.25)", width=0.8)), row=1, col=1)
-            fig.add_trace(go.Scatter(x=df["date"], y=sma20,   mode="lines", name="BB Mid",   line=dict(color="rgba(255,255,255,0.45)", width=0.8, dash="dash")), row=1, col=1)
-            fig.add_trace(go.Scatter(x=df["date"], y=bb_lower, mode="lines", name="BB Lower", line=dict(color="rgba(255,255,255,0.25)", width=0.8), fill="tonexty", fillcolor="rgba(255,255,255,0.04)"), row=1, col=1)
+            fig.add_trace(go.Scatter(x=df["date"], y=bb_upper, mode="lines", name="BB Upper", line=dict(color="rgba(255,255,255,0.25)", width=0.8), hovertemplate="%{y:.2f}<extra>BB Upper</extra>"), row=1, col=1)
+            fig.add_trace(go.Scatter(x=df["date"], y=sma20,   mode="lines", name="BB Mid",   line=dict(color="rgba(255,255,255,0.45)", width=0.8, dash="dash"), hovertemplate="%{y:.2f}<extra>BB Mid</extra>"), row=1, col=1)
+            fig.add_trace(go.Scatter(x=df["date"], y=bb_lower, mode="lines", name="BB Lower", line=dict(color="rgba(255,255,255,0.25)", width=0.8), fill="tonexty", fillcolor="rgba(255,255,255,0.04)", hovertemplate="%{y:.2f}<extra>BB Lower</extra>"), row=1, col=1)
 
         if "vwap" in indicators:
             typical = (df["high"] + df["low"] + df["close"]) / 3
@@ -677,7 +679,8 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
             vwap = cvp / cv.replace(0, 1)
             fig.add_trace(
                 go.Scatter(x=df["date"], y=vwap, mode="lines", name="VWAP",
-                           line=dict(color="#ffeb3b", width=1, dash="dot")),
+                           line=dict(color="#ffeb3b", width=1, dash="dot"),
+                           hovertemplate="%{y:.2f}<extra>VWAP</extra>"),
                 row=1, col=1,
             )
 
@@ -686,8 +689,9 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         height=800,
-        hovermode="x unified",
-        hoverlabel=dict(bgcolor="#212529", font_size=12),
+        hovermode="x",
+        hoverdistance=20,
+        hoverlabel=dict(bgcolor="rgba(33,37,41,0.85)", font_size=11),
         showlegend=bool(indicators),
         margin=dict(l=15, r=15, t=45, b=10),
         xaxis_rangeslider_visible=False,
