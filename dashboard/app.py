@@ -30,6 +30,17 @@ app = dash.Dash(
     title="Financial Data Analyzer",
 )
 
+PRICE_RANGE_OPTIONS = [
+    {"label": "1 Day", "value": "1d"},
+    {"label": "3 Days", "value": "3d"},
+    {"label": "1 Week", "value": "7d"},
+    {"label": "1 Month", "value": "30d"},
+    {"label": "3 Months", "value": "90d"},
+    {"label": "6 Months", "value": "180d"},
+    {"label": "1 Year", "value": "365d"},
+    {"label": "All Data", "value": "all"},
+]
+
 app.layout = dbc.Container(
     fluid=True,
     className="p-3",
@@ -64,6 +75,104 @@ app.layout = dbc.Container(
             ],
         ),
         html.Hr(),
+        dbc.Checklist(
+            id="indicator-toggles",
+            options=[
+                {"label": "EMA 9", "value": "ema9"},
+                {"label": "EMA 21", "value": "ema21"},
+                {"label": "EMA 50", "value": "ema50"},
+                {"label": "SMA 50", "value": "sma50"},
+                {"label": "SMA 200", "value": "sma200"},
+                {"label": "Bollinger Bands", "value": "bb"},
+                {"label": "VWAP", "value": "vwap"},
+            ],
+            value=[],
+            inline=True,
+            className="mb-2",
+        ),
+        html.Div(
+            id="price-chart-area",
+            children=[
+                html.H3("Price Dashboard", className="text-light mb-3"),
+                dbc.Row(
+                    [
+                        dbc.Col(
+                            [
+                                html.Label("Asset Class", className="text-muted small mb-1"),
+                                dcc.Dropdown(
+                                    id="price-class-dropdown",
+                                    options=[
+                                        {"label": "Crypto", "value": "crypto"},
+                                        {"label": "Stocks", "value": "stocks"},
+                                    ],
+                                    value="crypto",
+                                    clearable=False,
+                                    searchable=False,
+                                    style={"color": "#000"},
+                                ),
+                            ],
+                            width=2,
+                        ),
+                        dbc.Col(
+                            [
+                                html.Label("Asset", className="text-muted small mb-1"),
+                                dcc.Dropdown(
+                                    id="price-asset-dropdown",
+                                    clearable=False,
+                                    searchable=True,
+                                    style={"color": "#000"},
+                                ),
+                            ],
+                            width=2,
+                        ),
+                        dbc.Col(
+                            [
+                                html.Label("Interval", className="text-muted small mb-1"),
+                                dcc.Dropdown(
+                                    id="price-interval-dropdown",
+                                    clearable=False,
+                                    searchable=False,
+                                    style={"color": "#000"},
+                                ),
+                            ],
+                            width=2,
+                        ),
+                        dbc.Col(
+                            [
+                                html.Label("Time Range", className="text-muted small mb-1"),
+                                dcc.Dropdown(
+                                    id="price-range-dropdown",
+                                    options=PRICE_RANGE_OPTIONS,
+                                    value="7d",
+                                    clearable=False,
+                                    searchable=False,
+                                    style={"color": "#000"},
+                                ),
+                            ],
+                            width=2,
+                        ),
+                    ],
+                    className="mb-3",
+                ),
+                html.Div(
+                    id="chart-info-bar",
+                    style={
+                        "color": "#adb5bd", "fontSize": "12px", "fontFamily": "monospace",
+                        "padding": "2px 8px", "backgroundColor": "rgba(33,37,41,0.6)",
+                        "borderRadius": "4px", "minHeight": "22px",
+                        "display": "flex", "flexWrap": "wrap", "gap": "8px 16px",
+                    },
+                ),
+                dcc.Loading(
+                    id="loading-price",
+                    type="circle",
+                    children=dcc.Graph(
+                        id="price-chart",
+                        config={"displayModeBar": True, "responsive": True, "scrollZoom": True, "displaylogo": False},
+                    ),
+                ),
+            ],
+        ),
         html.Div(id="tab-content"),
     ],
 )
@@ -85,98 +194,18 @@ def render_tab(active_tab: str):
         return render_explorer()
     return html.P("Select a tab.", className="text-muted")
 
-def render_price_dashboard():
-    """Multi-asset candlestick chart with asset class, asset, interval, and time-range selectors."""
-    try:
-        range_options = [
-            {"label": "1 Day", "value": "1d"},
-            {"label": "3 Days", "value": "3d"},
-            {"label": "1 Week", "value": "7d"},
-            {"label": "1 Month", "value": "30d"},
-            {"label": "3 Months", "value": "90d"},
-            {"label": "6 Months", "value": "180d"},
-            {"label": "1 Year", "value": "365d"},
-            {"label": "All Data", "value": "all"},
-        ]
 
-        return dbc.Row(
-            dbc.Col(
-                [
-                    html.H3("Price Dashboard", className="text-light mb-3"),
-                    dbc.Row(
-                        [
-                            dbc.Col(
-                                [
-                                    html.Label("Asset Class", className="text-muted small mb-1"),
-                                    dcc.Dropdown(
-                                        id="price-class-dropdown",
-                                        options=[
-                                            {"label": "Crypto", "value": "crypto"},
-                                            {"label": "Stocks", "value": "stocks"},
-                                        ],
-                                        value="crypto",
-                                        clearable=False,
-                                        searchable=False,
-                                        style={"color": "#000"},
-                                    ),
-                                ],
-                                width=2,
-                            ),
-                            dbc.Col(
-                                [
-                                    html.Label("Asset", className="text-muted small mb-1"),
-                                    dcc.Dropdown(
-                                        id="price-asset-dropdown",
-                                        clearable=False,
-                                        searchable=True,
-                                        style={"color": "#000"},
-                                    ),
-                                ],
-                                width=2,
-                            ),
-                            dbc.Col(
-                                [
-                                    html.Label("Interval", className="text-muted small mb-1"),
-                                    dcc.Dropdown(
-                                        id="price-interval-dropdown",
-                                        clearable=False,
-                                        searchable=False,
-                                        style={"color": "#000"},
-                                    ),
-                                ],
-                                width=2,
-                            ),
-                            dbc.Col(
-                                [
-                                    html.Label("Time Range", className="text-muted small mb-1"),
-                                    dcc.Dropdown(
-                                        id="price-range-dropdown",
-                                        options=range_options,
-                                        value="7d",
-                                        clearable=False,
-                                        searchable=False,
-                                        style={"color": "#000"},
-                                    ),
-                                ],
-                                width=2,
-                            ),
-                        ],
-                        className="mb-3",
-                    ),
-                    dcc.Loading(
-                        id="loading-price",
-                        type="circle",
-                        children=dcc.Graph(
-                            id="price-chart",
-                            config={"displayModeBar": True, "responsive": True},
-                        ),
-                    ),
-                ],
-                width=12,
-            )
-        )
-    except Exception as e:
-        return dbc.Alert(f"Error: {e}", color="danger")
+@app.callback(
+    dash.Output("price-chart-area", "style"),
+    dash.Input("main-tabs", "active_tab"),
+)
+def toggle_price_chart_area(active_tab):
+    if active_tab == "tab-price":
+        return {"display": "block"}
+    return {"display": "none"}
+
+def render_price_dashboard():
+    return None
 
 def render_predictions():
     """XGBoost model predictions with asset class, asset, and interval selectors."""
@@ -527,8 +556,9 @@ def update_interval_dropdown(asset_class):
     dash.Input("price-asset-dropdown", "value"),
     dash.Input("price-interval-dropdown", "value"),
     dash.Input("price-range-dropdown", "value"),
+    dash.Input("indicator-toggles", "value"),
 )
-def build_price_chart(asset_class, asset_symbol, interval, range_value):
+def build_price_chart(asset_class, asset_symbol, interval, range_value, indicators):
     """Query the database, downsample if needed, and build the OHLCV figure."""
 
     if not asset_symbol or not interval or not asset_class:
@@ -577,6 +607,8 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value):
     original_count = len(df)
     df = _downsample_ohlcv(df, MAX_CANDLES_DISPLAY)
 
+    price_fmt = ".4f"
+
     symbol_label = f"{asset_symbol}/USDT" if asset_class == "crypto" else asset_symbol
     interval_label = INTERVAL_LABELS.get(interval, interval)
 
@@ -601,6 +633,8 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value):
             name=symbol_label,
             increasing_line_color="#26a69a",
             decreasing_line_color="#ef5350",
+            customdata=df[["volume"]].values,
+            hovertemplate="<extra></extra>",
         ),
         row=1, col=1,
     )
@@ -613,22 +647,79 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value):
             name="Volume",
             marker_color=colors,
             opacity=0.6,
+            hovertemplate="<extra></extra>",
         ),
         row=2, col=1,
     )
+
+    if indicators:
+        INDICATOR_CONFIG = {
+            "ema9":  {"type": "ema", "span": 9,  "name": "EMA 9",  "color": "#2196f3"},
+            "ema21": {"type": "ema", "span": 21, "name": "EMA 21", "color": "#ff9800"},
+            "ema50": {"type": "ema", "span": 50, "name": "EMA 50", "color": "#9c27b0"},
+            "sma50": {"type": "sma", "span": 50, "name": "SMA 50", "color": "#ffeb3b"},
+            "sma200":{"type": "sma", "span": 200,"name": "SMA 200","color": "#e91e63"},
+        }
+        for key in indicators:
+            cfg = INDICATOR_CONFIG.get(key)
+            if not cfg:
+                continue
+            if cfg["type"] == "ema":
+                series = df["close"].ewm(span=cfg["span"], adjust=False).mean()
+            else:
+                series = df["close"].rolling(window=cfg["span"]).mean()
+            fig.add_trace(
+                go.Scatter(
+                    x=df["date"], y=series,
+                    mode="lines", name=cfg["name"],
+                    line=dict(color=cfg["color"], width=1.2),
+                    hovertemplate="<extra></extra>",
+                ),
+                row=1, col=1,
+            )
+
+        if "bb" in indicators:
+            sma20 = df["close"].rolling(window=20).mean()
+            std20 = df["close"].rolling(window=20).std()
+            bb_upper = sma20 + 2 * std20
+            bb_lower = sma20 - 2 * std20
+            fig.add_trace(go.Scatter(x=df["date"], y=bb_upper, mode="lines", name="BB Upper", line=dict(color="rgba(255,255,255,0.25)", width=0.8), hovertemplate="<extra></extra>"), row=1, col=1)
+            fig.add_trace(go.Scatter(x=df["date"], y=sma20,   mode="lines", name="BB Mid",   line=dict(color="rgba(255,255,255,0.45)", width=0.8, dash="dash"), hovertemplate="<extra></extra>"), row=1, col=1)
+            fig.add_trace(go.Scatter(x=df["date"], y=bb_lower, mode="lines", name="BB Lower", line=dict(color="rgba(255,255,255,0.25)", width=0.8), fill="tonexty", fillcolor="rgba(255,255,255,0.04)", hovertemplate="<extra></extra>"), row=1, col=1)
+
+        if "vwap" in indicators:
+            typical = (df["high"] + df["low"] + df["close"]) / 3
+            cvp = (typical * df["volume"]).cumsum()
+            cv = df["volume"].cumsum()
+            vwap = cvp / cv.replace(0, 1)
+            fig.add_trace(
+                go.Scatter(x=df["date"], y=vwap, mode="lines", name="VWAP",
+                           line=dict(color="#ffeb3b", width=1, dash="dot"),
+                           hovertemplate="<extra></extra>"),
+                row=1, col=1,
+            )
 
     fig.update_layout(
         template="plotly_dark",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         height=800,
-        hovermode="x unified",
-        showlegend=False,
+        dragmode="pan",
+        hovermode="x",
+        hoverdistance=20,
+        hoverlabel=dict(bgcolor="rgba(33,37,41,0.85)", font_size=11),
+        showlegend=bool(indicators),
         margin=dict(l=15, r=15, t=45, b=10),
         xaxis_rangeslider_visible=False,
         xaxis=dict(
             showgrid=True,
             gridcolor="rgba(255,255,255,0.06)",
+            showspikes=True,
+            spikemode="across",
+            spikesnap="cursor",
+            spikethickness=1,
+            spikecolor="rgba(255,255,255,0.5)",
+            spikedash="dashdot",
             rangeselector=dict(
                 buttons=list([
                     dict(count=1, label="1D", step="day", stepmode="backward"),
@@ -660,13 +751,43 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value):
     fig.update_yaxes(
         title_text="Price (USD)", row=1, col=1,
         showgrid=True, gridcolor="rgba(255,255,255,0.06)",
+        showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikecolor="rgba(255,255,255,0.5)", spikedash="dashdot",
+        tickformat=price_fmt,
     )
     fig.update_yaxes(
         title_text="Volume", row=2, col=1,
         showgrid=True, gridcolor="rgba(255,255,255,0.04)",
+        showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikecolor="rgba(255,255,255,0.5)", spikedash="dashdot",
     )
 
     return fig
+
+
+@app.callback(
+    dash.Output("chart-info-bar", "children"),
+    dash.Input("price-chart", "hoverData"),
+)
+def update_chart_info_bar(hover_data):
+    """TradingView-style info bar: OHLCV + indicator values pinned above chart."""
+    if not hover_data or not hover_data.get("points"):
+        return dash.no_update
+    o = h = l = c = v = None
+    extra = {}
+    for pt in hover_data["points"]:
+        if "open" in pt:
+            o, h, l, c = pt["open"], pt["high"], pt["low"], pt["close"]
+            cd = pt.get("customdata")
+            if cd and len(cd) > 0:
+                v = cd[0]
+        elif pt.get("y") is not None and pt.get("name"):
+            extra[pt["name"]] = pt["y"]
+    parts = []
+    if o is not None:
+        vol_txt = f"  V: {v:,.0f}" if v is not None else ""
+        parts.append(f"O: {o:.4f}  H: {h:.4f}  L: {l:.4f}  C: {c:.4f}{vol_txt}")
+    for name, val in extra.items():
+        parts.append(f"{name}: {val:.4f}")
+    return "  |  ".join(parts) if parts else ""
 
 
 @app.callback(
