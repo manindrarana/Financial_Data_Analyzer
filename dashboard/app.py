@@ -13,6 +13,7 @@ import dash
 from dash import dcc, html, dash_table
 import dash_bootstrap_components as dbc
 import duckdb
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -831,20 +832,42 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
         row=1, col=1,
     )
 
-    correct_mask = marker_data["prediction"] == marker_data["actual_direction"]
-    wrong_mask = ~correct_mask
+    marker_data = marker_data.copy()
+    marker_data["correct"] = marker_data["prediction"] == marker_data["actual_direction"]
+    marker_data["label"] = np.where(marker_data["correct"], "✅", "❌")
+    marker_data["pred_dir"] = np.where(marker_data["prediction"] == 1, "UP", "DOWN")
+    marker_data["actual_dir"] = np.where(marker_data["actual_direction"] == 1, "UP", "DOWN")
 
-    for mask, color, label in [
-        (correct_mask, "#26a69a", "Correct"),
-        (wrong_mask, "#ef5350", "Wrong"),
+    for filter_mask, color, name in [
+        (marker_data["correct"], "#26a69a", "Correct ✅"),
+        (~marker_data["correct"], "#ef5350", "Wrong ❌"),
     ]:
-        subset = marker_data[mask]
+        subset = marker_data[filter_mask]
         if not subset.empty:
             fig_overlay.add_trace(
                 go.Scatter(
                     x=subset["date"], y=subset["close"],
-                    mode="markers", name=label,
-                    marker=dict(color=color, size=5, symbol="circle"),
+                    mode="text",
+                    name=name,
+                    text=subset["label"],
+                    textfont=dict(size=12, color=color),
+                    customdata=np.column_stack([
+                        subset["date"].dt.strftime("%Y-%m-%d %H:%M"),
+                        subset["close"].round(2),
+                        subset["pred_dir"],
+                        subset["actual_dir"],
+                        (subset["confidence"] * 100).round(1),
+                        np.where(subset["correct"], "Correct ✅", "Wrong ❌"),
+                    ]),
+                    hovertemplate=(
+                        "<b>%{customdata[0]}</b><br>"
+                        "Close: %{customdata[1]}<br>"
+                        "Predicted: %{customdata[2]}<br>"
+                        "Actual: %{customdata[3]}<br>"
+                        "Confidence: %{customdata[4]}%<br>"
+                        "Result: %{customdata[5]}<br>"
+                        "<extra></extra>"
+                    ),
                 ),
                 row=1, col=1,
             )
