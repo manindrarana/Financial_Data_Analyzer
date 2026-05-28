@@ -633,6 +633,7 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
             name=symbol_label,
             increasing_line_color="#26a69a",
             decreasing_line_color="#ef5350",
+            customdata=df[["volume"]].values,
             hovertemplate="<extra></extra>",
         ),
         row=1, col=1,
@@ -646,7 +647,7 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
             name="Volume",
             marker_color=colors,
             opacity=0.6,
-            hoverinfo="skip",
+            hovertemplate="<extra></extra>",
         ),
         row=2, col=1,
     )
@@ -672,7 +673,7 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
                     x=df["date"], y=series,
                     mode="lines", name=cfg["name"],
                     line=dict(color=cfg["color"], width=1.2),
-                    hoverinfo="skip",
+                    hovertemplate="<extra></extra>",
                 ),
                 row=1, col=1,
             )
@@ -682,9 +683,9 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
             std20 = df["close"].rolling(window=20).std()
             bb_upper = sma20 + 2 * std20
             bb_lower = sma20 - 2 * std20
-            fig.add_trace(go.Scatter(x=df["date"], y=bb_upper, mode="lines", name="BB Upper", line=dict(color="rgba(255,255,255,0.25)", width=0.8), hoverinfo="skip"), row=1, col=1)
-            fig.add_trace(go.Scatter(x=df["date"], y=sma20,   mode="lines", name="BB Mid",   line=dict(color="rgba(255,255,255,0.45)", width=0.8, dash="dash"), hoverinfo="skip"), row=1, col=1)
-            fig.add_trace(go.Scatter(x=df["date"], y=bb_lower, mode="lines", name="BB Lower", line=dict(color="rgba(255,255,255,0.25)", width=0.8), fill="tonexty", fillcolor="rgba(255,255,255,0.04)", hoverinfo="skip"), row=1, col=1)
+            fig.add_trace(go.Scatter(x=df["date"], y=bb_upper, mode="lines", name="BB Upper", line=dict(color="rgba(255,255,255,0.25)", width=0.8), hovertemplate="<extra></extra>"), row=1, col=1)
+            fig.add_trace(go.Scatter(x=df["date"], y=sma20,   mode="lines", name="BB Mid",   line=dict(color="rgba(255,255,255,0.45)", width=0.8, dash="dash"), hovertemplate="<extra></extra>"), row=1, col=1)
+            fig.add_trace(go.Scatter(x=df["date"], y=bb_lower, mode="lines", name="BB Lower", line=dict(color="rgba(255,255,255,0.25)", width=0.8), fill="tonexty", fillcolor="rgba(255,255,255,0.04)", hovertemplate="<extra></extra>"), row=1, col=1)
 
         if "vwap" in indicators:
             typical = (df["high"] + df["low"] + df["close"]) / 3
@@ -694,7 +695,7 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
             fig.add_trace(
                 go.Scatter(x=df["date"], y=vwap, mode="lines", name="VWAP",
                            line=dict(color="#ffeb3b", width=1, dash="dot"),
-                           hoverinfo="skip"),
+                           hovertemplate="<extra></extra>"),
                 row=1, col=1,
             )
 
@@ -770,17 +771,21 @@ def update_chart_info_bar(hover_data):
     """TradingView-style info bar: OHLCV + indicator values pinned above chart."""
     if not hover_data or not hover_data.get("points"):
         return dash.no_update
-    ohlc_vals = {}
-    ind_vals = {}
+    o = h = l = c = v = None
+    extra = {}
     for pt in hover_data["points"]:
         if "open" in pt:
-            ohlc_vals = {"O": pt["open"], "H": pt["high"], "L": pt["low"], "C": pt["close"]}
-        elif pt.get("y") is not None and pt.get("curveNumber", 0) > 1:
-            ind_vals[pt.get("name", "?")] = pt["y"]
+            o, h, l, c = pt["open"], pt["high"], pt["low"], pt["close"]
+            cd = pt.get("customdata")
+            if cd and len(cd) > 0:
+                v = cd[0]
+        elif pt.get("y") is not None and pt.get("name"):
+            extra[pt["name"]] = pt["y"]
     parts = []
-    if ohlc_vals:
-        parts.append(f"O: {ohlc_vals['O']:.4f}  H: {ohlc_vals['H']:.4f}  L: {ohlc_vals['L']:.4f}  C: {ohlc_vals['C']:.4f}")
-    for name, val in ind_vals.items():
+    if o is not None:
+        vol_txt = f"  V: {v:,.0f}" if v is not None else ""
+        parts.append(f"O: {o:.4f}  H: {h:.4f}  L: {l:.4f}  C: {c:.4f}{vol_txt}")
+    for name, val in extra.items():
         parts.append(f"{name}: {val:.4f}")
     return "  |  ".join(parts) if parts else ""
 
