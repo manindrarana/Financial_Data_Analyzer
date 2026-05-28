@@ -698,6 +698,12 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
         xaxis=dict(
             showgrid=True,
             gridcolor="rgba(255,255,255,0.06)",
+            showspikes=True,
+            spikemode="across",
+            spikesnap="cursor",
+            spikethickness=1,
+            spikecolor="rgba(255,255,255,0.25)",
+            spikedash="dot",
             rangeselector=dict(
                 buttons=list([
                     dict(count=1, label="1D", step="day", stepmode="backward"),
@@ -729,10 +735,12 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
     fig.update_yaxes(
         title_text="Price (USD)", row=1, col=1,
         showgrid=True, gridcolor="rgba(255,255,255,0.06)",
+        showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikecolor="rgba(255,255,255,0.25)", spikedash="dot",
     )
     fig.update_yaxes(
         title_text="Volume", row=2, col=1,
         showgrid=True, gridcolor="rgba(255,255,255,0.04)",
+        showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikecolor="rgba(255,255,255,0.25)", spikedash="dot",
     )
 
     return fig
