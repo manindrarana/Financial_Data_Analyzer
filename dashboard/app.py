@@ -769,47 +769,22 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
     else:
         marker_data = results
 
+    correct_pct = accuracy * 100
+    wrong_pct = (1 - accuracy) * 100
     summary_cards = dbc.Row(
         [
             dbc.Col(
                 dbc.Card(
                     dbc.CardBody([
-                        html.H5(f"{total:,}", className="card-title text-info"),
-                        html.P("Total Predictions", className="card-text text-muted small"),
+                        html.H5(
+                            f"Correct: {correct_pct:.1f}% | Wrong: {wrong_pct:.1f}%",
+                            className="card-title text-info",
+                        ),
+                        html.P("Overall Accuracy", className="card-text text-muted small"),
                     ]),
                     color="dark", outline=True,
                 ),
-                width=3,
-            ),
-            dbc.Col(
-                dbc.Card(
-                    dbc.CardBody([
-                        html.H5(f"{oos_accuracy:.1%}", className="card-title text-info"),
-                        html.P("OOS Accuracy", className="card-text text-muted small"),
-                    ]),
-                    color="dark", outline=True,
-                ),
-                width=3,
-            ),
-            dbc.Col(
-                dbc.Card(
-                    dbc.CardBody([
-                        html.H5(f"{up_pred_pct:.1f}%", className="card-title text-info"),
-                        html.P("UP Predictions", className="card-text text-muted small"),
-                    ]),
-                    color="dark", outline=True,
-                ),
-                width=3,
-            ),
-            dbc.Col(
-                dbc.Card(
-                    dbc.CardBody([
-                        html.H5(f"{correct:,}", className="card-title text-info"),
-                        html.P("Correct Predictions", className="card-text text-muted small"),
-                    ]),
-                    color="dark", outline=True,
-                ),
-                width=3,
+                width=12,
             ),
         ],
         className="mb-3",
@@ -860,12 +835,7 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
                         np.where(subset["correct"], "Correct ✅", "Wrong ❌"),
                     ]),
                     hovertemplate=(
-                        "<b>%{customdata[0]}</b><br>"
-                        "Close: %{customdata[1]}<br>"
-                        "Predicted: %{customdata[2]}<br>"
-                        "Actual: %{customdata[3]}<br>"
-                        "Confidence: %{customdata[4]}%<br>"
-                        "Result: %{customdata[5]}<br>"
+                        "Predicted %{customdata[2]} → Actual %{customdata[3]} (Confidence: %{customdata[4]}%)"
                         "<extra></extra>"
                     ),
                 ),
