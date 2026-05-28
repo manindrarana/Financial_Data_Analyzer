@@ -617,6 +617,9 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
             name=symbol_label,
             increasing_line_color="#26a69a",
             decreasing_line_color="#ef5350",
+            hovertemplate=(
+                "O: %{open:.2f}<br>H: %{high:.2f}<br>L: %{low:.2f}<br>C: %{close:.2f}<extra></extra>"
+            ),
         ),
         row=1, col=1,
     )
@@ -684,6 +687,7 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
         plot_bgcolor="rgba(0,0,0,0)",
         height=800,
         hovermode="x unified",
+        hoverlabel=dict(bgcolor="#212529", font_size=12),
         showlegend=bool(indicators),
         margin=dict(l=15, r=15, t=45, b=10),
         xaxis_rangeslider_visible=False,
