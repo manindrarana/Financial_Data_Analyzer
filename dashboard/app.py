@@ -593,15 +593,7 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
     original_count = len(df)
     df = _downsample_ohlcv(df, MAX_CANDLES_DISPLAY)
 
-    max_price = df["close"].max()
-    if max_price < 0.01:
-        price_fmt = ".6f"
-    elif max_price < 1:
-        price_fmt = ".4f"
-    elif max_price < 1000:
-        price_fmt = ".2f"
-    else:
-        price_fmt = ".0f"
+    price_fmt = ".4f"
 
     symbol_label = f"{asset_symbol}/USDT" if asset_class == "crypto" else asset_symbol
     interval_label = INTERVAL_LABELS.get(interval, interval)
@@ -715,9 +707,9 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
             showspikes=True,
             spikemode="across",
             spikesnap="cursor",
-            spikethickness=1,
+            spikethickness=2,
             spikecolor="rgba(255,255,255,0.25)",
-            spikedash="dash",
+            spikedash="dot",
             rangeselector=dict(
                 buttons=list([
                     dict(count=1, label="1D", step="day", stepmode="backward"),
@@ -749,13 +741,13 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
     fig.update_yaxes(
         title_text="Price (USD)", row=1, col=1,
         showgrid=True, gridcolor="rgba(255,255,255,0.06)",
-        showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikecolor="rgba(255,255,255,0.25)", spikedash="dash",
+        showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=2, spikecolor="rgba(255,255,255,0.25)", spikedash="dot",
         tickformat=price_fmt,
     )
     fig.update_yaxes(
         title_text="Volume", row=2, col=1,
         showgrid=True, gridcolor="rgba(255,255,255,0.04)",
-        showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikecolor="rgba(255,255,255,0.25)", spikedash="dash",
+        showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=2, spikecolor="rgba(255,255,255,0.25)", spikedash="dot",
     )
 
     return fig
