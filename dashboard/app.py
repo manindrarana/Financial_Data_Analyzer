@@ -850,7 +850,7 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
                     mode="text",
                     name=name,
                     text=subset["label"],
-                    textfont=dict(size=12, color=color),
+                    textfont=dict(size=8, color=color),
                     customdata=np.column_stack([
                         subset["date"].dt.strftime("%Y-%m-%d %H:%M"),
                         subset["close"].round(2),
