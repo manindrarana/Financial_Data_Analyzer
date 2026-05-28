@@ -13,6 +13,7 @@ import dash
 from dash import dcc, html, dash_table
 import dash_bootstrap_components as dbc
 import duckdb
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -768,47 +769,22 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
     else:
         marker_data = results
 
+    correct_pct = accuracy * 100
+    wrong_pct = (1 - accuracy) * 100
     summary_cards = dbc.Row(
         [
             dbc.Col(
                 dbc.Card(
                     dbc.CardBody([
-                        html.H5(f"{total:,}", className="card-title text-info"),
-                        html.P("Total Predictions", className="card-text text-muted small"),
+                        html.H5(
+                            f"Correct: {correct_pct:.1f}% | Wrong: {wrong_pct:.1f}%",
+                            className="card-title text-info",
+                        ),
+                        html.P("Overall Accuracy", className="card-text text-muted small"),
                     ]),
                     color="dark", outline=True,
                 ),
-                width=3,
-            ),
-            dbc.Col(
-                dbc.Card(
-                    dbc.CardBody([
-                        html.H5(f"{oos_accuracy:.1%}", className="card-title text-info"),
-                        html.P("OOS Accuracy", className="card-text text-muted small"),
-                    ]),
-                    color="dark", outline=True,
-                ),
-                width=3,
-            ),
-            dbc.Col(
-                dbc.Card(
-                    dbc.CardBody([
-                        html.H5(f"{up_pred_pct:.1f}%", className="card-title text-info"),
-                        html.P("UP Predictions", className="card-text text-muted small"),
-                    ]),
-                    color="dark", outline=True,
-                ),
-                width=3,
-            ),
-            dbc.Col(
-                dbc.Card(
-                    dbc.CardBody([
-                        html.H5(f"{correct:,}", className="card-title text-info"),
-                        html.P("Correct Predictions", className="card-text text-muted small"),
-                    ]),
-                    color="dark", outline=True,
-                ),
-                width=3,
+                width=12,
             ),
         ],
         className="mb-3",
@@ -831,20 +807,37 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
         row=1, col=1,
     )
 
-    correct_mask = marker_data["prediction"] == marker_data["actual_direction"]
-    wrong_mask = ~correct_mask
+    marker_data = marker_data.copy()
+    marker_data["correct"] = marker_data["prediction"] == marker_data["actual_direction"]
+    marker_data["label"] = np.where(marker_data["correct"], "✅", "❌")
+    marker_data["pred_dir"] = np.where(marker_data["prediction"] == 1, "UP", "DOWN")
+    marker_data["actual_dir"] = np.where(marker_data["actual_direction"] == 1, "UP", "DOWN")
 
-    for mask, color, label in [
-        (correct_mask, "#26a69a", "Correct"),
-        (wrong_mask, "#ef5350", "Wrong"),
+    for filter_mask, color, name in [
+        (marker_data["correct"], "#26a69a", "Correct ✅"),
+        (~marker_data["correct"], "#ef5350", "Wrong ❌"),
     ]:
-        subset = marker_data[mask]
+        subset = marker_data[filter_mask]
         if not subset.empty:
             fig_overlay.add_trace(
                 go.Scatter(
                     x=subset["date"], y=subset["close"],
-                    mode="markers", name=label,
-                    marker=dict(color=color, size=5, symbol="circle"),
+                    mode="text",
+                    name=name,
+                    text=subset["label"],
+                    textfont=dict(size=8, color=color),
+                    customdata=np.column_stack([
+                        subset["date"].dt.strftime("%Y-%m-%d %H:%M"),
+                        subset["close"].round(2),
+                        subset["pred_dir"],
+                        subset["actual_dir"],
+                        (subset["confidence"] * 100).round(1),
+                        np.where(subset["correct"], "Correct ✅", "Wrong ❌"),
+                    ]),
+                    hovertemplate=(
+                        "Predicted %{customdata[2]} → Actual %{customdata[3]} (Confidence: %{customdata[4]}%)"
+                        "<extra></extra>"
+                    ),
                 ),
                 row=1, col=1,
             )
