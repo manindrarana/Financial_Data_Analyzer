@@ -634,6 +634,7 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
             increasing_line_color="#26a69a",
             decreasing_line_color="#ef5350",
             customdata=df[["volume"]].values,
+            hovertext=df["volume"],
             hovertemplate="<extra></extra>",
         ),
         row=1, col=1,
@@ -776,9 +777,7 @@ def update_chart_info_bar(hover_data):
     for pt in hover_data["points"]:
         if "open" in pt:
             o, h, l, c = pt["open"], pt["high"], pt["low"], pt["close"]
-            cd = pt.get("customdata")
-            if cd and len(cd) > 0:
-                v = cd[0]
+            v = pt.get("hovertext") or None
         elif pt.get("y") is not None and pt.get("name"):
             extra[pt["name"]] = pt["y"]
     parts = []
