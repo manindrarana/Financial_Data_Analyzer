@@ -164,6 +164,7 @@ app.layout = dbc.Container(
                         "display": "flex", "flexWrap": "wrap", "gap": "8px 16px",
                     },
                 ),
+                dcc.Store(id="indicator-data-store"),
                 dcc.Loading(
                     id="loading-price",
                     type="circle",
@@ -553,6 +554,7 @@ def update_interval_dropdown(asset_class):
 
 @app.callback(
     dash.Output("price-chart", "figure"),
+    dash.Output("indicator-data-store", "data"),
     dash.Input("price-class-dropdown", "value"),
     dash.Input("price-asset-dropdown", "value"),
     dash.Input("price-interval-dropdown", "value"),
@@ -684,7 +686,7 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
                     x=df["date"], y=series,
                     mode="lines", name=cfg["name"],
                     line=dict(color=cfg["color"], width=1.2),
-                    hovertemplate="<extra></extra>",
+                    hoverinfo="none",
                 ),
                 row=1, col=1,
             )
@@ -694,9 +696,9 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
             std20 = df["close"].rolling(window=20).std()
             bb_upper = sma20 + 2 * std20
             bb_lower = sma20 - 2 * std20
-            fig.add_trace(go.Scatter(x=df["date"], y=bb_upper, mode="lines", name="BB Upper", line=dict(color="rgba(255,255,255,0.25)", width=0.8), hovertemplate="<extra></extra>"), row=1, col=1)
-            fig.add_trace(go.Scatter(x=df["date"], y=sma20,   mode="lines", name="BB Mid",   line=dict(color="rgba(255,255,255,0.45)", width=0.8, dash="dash"), hovertemplate="<extra></extra>"), row=1, col=1)
-            fig.add_trace(go.Scatter(x=df["date"], y=bb_lower, mode="lines", name="BB Lower", line=dict(color="rgba(255,255,255,0.25)", width=0.8), fill="tonexty", fillcolor="rgba(255,255,255,0.04)", hovertemplate="<extra></extra>"), row=1, col=1)
+            fig.add_trace(go.Scatter(x=df["date"], y=bb_upper, mode="lines", name="BB Upper", line=dict(color="rgba(255,255,255,0.25)", width=0.8), hoverinfo="none"), row=1, col=1)
+            fig.add_trace(go.Scatter(x=df["date"], y=sma20,   mode="lines", name="BB Mid",   line=dict(color="rgba(255,255,255,0.45)", width=0.8, dash="dash"), hoverinfo="none"), row=1, col=1)
+            fig.add_trace(go.Scatter(x=df["date"], y=bb_lower, mode="lines", name="BB Lower", line=dict(color="rgba(255,255,255,0.25)", width=0.8), fill="tonexty", fillcolor="rgba(255,255,255,0.04)", hoverinfo="none"), row=1, col=1)
 
         if "vwap" in indicators:
             typical = (df["high"] + df["low"] + df["close"]) / 3
@@ -706,7 +708,7 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
             fig.add_trace(
                 go.Scatter(x=df["date"], y=vwap, mode="lines", name="VWAP",
                            line=dict(color="#ffeb3b", width=1, dash="dot"),
-                           hovertemplate="<extra></extra>"),
+                           hoverinfo="none"),
                 row=1, col=1,
             )
 
@@ -772,31 +774,80 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
             showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikecolor="rgba(255,255,255,0.5)", spikedash="dashdot",
         )
 
-    return fig
+    indicator_data = {}
+    if indicators and "volume" in indicators:
+        indicators_for_data = [i for i in indicators if i != "volume"]
+    else:
+        indicators_for_data = indicators or []
+    if indicators_for_data:
+        dates_iso = df["date"].dt.strftime("%Y-%m-%dT%H:%M:%S").tolist()
+        INDICATOR_LABELS = {
+            "ema9": "EMA 9", "ema21": "EMA 21", "ema50": "EMA 50",
+            "sma50": "SMA 50", "sma200": "SMA 200",
+        }
+        for key in indicators_for_data:
+            cfg = INDICATOR_CONFIG.get(key)
+            if cfg:
+                if cfg["type"] == "ema":
+                    series = df["close"].ewm(span=cfg["span"], adjust=False).mean()
+                else:
+                    series = df["close"].rolling(window=cfg["span"]).mean()
+                values = series.tolist()
+                label = INDICATOR_LABELS.get(key, cfg["name"])
+                for i, d in enumerate(dates_iso):
+                    indicator_data.setdefault(d, {})[label] = values[i] if pd.notna(values[i]) else None
+        if "bb" in indicators_for_data:
+            sma20 = df["close"].rolling(window=20).mean()
+            std20 = df["close"].rolling(window=20).std()
+            bb_upper = sma20 + 2 * std20
+            bb_lower = sma20 - 2 * std20
+            for arr, label in [(bb_upper, "BB Upper"), (sma20, "BB Mid"), (bb_lower, "BB Lower")]:
+                values = arr.tolist()
+                for i, d in enumerate(dates_iso):
+                    indicator_data.setdefault(d, {})[label] = values[i] if pd.notna(values[i]) else None
+        if "vwap" in indicators_for_data:
+            typical = (df["high"] + df["low"] + df["close"]) / 3
+            cvp = (typical * df["volume"]).cumsum()
+            cv = df["volume"].cumsum()
+            vwap = cvp / cv.replace(0, 1)
+            values = vwap.tolist()
+            for i, d in enumerate(dates_iso):
+                indicator_data.setdefault(d, {})["VWAP"] = values[i] if pd.notna(values[i]) else None
+
+    return fig, indicator_data
 
 
 @app.callback(
     dash.Output("chart-info-bar", "children"),
     dash.Input("price-chart", "hoverData"),
+    dash.State("indicator-data-store", "data"),
 )
-def update_chart_info_bar(hover_data):
+def update_chart_info_bar(hover_data, indicator_data):
     """TradingView-style info bar: OHLCV + indicator values pinned above chart."""
     if not hover_data or not hover_data.get("points"):
         return dash.no_update
     o = h = l = c = v = None
-    extra = {}
+    hovered_x = None
     for pt in hover_data["points"]:
         if "open" in pt:
             o, h, l, c = pt["open"], pt["high"], pt["low"], pt["close"]
             v = pt.get("hovertext") or None
-        elif pt.get("y") is not None and pt.get("name"):
-            extra[pt["name"]] = pt["y"]
+            hovered_x = pt.get("x")
     parts = []
     if o is not None:
         vol_txt = f"  V: {v:,.0f}" if v is not None else ""
         parts.append(f"O: {o:.4f}  H: {h:.4f}  L: {l:.4f}  C: {c:.4f}{vol_txt}")
-    for name, val in extra.items():
-        parts.append(f"{name}: {val:.4f}")
+    if hovered_x and indicator_data:
+        dt_str = pd.to_datetime(hovered_x).strftime("%Y-%m-%dT%H:%M:%S")
+        ind_vals = indicator_data.get(dt_str, {})
+        ORDERED_NAMES = [
+            "EMA 9", "EMA 21", "EMA 50", "SMA 50", "SMA 200",
+            "BB Upper", "BB Mid", "BB Lower", "VWAP",
+        ]
+        for name in ORDERED_NAMES:
+            val = ind_vals.get(name)
+            if val is not None:
+                parts.append(f"{name}: {val:.4f}")
     return "  |  ".join(parts) if parts else ""
 
 
