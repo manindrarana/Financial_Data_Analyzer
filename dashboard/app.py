@@ -85,6 +85,12 @@ app.layout = dbc.Container(
                 {"label": "SMA 200", "value": "sma200"},
                 {"label": "Bollinger Bands", "value": "bb"},
                 {"label": "VWAP", "value": "vwap"},
+                {"label": "SMA Crossover", "value": "sma_crossover"},
+                {"label": "MACD", "value": "macd"},
+                {"label": "RSI", "value": "rsi"},
+                {"label": "ATR", "value": "atr"},
+                {"label": "OBV", "value": "obv"},
+                {"label": "Volume", "value": "volume"},
             ],
             value=[],
             inline=True,
@@ -163,6 +169,7 @@ app.layout = dbc.Container(
                         "display": "flex", "flexWrap": "wrap", "gap": "8px 16px",
                     },
                 ),
+                dcc.Store(id="indicator-data-store"),
                 dcc.Loading(
                     id="loading-price",
                     type="circle",
@@ -552,6 +559,7 @@ def update_interval_dropdown(asset_class):
 
 @app.callback(
     dash.Output("price-chart", "figure"),
+    dash.Output("indicator-data-store", "data"),
     dash.Input("price-class-dropdown", "value"),
     dash.Input("price-asset-dropdown", "value"),
     dash.Input("price-interval-dropdown", "value"),
@@ -612,16 +620,45 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
     symbol_label = f"{asset_symbol}/USDT" if asset_class == "crypto" else asset_symbol
     interval_label = INTERVAL_LABELS.get(interval, interval)
 
-    fig = make_subplots(
-        rows=2, cols=1,
-        shared_xaxes=True,
-        vertical_spacing=0.02,
-        row_heights=[0.78, 0.22],
-        subplot_titles=(
-            f"{symbol_label} · {interval_label}",
-            "Volume",
-        ),
-    )
+    show_volume = "volume" in (indicators or [])
+    show_rsi = "rsi" in (indicators or [])
+    show_macd = "macd" in (indicators or [])
+    show_atr = "atr" in (indicators or [])
+    show_obv = "obv" in (indicators or [])
+    show_sma_crossover = "sma_crossover" in (indicators or [])
+
+    SUBPLOT_ORDER = [
+        ("volume", show_volume, "Volume"),
+        ("rsi", show_rsi, "RSI (14)"),
+        ("macd", show_macd, "MACD (12,26,9)"),
+        ("atr", show_atr, "ATR (14)"),
+        ("obv", show_obv, "OBV"),
+    ]
+    subplot_row = {}
+    current_row = 1
+    subplot_titles = [f"{symbol_label} · {interval_label}"]
+    for key, active, title in SUBPLOT_ORDER:
+        if active:
+            current_row += 1
+            subplot_row[key] = current_row
+            subplot_titles.append(title)
+    total_rows = current_row
+
+    if total_rows > 1:
+        row_heights = [0.55] + [0.45 / (total_rows - 1)] * (total_rows - 1)
+        fig = make_subplots(
+            rows=total_rows, cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.03,
+            row_heights=row_heights,
+            subplot_titles=subplot_titles,
+        )
+    else:
+        fig = make_subplots(
+            rows=1, cols=1,
+            shared_xaxes=True,
+            subplot_titles=subplot_titles,
+        )
 
     fig.add_trace(
         go.Candlestick(
@@ -634,58 +671,61 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
             increasing_line_color="#26a69a",
             decreasing_line_color="#ef5350",
             customdata=df[["volume"]].values,
+            hovertext=df["volume"] if show_volume else None,
             hovertemplate="<extra></extra>",
         ),
         row=1, col=1,
     )
 
-    colors = ["#26a69a" if c >= o else "#ef5350" for o, c in zip(df["open"], df["close"])]
-    fig.add_trace(
-        go.Bar(
-            x=df["date"],
-            y=df["volume"],
-            name="Volume",
-            marker_color=colors,
-            opacity=0.6,
-            hovertemplate="<extra></extra>",
-        ),
-        row=2, col=1,
-    )
+    ema9 = df["close"].ewm(span=9, adjust=False).mean()
+    ema21 = df["close"].ewm(span=21, adjust=False).mean()
+    ema50 = df["close"].ewm(span=50, adjust=False).mean()
+    sma50 = df["close"].rolling(window=50).mean()
+    sma200 = df["close"].rolling(window=200).mean()
 
     if indicators:
         INDICATOR_CONFIG = {
-            "ema9":  {"type": "ema", "span": 9,  "name": "EMA 9",  "color": "#2196f3"},
-            "ema21": {"type": "ema", "span": 21, "name": "EMA 21", "color": "#ff9800"},
-            "ema50": {"type": "ema", "span": 50, "name": "EMA 50", "color": "#9c27b0"},
-            "sma50": {"type": "sma", "span": 50, "name": "SMA 50", "color": "#ffeb3b"},
-            "sma200":{"type": "sma", "span": 200,"name": "SMA 200","color": "#e91e63"},
+            "ema9":  {"name": "EMA 9",  "color": "#2196f3", "series": ema9},
+            "ema21": {"name": "EMA 21", "color": "#ff9800", "series": ema21},
+            "ema50": {"name": "EMA 50", "color": "#9c27b0", "series": ema50},
+            "sma50": {"name": "SMA 50", "color": "#f39c12", "series": sma50},
+            "sma200":{"name": "SMA 200","color": "#e83e8c", "series": sma200},
         }
+
         for key in indicators:
             cfg = INDICATOR_CONFIG.get(key)
             if not cfg:
                 continue
-            if cfg["type"] == "ema":
-                series = df["close"].ewm(span=cfg["span"], adjust=False).mean()
-            else:
-                series = df["close"].rolling(window=cfg["span"]).mean()
+            if show_sma_crossover and key in ("sma50", "sma200"):
+                continue
             fig.add_trace(
                 go.Scatter(
-                    x=df["date"], y=series,
+                    x=df["date"], y=cfg["series"],
                     mode="lines", name=cfg["name"],
                     line=dict(color=cfg["color"], width=1.2),
-                    hovertemplate="<extra></extra>",
+                    hoverinfo="none",
                 ),
                 row=1, col=1,
             )
+
+        if show_sma_crossover:
+            fig.add_trace(go.Scatter(
+                x=df["date"], y=sma50, mode="lines", name="SMA 50",
+                line=dict(color="#f39c12", width=1.5), hoverinfo="none",
+            ), row=1, col=1)
+            fig.add_trace(go.Scatter(
+                x=df["date"], y=sma200, mode="lines", name="SMA 200",
+                line=dict(color="#e83e8c", width=1.5), hoverinfo="none",
+            ), row=1, col=1)
 
         if "bb" in indicators:
             sma20 = df["close"].rolling(window=20).mean()
             std20 = df["close"].rolling(window=20).std()
             bb_upper = sma20 + 2 * std20
             bb_lower = sma20 - 2 * std20
-            fig.add_trace(go.Scatter(x=df["date"], y=bb_upper, mode="lines", name="BB Upper", line=dict(color="rgba(255,255,255,0.25)", width=0.8), hovertemplate="<extra></extra>"), row=1, col=1)
-            fig.add_trace(go.Scatter(x=df["date"], y=sma20,   mode="lines", name="BB Mid",   line=dict(color="rgba(255,255,255,0.45)", width=0.8, dash="dash"), hovertemplate="<extra></extra>"), row=1, col=1)
-            fig.add_trace(go.Scatter(x=df["date"], y=bb_lower, mode="lines", name="BB Lower", line=dict(color="rgba(255,255,255,0.25)", width=0.8), fill="tonexty", fillcolor="rgba(255,255,255,0.04)", hovertemplate="<extra></extra>"), row=1, col=1)
+            fig.add_trace(go.Scatter(x=df["date"], y=bb_upper, mode="lines", name="BB Upper", line=dict(color="rgba(255,255,255,0.25)", width=0.8), hoverinfo="none"), row=1, col=1)
+            fig.add_trace(go.Scatter(x=df["date"], y=sma20,   mode="lines", name="BB Mid",   line=dict(color="rgba(255,255,255,0.45)", width=0.8, dash="dash"), hoverinfo="none"), row=1, col=1)
+            fig.add_trace(go.Scatter(x=df["date"], y=bb_lower, mode="lines", name="BB Lower", line=dict(color="rgba(255,255,255,0.25)", width=0.8), fill="tonexty", fillcolor="rgba(255,255,255,0.04)", hoverinfo="none"), row=1, col=1)
 
         if "vwap" in indicators:
             typical = (df["high"] + df["low"] + df["close"]) / 3
@@ -695,15 +735,96 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
             fig.add_trace(
                 go.Scatter(x=df["date"], y=vwap, mode="lines", name="VWAP",
                            line=dict(color="#ffeb3b", width=1, dash="dot"),
-                           hovertemplate="<extra></extra>"),
+                           hoverinfo="none"),
                 row=1, col=1,
             )
 
+        if show_volume:
+            vol_colors = ["#26a69a" if c >= o else "#ef5350" for o, c in zip(df["open"], df["close"])]
+            fig.add_trace(
+                go.Bar(
+                    x=df["date"], y=df["volume"], name="Volume",
+                    marker_color=vol_colors, opacity=0.6,
+                    hovertemplate="Volume: %{y:,}<extra></extra>",
+                ),
+                row=subplot_row["volume"], col=1,
+            )
+
+        rsi_series = None
+        if show_rsi:
+            delta = df["close"].diff()
+            gain = delta.clip(lower=0)
+            loss = (-delta).clip(lower=0)
+            avg_gain = gain.rolling(window=14).mean()
+            avg_loss = loss.rolling(window=14).mean()
+            rs = avg_gain / avg_loss.replace(0, 1e-10)
+            rsi_series = 100.0 - (100.0 / (1.0 + rs))
+            rsi_row = subplot_row["rsi"]
+            fig.add_trace(go.Scatter(
+                x=df["date"], y=rsi_series, mode="lines", name="RSI",
+                line=dict(color="#f39c12", width=1.5), hoverinfo="none",
+            ), row=rsi_row, col=1)
+            fig.add_hline(y=70, line_dash="dash", line_color="rgba(255,255,255,0.15)", row=rsi_row, col=1)
+            fig.add_hline(y=30, line_dash="dash", line_color="rgba(255,255,255,0.15)", row=rsi_row, col=1)
+            fig.add_hline(y=50, line_dash="dot", line_color="rgba(255,255,255,0.08)", row=rsi_row, col=1)
+
+        macd_line = signal_line = macd_hist = None
+        if show_macd:
+            ema12 = df["close"].ewm(span=12, adjust=False).mean()
+            ema26 = df["close"].ewm(span=26, adjust=False).mean()
+            macd_line = ema12 - ema26
+            signal_line = macd_line.ewm(span=9, adjust=False).mean()
+            macd_hist = macd_line - signal_line
+            macd_row = subplot_row["macd"]
+            hist_colors = ["#26a69a" if v >= 0 else "#ef5350" for v in macd_hist]
+            fig.add_trace(go.Bar(
+                x=df["date"], y=macd_hist, name="MACD Hist",
+                marker_color=hist_colors, opacity=0.7,
+                hovertemplate="%{y:.6f}<extra></extra>",
+            ), row=macd_row, col=1)
+            fig.add_trace(go.Scatter(
+                x=df["date"], y=macd_line, mode="lines", name="MACD",
+                line=dict(color="#17a2b8", width=1.2), hoverinfo="none",
+            ), row=macd_row, col=1)
+            fig.add_trace(go.Scatter(
+                x=df["date"], y=signal_line, mode="lines", name="MACD Signal",
+                line=dict(color="#e83e8c", width=1.2), hoverinfo="none",
+            ), row=macd_row, col=1)
+
+        atr_series = None
+        if show_atr:
+            high, low, close = df["high"], df["low"], df["close"]
+            prev_close = close.shift(1)
+            tr1 = high - low
+            tr2 = (high - prev_close).abs()
+            tr3 = (low - prev_close).abs()
+            true_range = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+            atr_series = true_range.rolling(window=14).mean()
+            atr_row = subplot_row["atr"]
+            fig.add_trace(go.Scatter(
+                x=df["date"], y=atr_series, mode="lines", name="ATR",
+                fill="tozeroy", fillcolor="rgba(108,92,231,0.1)",
+                line=dict(color="#6c5ce7", width=1.5), hoverinfo="none",
+            ), row=atr_row, col=1)
+
+        obv_series = None
+        if show_obv:
+            close_diff = df["close"].diff()
+            direction = close_diff.apply(lambda x: 1 if x > 0 else (-1 if x < 0 else 0))
+            obv_series = (df["volume"] * direction).cumsum()
+            obv_row = subplot_row["obv"]
+            fig.add_trace(go.Scatter(
+                x=df["date"], y=obv_series, mode="lines", name="OBV",
+                fill="tozeroy", fillcolor="rgba(0,184,148,0.1)",
+                line=dict(color="#00b894", width=1.5), hoverinfo="none",
+            ), row=obv_row, col=1)
+
+    chart_height = max(500, 280 * total_rows)
     fig.update_layout(
         template="plotly_dark",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        height=800,
+        height=chart_height,
         dragmode="pan",
         hovermode="x",
         hoverdistance=20,
@@ -748,45 +869,141 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
             ),
         ],
     )
+
     fig.update_yaxes(
         title_text="Price (USD)", row=1, col=1,
         showgrid=True, gridcolor="rgba(255,255,255,0.06)",
-        showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikecolor="rgba(255,255,255,0.5)", spikedash="dashdot",
+        showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1,
+        spikecolor="rgba(255,255,255,0.5)", spikedash="dashdot",
         tickformat=price_fmt,
     )
-    fig.update_yaxes(
-        title_text="Volume", row=2, col=1,
-        showgrid=True, gridcolor="rgba(255,255,255,0.04)",
-        showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikecolor="rgba(255,255,255,0.5)", spikedash="dashdot",
-    )
+    if show_volume:
+        fig.update_yaxes(
+            title_text="Volume", row=subplot_row["volume"], col=1,
+            showgrid=True, gridcolor="rgba(255,255,255,0.04)",
+            showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1,
+            spikecolor="rgba(255,255,255,0.5)", spikedash="dashdot",
+        )
+    if show_rsi:
+        fig.update_yaxes(
+            title_text="RSI", row=subplot_row["rsi"], col=1,
+            range=[0, 100], tickvals=[0, 30, 50, 70, 100],
+            showgrid=True, gridcolor="rgba(255,255,255,0.04)",
+            showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1,
+            spikecolor="rgba(255,255,255,0.5)", spikedash="dashdot",
+        )
+    if show_macd:
+        fig.update_yaxes(
+            title_text="MACD", row=subplot_row["macd"], col=1,
+            showgrid=True, gridcolor="rgba(255,255,255,0.04)",
+            showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1,
+            spikecolor="rgba(255,255,255,0.5)", spikedash="dashdot",
+        )
+    if show_atr:
+        fig.update_yaxes(
+            title_text="ATR", row=subplot_row["atr"], col=1,
+            showgrid=True, gridcolor="rgba(255,255,255,0.04)",
+            showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1,
+            spikecolor="rgba(255,255,255,0.5)", spikedash="dashdot",
+        )
+    if show_obv:
+        fig.update_yaxes(
+            title_text="OBV", row=subplot_row["obv"], col=1,
+            showgrid=True, gridcolor="rgba(255,255,255,0.04)",
+            showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1,
+            spikecolor="rgba(255,255,255,0.5)", spikedash="dashdot",
+        )
 
-    return fig
+    indicator_data = {}
+    indicators_for_data = indicators or []
+    if indicators_for_data:
+        dates_iso = df["date"].dt.strftime("%Y-%m-%dT%H:%M:%S").tolist()
+
+        def _store_series(arr, label):
+            values = arr.tolist() if hasattr(arr, "tolist") else arr
+            for i, d in enumerate(dates_iso):
+                v = values[i] if pd.notna(values[i]) else None
+                indicator_data.setdefault(d, {})[label] = v
+
+        INDICATOR_LABELS = {
+            "ema9": "EMA 9", "ema21": "EMA 21", "ema50": "EMA 50",
+            "sma50": "SMA 50", "sma200": "SMA 200",
+        }
+        for key in indicators_for_data:
+            cfg = INDICATOR_CONFIG.get(key)
+            if cfg:
+                label = INDICATOR_LABELS.get(key, cfg["name"])
+                if show_sma_crossover and key in ("sma50", "sma200"):
+                    continue
+                _store_series(cfg["series"], label)
+
+        if show_sma_crossover:
+            _store_series(sma50, "SMA 50")
+            _store_series(sma200, "SMA 200")
+
+        if "bb" in indicators_for_data:
+            sma20 = df["close"].rolling(window=20).mean()
+            std20 = df["close"].rolling(window=20).std()
+            _store_series(sma20 + 2 * std20, "BB Upper")
+            _store_series(sma20, "BB Mid")
+            _store_series(sma20 - 2 * std20, "BB Lower")
+
+        if "vwap" in indicators_for_data:
+            typical = (df["high"] + df["low"] + df["close"]) / 3
+            cvp = (typical * df["volume"]).cumsum()
+            cv = df["volume"].cumsum()
+            _store_series(cvp / cv.replace(0, 1), "VWAP")
+
+        if show_rsi and rsi_series is not None:
+            _store_series(rsi_series, "RSI")
+
+        if show_macd and macd_line is not None:
+            _store_series(macd_line, "MACD")
+            _store_series(signal_line, "MACD Signal")
+            _store_series(macd_hist, "MACD Hist")
+
+        if show_atr and atr_series is not None:
+            _store_series(atr_series, "ATR")
+
+        if show_obv and obv_series is not None:
+            _store_series(obv_series, "OBV")
+
+    return fig, indicator_data
 
 
 @app.callback(
     dash.Output("chart-info-bar", "children"),
     dash.Input("price-chart", "hoverData"),
+    dash.State("indicator-data-store", "data"),
 )
-def update_chart_info_bar(hover_data):
+def update_chart_info_bar(hover_data, indicator_data):
     """TradingView-style info bar: OHLCV + indicator values pinned above chart."""
     if not hover_data or not hover_data.get("points"):
         return dash.no_update
     o = h = l = c = v = None
-    extra = {}
+    hovered_x = None
     for pt in hover_data["points"]:
         if "open" in pt:
             o, h, l, c = pt["open"], pt["high"], pt["low"], pt["close"]
-            cd = pt.get("customdata")
-            if cd and len(cd) > 0:
-                v = cd[0]
-        elif pt.get("y") is not None and pt.get("name"):
-            extra[pt["name"]] = pt["y"]
+            v = pt.get("hovertext") or None
+        if hovered_x is None and pt.get("x"):
+            hovered_x = pt["x"]
     parts = []
     if o is not None:
         vol_txt = f"  V: {v:,.0f}" if v is not None else ""
         parts.append(f"O: {o:.4f}  H: {h:.4f}  L: {l:.4f}  C: {c:.4f}{vol_txt}")
-    for name, val in extra.items():
-        parts.append(f"{name}: {val:.4f}")
+    if hovered_x and indicator_data:
+        dt_str = pd.to_datetime(hovered_x).strftime("%Y-%m-%dT%H:%M:%S")
+        ind_vals = indicator_data.get(dt_str, {})
+        ORDERED_NAMES = [
+            "EMA 9", "EMA 21", "EMA 50", "SMA 50", "SMA 200",
+            "BB Upper", "BB Mid", "BB Lower", "VWAP",
+            "RSI", "MACD", "MACD Signal", "MACD Hist", "ATR", "OBV",
+        ]
+        for name in ORDERED_NAMES:
+            val = ind_vals.get(name)
+            if val is not None:
+                parts.append(f"{name}: {val:.4f}")
     return "  |  ".join(parts) if parts else ""
 
 
