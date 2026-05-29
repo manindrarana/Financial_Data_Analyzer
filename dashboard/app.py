@@ -85,6 +85,7 @@ app.layout = dbc.Container(
                 {"label": "SMA 200", "value": "sma200"},
                 {"label": "Bollinger Bands", "value": "bb"},
                 {"label": "VWAP", "value": "vwap"},
+                {"label": "Volume", "value": "volume"},
             ],
             value=[],
             inline=True,
@@ -612,16 +613,24 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
     symbol_label = f"{asset_symbol}/USDT" if asset_class == "crypto" else asset_symbol
     interval_label = INTERVAL_LABELS.get(interval, interval)
 
-    fig = make_subplots(
-        rows=2, cols=1,
-        shared_xaxes=True,
-        vertical_spacing=0.02,
-        row_heights=[0.78, 0.22],
-        subplot_titles=(
-            f"{symbol_label} · {interval_label}",
-            "Volume",
-        ),
-    )
+    show_volume = "volume" in (indicators or [])
+    if show_volume:
+        fig = make_subplots(
+            rows=2, cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.02,
+            row_heights=[0.78, 0.22],
+            subplot_titles=(
+                f"{symbol_label} · {interval_label}",
+                "Volume",
+            ),
+        )
+    else:
+        fig = make_subplots(
+            rows=1, cols=1,
+            shared_xaxes=True,
+            subplot_titles=(f"{symbol_label} · {interval_label}",),
+        )
 
     fig.add_trace(
         go.Candlestick(
@@ -634,24 +643,25 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
             increasing_line_color="#26a69a",
             decreasing_line_color="#ef5350",
             customdata=df[["volume"]].values,
-            hovertext=df["volume"],
+            hovertext=df["volume"] if show_volume else None,
             hovertemplate="<extra></extra>",
         ),
         row=1, col=1,
     )
 
-    colors = ["#26a69a" if c >= o else "#ef5350" for o, c in zip(df["open"], df["close"])]
-    fig.add_trace(
-        go.Bar(
-            x=df["date"],
-            y=df["volume"],
-            name="Volume",
-            marker_color=colors,
-            opacity=0.6,
-            hovertemplate="Volume: %{y:,}<extra></extra>",
-        ),
-        row=2, col=1,
-    )
+    if show_volume:
+        colors = ["#26a69a" if c >= o else "#ef5350" for o, c in zip(df["open"], df["close"])]
+        fig.add_trace(
+            go.Bar(
+                x=df["date"],
+                y=df["volume"],
+                name="Volume",
+                marker_color=colors,
+                opacity=0.6,
+                hovertemplate="Volume: %{y:,}<extra></extra>",
+            ),
+            row=2, col=1,
+        )
 
     if indicators:
         INDICATOR_CONFIG = {
@@ -755,11 +765,12 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
         showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikecolor="rgba(255,255,255,0.5)", spikedash="dashdot",
         tickformat=price_fmt,
     )
-    fig.update_yaxes(
-        title_text="Volume", row=2, col=1,
-        showgrid=True, gridcolor="rgba(255,255,255,0.04)",
-        showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikecolor="rgba(255,255,255,0.5)", spikedash="dashdot",
-    )
+    if show_volume:
+        fig.update_yaxes(
+            title_text="Volume", row=2, col=1,
+            showgrid=True, gridcolor="rgba(255,255,255,0.04)",
+            showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikecolor="rgba(255,255,255,0.5)", spikedash="dashdot",
+        )
 
     return fig
 
