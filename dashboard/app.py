@@ -648,7 +648,7 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
             name="Volume",
             marker_color=colors,
             opacity=0.6,
-            hovertemplate="<extra></extra>",
+            hovertemplate="Volume: %{y:,}<extra></extra>",
         ),
         row=2, col=1,
     )
