@@ -757,9 +757,6 @@ def build_price_chart(asset_class, asset_symbol, interval, range_value, indicato
             loss = (-delta).clip(lower=0)
             avg_gain = gain.rolling(window=14).mean()
             avg_loss = loss.rolling(window=14).mean()
-            for i in range(14, len(avg_gain)):
-                avg_gain.iloc[i] = (avg_gain.iloc[i - 1] * 13 + gain.iloc[i]) / 14
-                avg_loss.iloc[i] = (avg_loss.iloc[i - 1] * 13 + loss.iloc[i]) / 14
             rs = avg_gain / avg_loss.replace(0, 1e-10)
             rsi_series = 100.0 - (100.0 / (1.0 + rs))
             rsi_row = subplot_row["rsi"]
@@ -989,7 +986,8 @@ def update_chart_info_bar(hover_data, indicator_data):
         if "open" in pt:
             o, h, l, c = pt["open"], pt["high"], pt["low"], pt["close"]
             v = pt.get("hovertext") or None
-            hovered_x = pt.get("x")
+        if hovered_x is None and pt.get("x"):
+            hovered_x = pt["x"]
     parts = []
     if o is not None:
         vol_txt = f"  V: {v:,.0f}" if v is not None else ""
