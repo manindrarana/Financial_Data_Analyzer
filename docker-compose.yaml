@@ -49,11 +49,32 @@ services:
     depends_on:
       createbuckets:
         condition: service_completed_successfully
+      prefect:
+        condition: service_healthy
     networks:
       - custom_net
     dns:
       - 8.8.8.8
       - 1.1.1.1
+
+  prefect:
+    image: python:3.10-slim
+    container_name: prefect_server
+    ports:
+      - "4200:4200"
+    volumes:
+      - prefect_data:/root/.prefect
+    command: >
+      bash -c "pip install prefect &&
+               prefect server start --host 0.0.0.0"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4200/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - custom_net
 
   superset:
     image: apache/superset:latest-dev
@@ -113,6 +134,7 @@ volumes:
   minio_data:
   superset_home:
   mlflow_data:
+  prefect_data:
 
 networks:
   custom_net:
