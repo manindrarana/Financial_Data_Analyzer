@@ -1,111 +1,127 @@
 import yaml
 import time
 import gc
-import traceback
+from prefect import flow, task, get_run_logger
 from src.utils import get_logger
 from src.ingestion import YahooFinanceClient, BybitClient
 from src.database import DatabaseLoader, DimensionBuilder, FactLoader
 from src.processing import DataCleaner
-import schedule
 from src.models import GoldLayerProcessor, TechnicalIndicatorProcessor
 
+
+@task(name="extract-data", retries=2, retry_delay_seconds=30)
+def extract_data(config: dict) -> dict:
+    logger = get_run_logger()
+    logger.info("STEP 1: DATA EXTRACTION (APIs -> Parquet)")
+
+    yfinance_targets = config["ingestion"]["targets"].get("yfinance", [])
+    bybit_targets = config["ingestion"]["targets"].get("bybit", [])
+    active_providers = config["ingestion"]["active_provider"]
+
+    stats = {"yfinance_count": 0, "bybit_count": 0}
+
+    if "yfinance" in active_providers:
+        yahoo_client = YahooFinanceClient()
+        for ticker in yfinance_targets:
+            yahoo_client.fetch_data(ticker)
+            stats["yfinance_count"] += 1
+            time.sleep(3)
+        yahoo_client.close()
+
+    if "bybit" in active_providers:
+        bybit_client = BybitClient()
+        for symbol in bybit_targets:
+            bybit_client.fetch_data(symbol)
+            stats["bybit_count"] += 1
+            time.sleep(1)
+        bybit_client.close()
+
+    logger.info(f"Extraction complete: {stats['yfinance_count']} stocks, {stats['bybit_count']} crypto")
+    return stats
+
+
+@task(name="load-to-duckdb", retries=1, retry_delay_seconds=15)
+def load_to_duckdb():
+    logger = get_run_logger()
+    logger.info("STEP 2: LOADING (Parquet -> DuckDB)")
+    loader = DatabaseLoader()
+    loader.load_all()
+    loader.close()
+
+
+@task(name="transform-clean")
+def transform_clean():
+    logger = get_run_logger()
+    logger.info("STEP 3: TRANSFORMATION (Cleaning and Ordering)")
+    cleaner = DataCleaner()
+    cleaner.run()
+    cleaner.close()
+
+
+@task(name="build-dimensions")
+def build_dimensions():
+    logger = get_run_logger()
+    logger.info("STEP 4: DIMENSIONAL MODELING (Building Star Schema)")
+    dim_builder = DimensionBuilder()
+    dim_builder.run()
+    dim_builder.close()
+
+
+@task(name="load-facts")
+def load_facts():
+    logger = get_run_logger()
+    logger.info("STEP 5: FACT LOADING (Silver -> Fact Tables)")
+    fact_loader = FactLoader()
+    fact_loader.run()
+    fact_loader.close()
+
+
+@task(name="build-gold-layer")
+def build_gold_layer():
+    logger = get_run_logger()
+    logger.info("STEP 6: ANALYTICS (Building Gold Layer)")
+    gold_processor = GoldLayerProcessor()
+    gold_processor.run()
+    gold_processor.close()
+
+
+@task(name="build-technical-indicators")
+def build_technical_indicators():
+    logger = get_run_logger()
+    logger.info("STEP 7: TECHNICAL INDICATORS")
+    indicator_processor = TechnicalIndicatorProcessor()
+    indicator_processor.run()
+    indicator_processor.close()
+
+
+@flow(name="financial-data-pipeline", log_prints=True)
 def run_pipeline():
-    logger = get_logger("Orchestrator")
-    logger.info("Starting Financial Data Pipeline (ELT)...")
-    
+    logger = get_run_logger()
+    logger.info("=== Financial Data Pipeline (ELT) Starting ===")
     pipeline_start = time.time()
 
-    try:
-        with open("configs/settings.yml", "r") as f:
-            config = yaml.safe_load(f)
-            
-        yfinance_targets = config["ingestion"]["targets"].get("yfinance", [])
-        bybit_targets = config["ingestion"]["targets"].get("bybit", [])
-        active_providers = config["ingestion"]["active_provider"]
-        
-        logger.info("*** STEP 1: DATA EXTRACTION (APIs ..> Parquet) ***")
-        step_start = time.time()
-        
-        if "yfinance" in active_providers:
-            yahoo_client = YahooFinanceClient()
-            for ticker in yfinance_targets:
-                yahoo_client.fetch_data(ticker)
-                time.sleep(3)
-            yahoo_client.close()
-                
-        if "bybit" in active_providers:
-            bybit_client = BybitClient()
-            for symbol in bybit_targets:
-                bybit_client.fetch_data(symbol)
-                time.sleep(1)
-            bybit_client.close()
+    with open("configs/settings.yml", "r") as f:
+        config = yaml.safe_load(f)
 
-        logger.info(f"Step 1 completed in {time.time() - step_start:.1f}s")
+    extract_data(config)
+    load_to_duckdb()
+    transform_clean()
+    build_dimensions()
+    load_facts()
+    build_gold_layer()
+    build_technical_indicators()
 
-        logger.info("*** STEP 2: LOADING (Parquet ..> DuckDB) ***")
-        step_start = time.time()
-        loader = DatabaseLoader()
-        loader.load_all()
-        loader.close()
-        logger.info(f"Step 2 completed in {time.time() - step_start:.1f}s")
-        
-        logger.info("*** STEP 3: TRANSFORMATION (Cleaning and Ordering) ***")
-        step_start = time.time()
-        cleaner = DataCleaner()
-        cleaner.run()
-        cleaner.close()
-        logger.info(f"Step 3 completed in {time.time() - step_start:.1f}s")
-        
-        logger.info("*** STEP 4: DIMENSIONAL MODELING (Building Dimensions) ***")
-        step_start = time.time()
-        dim_builder = DimensionBuilder()
-        dim_builder.run()
-        dim_builder.close()
-        logger.info(f"Step 4 completed in {time.time() - step_start:.1f}s")
-        
-        logger.info("*** STEP 5: FACT LOADING (Silver ..> Fact Tables) ***")
-        step_start = time.time()
-        fact_loader = FactLoader()
-        fact_loader.run()
-        fact_loader.close()
-        logger.info(f"Step 5 completed in {time.time() - step_start:.1f}s")
-        
-        logger.info("*** STEP 6: ANALYTICS (Building Gold Layer) ***")
-        step_start = time.time()
-        gold_processor = GoldLayerProcessor()
-        gold_processor.run()
-        gold_processor.close()
-        logger.info(f"Step 6 completed in {time.time() - step_start:.1f}s")
-        
-        logger.info("*** STEP 7: TECHNICAL INDICATORS (Building Technical Indicators) ***")
-        step_start = time.time()
-        indicator_processor = TechnicalIndicatorProcessor()
-        indicator_processor.run()
-        indicator_processor.close()
-        logger.info(f"Step 7 completed in {time.time() - step_start:.1f}s")
-        
-        logger.info("*** PIPELINE EXECUTED SUCCESSFULLY!!!! ***")
-        logger.info(f"Total pipeline runtime: {time.time() - pipeline_start:.1f}s")
-        logger.info("Pipeline completed. Next run scheduled in 1 hour.")
-
-    except Exception as e:
-        logger.error(f"PIPELINE CRASHED during execution! Error: {e}")
-        logger.error(traceback.format_exc())
-        
-    finally:
-        gc.collect()
+    elapsed = time.time() - pipeline_start
+    logger.info(f"=== Pipeline executed successfully in {elapsed:.1f}s ===")
+    gc.collect()
 
 
 if __name__ == "__main__":
-    
     logger = get_logger("Orchestrator_Main")
-    
     logger.info("Docker container started. Running initial pipeline execution...")
     run_pipeline()
-    
-    schedule.every(1).hours.do(run_pipeline)
-    
+
     while True:
-        schedule.run_pending()
-        time.sleep(60)
-        
+        logger.info("Sleeping 3600s until next scheduled run...")
+        time.sleep(3600)
+        run_pipeline()
