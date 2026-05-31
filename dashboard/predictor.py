@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DB_PATH = os.path.join("database", "financial_data.duckdb")
+DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "database", "financial_data.duckdb")
 
 MODEL_PATHS = {
     "crypto": os.path.join("src", "models", "BTC_1h_xgboost_model.json"),

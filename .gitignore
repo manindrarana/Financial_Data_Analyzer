@@ -11,6 +11,9 @@ data/analytics/*
 *duckdb
 *.log
 .pytest_cache/
+
+# Dash cache
+.dash_cache/
 notebooks/.ipynb_checkpoints/
 
 # Obsidian notes
