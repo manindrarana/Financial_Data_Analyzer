@@ -91,21 +91,27 @@ def run_metrics(
     trades_path=None,
     equity_path=None,
     initial_capital=10000,
+    return_data=False,
+    trades_df=None,
+    equity_df=None,
 ):
-    if trades_path is None:
-        trades_path = os.path.join(OUTPUT_DIR, "backtest_trades.parquet")
-    if equity_path is None:
-        equity_path = os.path.join(OUTPUT_DIR, "backtest_equity.parquet")
+    if trades_df is None or equity_df is None:
+        if trades_path is None:
+            trades_path = os.path.join(OUTPUT_DIR, "backtest_trades.parquet")
+        if equity_path is None:
+            equity_path = os.path.join(OUTPUT_DIR, "backtest_equity.parquet")
 
-    if not os.path.exists(trades_path):
-        raise FileNotFoundError(f"Trades file not found: {trades_path}")
-    if not os.path.exists(equity_path):
-        raise FileNotFoundError(f"Equity file not found: {equity_path}")
+        if not os.path.exists(trades_path):
+            raise FileNotFoundError(f"Trades file not found: {trades_path}")
+        if not os.path.exists(equity_path):
+            raise FileNotFoundError(f"Equity file not found: {equity_path}")
 
-    print(f"\n=== Performance Metrics ===\n")
+        print(f"\n=== Performance Metrics ===\n")
 
-    trades_df = pd.read_parquet(trades_path)
-    equity_df = pd.read_parquet(equity_path)
+        trades_df = pd.read_parquet(trades_path)
+        equity_df = pd.read_parquet(equity_path)
+    else:
+        print(f"\n=== Performance Metrics ===\n")
 
     metrics = compute_metrics(trades_df, equity_df, initial_capital)
 
@@ -130,6 +136,9 @@ def run_metrics(
         for fm in metrics["fold_breakdown"]:
             print(f"     Fold {fm['fold_id']}: {fm['trades']} trades, "
                   f"PnL ${fm['pnl']:+,.2f}, Win {fm['win_rate']:.1f}%")
+
+    if return_data:
+        return metrics
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     metrics_path = os.path.join(OUTPUT_DIR, "backtest_metrics.json")
