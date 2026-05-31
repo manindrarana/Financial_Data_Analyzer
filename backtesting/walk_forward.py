@@ -61,7 +61,7 @@ def _make_stationary(df):
     return df
 
 
-def _load_data(asset="BTC", interval="1h"):
+def _load_data(asset="BTC", interval="1h", date_start=None, date_end=None):
     conn = duckdb.connect(DB_PATH, read_only=True)
     needed_cols = [
         "date", "close",
@@ -76,12 +76,18 @@ def _load_data(asset="BTC", interval="1h"):
     ]
     col_list = ", ".join(needed_cols)
 
-    df = conn.execute(f"""
+    query = f"""
         SELECT {col_list}
         FROM gold_crypto_features
         WHERE asset_symbol = '{asset}' AND interval = '{interval}'
-        ORDER BY date
-    """).df()
+    """
+    if date_start:
+        query += f" AND date >= '{date_start}'"
+    if date_end:
+        query += f" AND date <= '{date_end}'"
+    query += " ORDER BY date"
+
+    df = conn.execute(query).df()
     conn.close()
 
     if df.empty:
@@ -154,7 +160,7 @@ def _prepare_fold_data(train_df, test_df):
     return X_train, y_train, X_test, y_test, test_df.loc[X_test.index], available_feats
 
 
-def run_walk_forward(asset="BTC", interval="1h", train_months=6, test_months=1, step_months=1):
+def run_walk_forward(asset="BTC", interval="1h", train_months=6, test_months=1, step_months=1, date_start=None, date_end=None, return_data=False):
     print(f"\n=== Walk-Forward Backtest: {asset} {interval} ===")
     print(f"   Train window: {train_months} months")
     print(f"   Test window:  {test_months} months")
@@ -163,7 +169,7 @@ def run_walk_forward(asset="BTC", interval="1h", train_months=6, test_months=1, 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     print("[1/4] Loading data from gold_crypto_features...")
-    df = _load_data(asset, interval)
+    df = _load_data(asset, interval, date_start, date_end)
     print(f"   Loaded {len(df):,} rows ({df['date'].min().date()} to {df['date'].max().date()})")
 
     print("\n[2/4] Generating walk-forward folds...")
@@ -232,6 +238,25 @@ def run_walk_forward(asset="BTC", interval="1h", train_months=6, test_months=1, 
     print("\n[4/4] Saving results...")
     combined = pd.concat(all_predictions, ignore_index=True)
     combined = combined.sort_values("date").reset_index(drop=True)
+
+    if return_data:
+        overall_acc = (combined["prediction"] == combined["actual_direction"]).mean()
+        summary = {
+            "asset": asset,
+            "interval": interval,
+            "train_months": train_months,
+            "test_months": test_months,
+            "step_months": step_months,
+            "total_folds": len(folds),
+            "total_predictions": len(combined),
+            "overall_accuracy": round(overall_acc, 4),
+            "folds": fold_summaries,
+        }
+        print(f"\n=== Done ===")
+        print(f"   Folds completed: {len(fold_summaries)}")
+        print(f"   Total OOS predictions: {len(combined):,}")
+        print(f"   Overall accuracy: {overall_acc:.4f} ({overall_acc*100:.2f}%)")
+        return combined, summary
 
     pred_path = os.path.join(OUTPUT_DIR, "walk_forward_predictions.parquet")
     combined.to_parquet(pred_path)
