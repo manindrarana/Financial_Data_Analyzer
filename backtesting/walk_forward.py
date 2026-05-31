@@ -6,7 +6,7 @@ import duckdb
 import xgboost as xgb
 from sklearn.metrics import accuracy_score
 
-DB_PATH = os.path.join("database", "financial_data.duckdb")
+DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "database", "financial_data.duckdb")
 OUTPUT_DIR = os.path.join("backtesting", "results")
 
 MODEL_FEATURES = [

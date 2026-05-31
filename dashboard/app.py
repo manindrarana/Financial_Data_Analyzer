@@ -22,7 +22,7 @@ from dashboard.predictor import run_prediction
 import diskcache
 
 load_dotenv()
-DB_PATH = os.path.join("database", "financial_data.duckdb")
+DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "database", "financial_data.duckdb")
 
 _cache = diskcache.Cache(os.path.join(os.path.dirname(__file__), "..", ".dash_cache"))
 
@@ -45,26 +45,57 @@ app.index_string = '''
         {%favicon%}
         {%css%}
         <style>
-            .DateInput_input, .DateInput_input:focus, .DateInput_input:hover {
+            .dash-datepicker,
+            .dash-datepicker-input-wrapper,
+            .dash-datepicker-content,
+            .dash-datepicker-portal,
+            .dash-datepicker-portal .dash-datepicker-calendar-wrapper,
+            .dash-datepicker-portal .dash-datepicker-fullscreen,
+            .dash-datepicker-controls,
+            .dash-datepicker-controls .dash-dropdown,
+            .dash-datepicker-controls .dash-input {
+                --Dash-Fill-Inverse-Strong: #1a1a1a;
+                --Dash-Stroke-Strong: #444;
+                --Dash-Text-Strong: #ccc;
+                --Dash-Text-Disabled: #666;
+                --Dash-Text-Weak: #999;
+                --Dash-Fill-Interactive-Strong: #3498db;
+                --Dash-Fill-Interactive-Weak: rgba(52,152,219,0.15);
+                --Dash-Shading-Strong: rgba(0,0,0,0.7);
+                --Dash-Shading-Weak: rgba(0,0,0,0.3);
+                --Dash-Fill-Disabled: #333;
+            }
+            .dash-dropdown-content {
+                background: #1a1a1a !important;
+            }
+            .dash-dropdown-content .dash-dropdown-option {
+                color: #ccc !important;
+            }
+            .dash-dropdown-content .dash-dropdown-search {
+                color: #ccc !important;
+            }
+            .dash-datepicker-input {
                 color: #fff !important;
-                background-color: #222 !important;
-                border-color: #444 !important;
             }
-            .DateInput_displayText, .DateInput_displayText:focus {
+            .dash-datepicker-input::placeholder {
+                color: #888 !important;
+            }
+            .dash-datepicker-content,
+            .dash-datepicker-portal,
+            .dash-datepicker-controls {
                 color: #ccc !important;
             }
-            .CalendarDay__default {
+            .dash-datepicker-controls *,
+            .dash-datepicker-calendar-wrapper *,
+            .dash-datepicker-content * {
                 color: #ccc !important;
             }
-            .CalendarDay__default:hover {
-                color: #000 !important;
+            .dash-datepicker-calendar-wrapper [role="gridcell"] button:hover {
+                background: rgba(52,152,219,0.2) !important;
             }
-            .DateRangePickerInput {
-                background-color: #222 !important;
-                border-color: #444 !important;
-            }
-            .DateRangePickerInput_arrow {
-                fill: #ccc !important;
+            .dash-datepicker-calendar-wrapper [role="gridcell"][aria-selected="true"] button {
+                background: #3498db !important;
+                color: #fff !important;
             }
         </style>
     </head>
