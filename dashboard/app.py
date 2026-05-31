@@ -566,7 +566,7 @@ def _build_backtest_results(metrics, equity_df, trades_df):
             [html.Thead(html.Tr([
                 html.Th("Fold"), html.Th("Trades"), html.Th("PnL"), html.Th("Win %"),
             ]))] + [html.Tbody(fold_rows)],
-            bordered=True, dark=True, hover=True, size="sm", striped=True,
+            bordered=True, color="dark", hover=True, size="sm", striped=True,
             className="mt-2",
         )
 
