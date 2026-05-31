@@ -34,6 +34,51 @@ app = dash.Dash(
     background_callback_manager=DiskcacheManager(_cache),
 )
 
+app._favicon = None
+
+app.index_string = '''
+<!DOCTYPE html>
+<html>
+    <head>
+        {%metas%}
+        <title>{%title%}</title>
+        {%favicon%}
+        {%css%}
+        <style>
+            .DateInput_input, .DateInput_input:focus, .DateInput_input:hover {
+                color: #fff !important;
+                background-color: #222 !important;
+                border-color: #444 !important;
+            }
+            .DateInput_displayText, .DateInput_displayText:focus {
+                color: #ccc !important;
+            }
+            .CalendarDay__default {
+                color: #ccc !important;
+            }
+            .CalendarDay__default:hover {
+                color: #000 !important;
+            }
+            .DateRangePickerInput {
+                background-color: #222 !important;
+                border-color: #444 !important;
+            }
+            .DateRangePickerInput_arrow {
+                fill: #ccc !important;
+            }
+        </style>
+    </head>
+    <body>
+        {%app_entry%}
+        <footer>
+            {%config%}
+            {%scripts%}
+            {%renderer%}
+        </footer>
+    </body>
+</html>
+'''
+
 PRICE_RANGE_OPTIONS = [
     {"label": "1 Day", "value": "1d"},
     {"label": "3 Days", "value": "3d"},
@@ -529,7 +574,7 @@ def _build_backtest_results(metrics, equity_df, trades_df):
     fig_trades.add_trace(go.Scatter(
         x=trades_df["entry_time"], y=trades_df["pnl_pct"],
         mode="markers", name="Trade PnL",
-        marker=dict(color=trades_df["color"], size=8, symbol=trades_df["symbol"]),
+        marker=dict(color=trades_df["color"], size=12, symbol=trades_df["symbol"], line=dict(width=1, color="#fff")),
         customdata=np.column_stack([
             trades_df["entry_time"].dt.strftime("%Y-%m-%d %H:%M"),
             trades_df["exit_time"].dt.strftime("%Y-%m-%d %H:%M"),
@@ -566,7 +611,7 @@ def _build_backtest_results(metrics, equity_df, trades_df):
             [html.Thead(html.Tr([
                 html.Th("Fold"), html.Th("Trades"), html.Th("PnL"), html.Th("Win %"),
             ]))] + [html.Tbody(fold_rows)],
-            bordered=True, color="dark", hover=True, size="sm", striped=True,
+            bordered=True, hover=True, size="sm", striped=True,
             className="mt-2",
         )
 
