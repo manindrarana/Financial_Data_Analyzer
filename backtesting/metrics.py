@@ -22,9 +22,9 @@ def compute_metrics(trades_df, equity_df, initial_capital=10000):
             "losing_trades": 0,
         }
 
-    total_trades = len(trades_df)
-    winning_trades = (trades_df["pnl"] > 0).sum()
-    losing_trades = (trades_df["pnl"] <= 0).sum()
+    total_trades = int(len(trades_df))
+    winning_trades = int((trades_df["pnl"] > 0).sum())
+    losing_trades = int((trades_df["pnl"] <= 0).sum())
     win_rate = winning_trades / total_trades if total_trades > 0 else 0.0
 
     total_pnl = trades_df["pnl"].sum()
