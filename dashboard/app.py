@@ -24,7 +24,8 @@ import diskcache
 load_dotenv()
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "database", "financial_data.duckdb")
 
-_cache = diskcache.Cache(os.path.join(os.path.dirname(__file__), "..", ".dash_cache"))
+_cache_dir = os.environ.get("DASH_CACHE_DIR", os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".dash_cache")))
+_cache = diskcache.Cache(_cache_dir, sqlite_journal_mode="wal", sqlite_synchronous=1)
 
 app = dash.Dash(
     __name__,

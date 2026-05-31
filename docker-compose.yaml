@@ -117,6 +117,8 @@ services:
     container_name: financial_data_dashboard
     env_file:
       - .env
+    environment:
+      - DASH_CACHE_DIR=/tmp/dash_cache
     ports:
       - "8050:8050"
     volumes:
