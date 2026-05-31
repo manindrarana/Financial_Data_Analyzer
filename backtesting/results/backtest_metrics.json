@@ -1,0 +1,422 @@
+{
+  "total_return_pct": 2727.29,
+  "total_pnl": 272728.5,
+  "sharpe_ratio": 0.46,
+  "max_drawdown_pct": 14.04,
+  "win_rate": 49.6,
+  "profit_factor": 1.27,
+  "avg_win": 1026.96,
+  "avg_loss": 795.47,
+  "total_trades": 2498,
+  "winning_trades": 1240,
+  "losing_trades": 1258,
+  "exit_reasons": {
+    "max_hold": 1299,
+    "stop_loss": 815,
+    "take_profit": 384
+  },
+  "fold_breakdown": [
+    {
+      "fold_id": 1,
+      "trades": 33,
+      "pnl": 2996.16,
+      "win_rate": 66.7
+    },
+    {
+      "fold_id": 2,
+      "trades": 40,
+      "pnl": 7198.27,
+      "win_rate": 62.5
+    },
+    {
+      "fold_id": 3,
+      "trades": 38,
+      "pnl": 11953.13,
+      "win_rate": 68.4
+    },
+    {
+      "fold_id": 4,
+      "trades": 95,
+      "pnl": 17474.86,
+      "win_rate": 44.2
+    },
+    {
+      "fold_id": 5,
+      "trades": 51,
+      "pnl": 20566.66,
+      "win_rate": 51.0
+    },
+    {
+      "fold_id": 6,
+      "trades": 42,
+      "pnl": 10685.09,
+      "win_rate": 52.4
+    },
+    {
+      "fold_id": 7,
+      "trades": 41,
+      "pnl": 3351.83,
+      "win_rate": 51.2
+    },
+    {
+      "fold_id": 8,
+      "trades": 82,
+      "pnl": -2618.06,
+      "win_rate": 35.4
+    },
+    {
+      "fold_id": 9,
+      "trades": 51,
+      "pnl": 4028.36,
+      "win_rate": 45.1
+    },
+    {
+      "fold_id": 10,
+      "trades": 34,
+      "pnl": 2289.23,
+      "win_rate": 47.1
+    },
+    {
+      "fold_id": 11,
+      "trades": 38,
+      "pnl": 11031.85,
+      "win_rate": 52.6
+    },
+    {
+      "fold_id": 12,
+      "trades": 43,
+      "pnl": 4852.72,
+      "win_rate": 53.5
+    },
+    {
+      "fold_id": 13,
+      "trades": 34,
+      "pnl": 16371.63,
+      "win_rate": 58.8
+    },
+    {
+      "fold_id": 14,
+      "trades": 36,
+      "pnl": -2375.7,
+      "win_rate": 47.2
+    },
+    {
+      "fold_id": 15,
+      "trades": 39,
+      "pnl": -2658.38,
+      "win_rate": 43.6
+    },
+    {
+      "fold_id": 16,
+      "trades": 44,
+      "pnl": -2505.3,
+      "win_rate": 43.2
+    },
+    {
+      "fold_id": 17,
+      "trades": 37,
+      "pnl": 5608.33,
+      "win_rate": 48.6
+    },
+    {
+      "fold_id": 18,
+      "trades": 38,
+      "pnl": 4784.6,
+      "win_rate": 50.0
+    },
+    {
+      "fold_id": 19,
+      "trades": 38,
+      "pnl": -5253.78,
+      "win_rate": 47.4
+    },
+    {
+      "fold_id": 20,
+      "trades": 48,
+      "pnl": -56.83,
+      "win_rate": 37.5
+    },
+    {
+      "fold_id": 21,
+      "trades": 64,
+      "pnl": -5151.75,
+      "win_rate": 32.8
+    },
+    {
+      "fold_id": 22,
+      "trades": 36,
+      "pnl": 3666.24,
+      "win_rate": 47.2
+    },
+    {
+      "fold_id": 23,
+      "trades": 38,
+      "pnl": 266.66,
+      "win_rate": 42.1
+    },
+    {
+      "fold_id": 24,
+      "trades": 36,
+      "pnl": 2423.71,
+      "win_rate": 47.2
+    },
+    {
+      "fold_id": 25,
+      "trades": 32,
+      "pnl": 2015.42,
+      "win_rate": 50.0
+    },
+    {
+      "fold_id": 26,
+      "trades": 33,
+      "pnl": 5.88,
+      "win_rate": 36.4
+    },
+    {
+      "fold_id": 27,
+      "trades": 28,
+      "pnl": 357.39,
+      "win_rate": 60.7
+    },
+    {
+      "fold_id": 28,
+      "trades": 31,
+      "pnl": 5419.43,
+      "win_rate": 64.5
+    },
+    {
+      "fold_id": 29,
+      "trades": 29,
+      "pnl": -1002.72,
+      "win_rate": 37.9
+    },
+    {
+      "fold_id": 30,
+      "trades": 39,
+      "pnl": 4053.97,
+      "win_rate": 48.7
+    },
+    {
+      "fold_id": 31,
+      "trades": 31,
+      "pnl": 1235.44,
+      "win_rate": 48.4
+    },
+    {
+      "fold_id": 32,
+      "trades": 34,
+      "pnl": 49.81,
+      "win_rate": 50.0
+    },
+    {
+      "fold_id": 33,
+      "trades": 30,
+      "pnl": 3647.97,
+      "win_rate": 60.0
+    },
+    {
+      "fold_id": 34,
+      "trades": 31,
+      "pnl": -259.71,
+      "win_rate": 51.6
+    },
+    {
+      "fold_id": 35,
+      "trades": 31,
+      "pnl": -1424.62,
+      "win_rate": 45.2
+    },
+    {
+      "fold_id": 36,
+      "trades": 29,
+      "pnl": 2638.79,
+      "win_rate": 48.3
+    },
+    {
+      "fold_id": 37,
+      "trades": 31,
+      "pnl": 7209.78,
+      "win_rate": 61.3
+    },
+    {
+      "fold_id": 38,
+      "trades": 30,
+      "pnl": 4455.39,
+      "win_rate": 63.3
+    },
+    {
+      "fold_id": 39,
+      "trades": 34,
+      "pnl": 7087.9,
+      "win_rate": 55.9
+    },
+    {
+      "fold_id": 40,
+      "trades": 40,
+      "pnl": 2409.83,
+      "win_rate": 50.0
+    },
+    {
+      "fold_id": 41,
+      "trades": 29,
+      "pnl": 15601.22,
+      "win_rate": 62.1
+    },
+    {
+      "fold_id": 42,
+      "trades": 43,
+      "pnl": 8731.1,
+      "win_rate": 51.2
+    },
+    {
+      "fold_id": 43,
+      "trades": 39,
+      "pnl": 1863.19,
+      "win_rate": 46.2
+    },
+    {
+      "fold_id": 44,
+      "trades": 33,
+      "pnl": 10255.36,
+      "win_rate": 48.5
+    },
+    {
+      "fold_id": 45,
+      "trades": 34,
+      "pnl": -3077.54,
+      "win_rate": 52.9
+    },
+    {
+      "fold_id": 46,
+      "trades": 41,
+      "pnl": 6667.85,
+      "win_rate": 51.2
+    },
+    {
+      "fold_id": 47,
+      "trades": 43,
+      "pnl": -194.9,
+      "win_rate": 46.5
+    },
+    {
+      "fold_id": 48,
+      "trades": 32,
+      "pnl": 5104.68,
+      "win_rate": 53.1
+    },
+    {
+      "fold_id": 49,
+      "trades": 29,
+      "pnl": 7604.14,
+      "win_rate": 62.1
+    },
+    {
+      "fold_id": 50,
+      "trades": 34,
+      "pnl": 23523.62,
+      "win_rate": 67.6
+    },
+    {
+      "fold_id": 51,
+      "trades": 35,
+      "pnl": 3939.49,
+      "win_rate": 48.6
+    },
+    {
+      "fold_id": 52,
+      "trades": 37,
+      "pnl": 11692.84,
+      "win_rate": 54.1
+    },
+    {
+      "fold_id": 53,
+      "trades": 35,
+      "pnl": -5198.43,
+      "win_rate": 42.9
+    },
+    {
+      "fold_id": 54,
+      "trades": 41,
+      "pnl": 2473.11,
+      "win_rate": 46.3
+    },
+    {
+      "fold_id": 55,
+      "trades": 34,
+      "pnl": 10004.42,
+      "win_rate": 52.9
+    },
+    {
+      "fold_id": 56,
+      "trades": 29,
+      "pnl": 15990.83,
+      "win_rate": 69.0
+    },
+    {
+      "fold_id": 57,
+      "trades": 28,
+      "pnl": 5270.53,
+      "win_rate": 57.1
+    },
+    {
+      "fold_id": 58,
+      "trades": 30,
+      "pnl": 4347.03,
+      "win_rate": 50.0
+    },
+    {
+      "fold_id": 59,
+      "trades": 31,
+      "pnl": 4054.78,
+      "win_rate": 51.6
+    },
+    {
+      "fold_id": 60,
+      "trades": 26,
+      "pnl": 8587.65,
+      "win_rate": 53.8
+    },
+    {
+      "fold_id": 61,
+      "trades": 34,
+      "pnl": -5646.54,
+      "win_rate": 44.1
+    },
+    {
+      "fold_id": 62,
+      "trades": 37,
+      "pnl": -13004.61,
+      "win_rate": 37.8
+    },
+    {
+      "fold_id": 63,
+      "trades": 32,
+      "pnl": 4352.13,
+      "win_rate": 53.1
+    },
+    {
+      "fold_id": 64,
+      "trades": 33,
+      "pnl": -1956.83,
+      "win_rate": 42.4
+    },
+    {
+      "fold_id": 65,
+      "trades": 36,
+      "pnl": -378.66,
+      "win_rate": 41.7
+    },
+    {
+      "fold_id": 66,
+      "trades": 32,
+      "pnl": -3674.18,
+      "win_rate": 34.4
+    },
+    {
+      "fold_id": 67,
+      "trades": 22,
+      "pnl": 8966.76,
+      "win_rate": 68.2
+    }
+  ]
+}
