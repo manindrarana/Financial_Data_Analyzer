@@ -141,15 +141,23 @@ def run_strategy(
     take_profit_pct=0.04,
     max_hold_bars=24,
     initial_capital=10000,
+    return_data=False,
+    predictions_df=None,
 ):
-    if predictions_path is None:
+    if predictions_df is not None:
+        predictions = predictions_df
+        print(f"   Using provided predictions DataFrame ({len(predictions):,} rows)")
+    elif predictions_path is None:
         predictions_path = os.path.join(OUTPUT_DIR, "walk_forward_predictions.parquet")
 
-    if not os.path.exists(predictions_path):
-        raise FileNotFoundError(
-            f"Predictions file not found: {predictions_path}. "
-            "Run walk_forward.py first."
-        )
+    if predictions_df is None:
+        if not os.path.exists(predictions_path):
+            raise FileNotFoundError(
+                f"Predictions file not found: {predictions_path}. "
+                "Run walk_forward.py first or pass predictions_df."
+            )
+        predictions = pd.read_parquet(predictions_path)
+        print(f"   Loaded {len(predictions):,} predictions")
 
     print(f"\n=== Strategy Simulation ===")
     print(f"   Confidence threshold: {confidence_threshold}")
@@ -157,9 +165,6 @@ def run_strategy(
     print(f"   Take profit: {take_profit_pct*100:.0f}%")
     print(f"   Max hold: {max_hold_bars} bars")
     print(f"   Initial capital: ${initial_capital:,.0f}\n")
-
-    predictions = pd.read_parquet(predictions_path)
-    print(f"   Loaded {len(predictions):,} predictions")
 
     trades_df, equity_df = simulate_trades(
         predictions,
@@ -169,6 +174,9 @@ def run_strategy(
         max_hold_bars,
         initial_capital,
     )
+
+    if return_data:
+        return trades_df, equity_df
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
