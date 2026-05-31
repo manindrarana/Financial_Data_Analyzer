@@ -70,6 +70,7 @@ app.layout = dbc.Container(
             children=[
                 dbc.Tab(label=" Price Dashboard", tab_id="tab-price"),
                 dbc.Tab(label=" Predictions", tab_id="tab-predictions"),
+                dbc.Tab(label=" Backtest", tab_id="tab-backtest"),
                 dbc.Tab(label=" Technical Indicators", tab_id="tab-indicators"),
                 dbc.Tab(label=" Data Explorer", tab_id="tab-explorer"),
             ],
@@ -195,6 +196,8 @@ def render_tab(active_tab: str):
         return render_price_dashboard()
     elif active_tab == "tab-predictions":
         return render_predictions()
+    elif active_tab == "tab-backtest":
+        return render_backtest()
     elif active_tab == "tab-indicators":
         return render_indicators()
     elif active_tab == "tab-explorer":
@@ -301,6 +304,239 @@ def render_predictions():
         )
     except Exception as e:
         return dbc.Alert(f"Error: {e}", color="danger")
+
+def render_backtest():
+    import json
+    import os as _os
+
+    METRICS_PATH = _os.path.join("backtesting", "results", "backtest_metrics.json")
+    EQUITY_PATH = _os.path.join("backtesting", "results", "backtest_equity.parquet")
+    TRADES_PATH = _os.path.join("backtesting", "results", "backtest_trades.parquet")
+    SUMMARY_PATH = _os.path.join("backtesting", "results", "walk_forward_summary.json")
+
+    has_data = _os.path.exists(EQUITY_PATH) and _os.path.exists(TRADES_PATH)
+
+    return dbc.Row(
+        dbc.Col(
+            [
+                html.H3("Walk-Forward Backtest", className="text-light mb-3"),
+                dbc.Row(
+                    [
+                        dbc.Col(
+                            html.Div(id="backtest-metrics", className="mb-3"),
+                            width=12,
+                        ),
+                    ]
+                ) if has_data else None,
+                dbc.Row(
+                    dbc.Col(
+                        dcc.Graph(
+                            id="backtest-equity-chart",
+                            config={"displayModeBar": True, "responsive": True},
+                        ),
+                        width=12,
+                    ),
+                ),
+                dbc.Row(
+                    dbc.Col(
+                        dcc.Graph(
+                            id="backtest-trades-chart",
+                            config={"displayModeBar": True, "responsive": True},
+                        ),
+                        width=12,
+                    ),
+                ),
+                dcc.Interval(id="backtest-interval", interval=300_000),
+            ],
+            width=12,
+        )
+    )
+
+
+@app.callback(
+    dash.Output("backtest-metrics", "children"),
+    dash.Output("backtest-equity-chart", "figure"),
+    dash.Output("backtest-trades-chart", "figure"),
+    dash.Input("backtest-interval", "n_intervals"),
+)
+def update_backtest(_n):
+    import json as _json
+    import os as _os
+
+    METRICS_PATH = _os.path.join("backtesting", "results", "backtest_metrics.json")
+    EQUITY_PATH = _os.path.join("backtesting", "results", "backtest_equity.parquet")
+    TRADES_PATH = _os.path.join("backtesting", "results", "backtest_trades.parquet")
+    SUMMARY_PATH = _os.path.join("backtesting", "results", "walk_forward_summary.json")
+
+    empty_equity = go.Figure().update_layout(
+        template="plotly_dark",
+        title="No backtest data — run backtesting/walk_forward.py then backtesting/strategy.py",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+    )
+    empty_trades = go.Figure().update_layout(
+        template="plotly_dark",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+    )
+
+    if not _os.path.exists(EQUITY_PATH) or not _os.path.exists(TRADES_PATH):
+        return (
+            dbc.Alert("No backtest results found. Run backtesting scripts first.", color="warning"),
+            empty_equity,
+            empty_trades,
+        )
+
+    metrics = {}
+    if _os.path.exists(METRICS_PATH):
+        with open(METRICS_PATH) as f:
+            metrics = _json.load(f)
+
+    summary = {}
+    if _os.path.exists(SUMMARY_PATH):
+        with open(SUMMARY_PATH) as f:
+            summary = _json.load(f)
+
+    equity_df = pd.read_parquet(EQUITY_PATH)
+    trades_df = pd.read_parquet(TRADES_PATH)
+
+    metric_cards = dbc.Row(
+        [
+            dbc.Col(
+                dbc.Card(
+                    dbc.CardBody([
+                        html.H5(f"{metrics.get('total_return_pct', 0):+.2f}%", className="card-title text-info"),
+                        html.P("Total Return", className="card-text text-muted small"),
+                    ]),
+                    color="dark", outline=True,
+                ),
+                width=2,
+            ),
+            dbc.Col(
+                dbc.Card(
+                    dbc.CardBody([
+                        html.H5(f"{metrics.get('sharpe_ratio', 0):.2f}", className="card-title text-info"),
+                        html.P("Sharpe Ratio", className="card-text text-muted small"),
+                    ]),
+                    color="dark", outline=True,
+                ),
+                width=2,
+            ),
+            dbc.Col(
+                dbc.Card(
+                    dbc.CardBody([
+                        html.H5(f"{metrics.get('max_drawdown_pct', 0):.1f}%", className="card-title text-danger"),
+                        html.P("Max Drawdown", className="card-text text-muted small"),
+                    ]),
+                    color="dark", outline=True,
+                ),
+                width=2,
+            ),
+            dbc.Col(
+                dbc.Card(
+                    dbc.CardBody([
+                        html.H5(f"{metrics.get('win_rate', 0):.1f}%", className="card-title text-info"),
+                        html.P("Win Rate", className="card-text text-muted small"),
+                    ]),
+                    color="dark", outline=True,
+                ),
+                width=2,
+            ),
+            dbc.Col(
+                dbc.Card(
+                    dbc.CardBody([
+                        html.H5(f"{metrics.get('profit_factor', 0):.2f}", className="card-title text-info"),
+                        html.P("Profit Factor", className="card-text text-muted small"),
+                    ]),
+                    color="dark", outline=True,
+                ),
+                width=2,
+            ),
+            dbc.Col(
+                dbc.Card(
+                    dbc.CardBody([
+                        html.H5(str(metrics.get("total_trades", 0)), className="card-title text-info"),
+                        html.P("Total Trades", className="card-text text-muted small"),
+                    ]),
+                    color="dark", outline=True,
+                ),
+                width=2,
+            ),
+        ],
+        className="mb-3",
+    )
+
+    equity_df["date"] = pd.to_datetime(equity_df["date"])
+    equity_df = equity_df.sort_values("date")
+
+    fig_equity = go.Figure()
+    fig_equity.add_trace(
+        go.Scatter(
+            x=equity_df["date"], y=equity_df["equity"],
+            mode="lines", name="Equity",
+            line=dict(color="#17a2b8", width=1.5),
+            fill="tozeroy", fillcolor="rgba(23,162,184,0.1)",
+        )
+    )
+    fig_equity.update_layout(
+        template="plotly_dark",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=400,
+        title="Equity Curve",
+        hovermode="x unified",
+        margin=dict(l=10, r=10, t=40, b=10),
+    )
+    fig_equity.update_yaxes(title_text="Equity ($)")
+
+    if not trades_df.empty:
+        trades_df["entry_time"] = pd.to_datetime(trades_df["entry_time"])
+        trades_df = trades_df.sort_values("entry_time")
+        trades_df["color"] = np.where(trades_df["pnl"] > 0, "#26a69a", "#ef5350")
+        trades_df["symbol"] = np.where(trades_df["pnl"] > 0, "triangle-up", "triangle-down")
+
+        fig_trades = go.Figure()
+        fig_trades.add_trace(
+            go.Scatter(
+                x=trades_df["entry_time"], y=trades_df["pnl_pct"],
+                mode="markers",
+                name="Trade PnL",
+                marker=dict(
+                    color=trades_df["color"],
+                    size=8,
+                    symbol=trades_df["symbol"],
+                ),
+                customdata=np.column_stack([
+                    trades_df["entry_time"].dt.strftime("%Y-%m-%d %H:%M"),
+                    trades_df["exit_time"].dt.strftime("%Y-%m-%d %H:%M"),
+                    trades_df["pnl"].round(2),
+                    trades_df["pnl_pct"].round(2),
+                    trades_df["exit_reason"],
+                ]),
+                hovertemplate=(
+                    "Entry: %{customdata[0]}<br>"
+                    "Exit: %{customdata[1]}<br>"
+                    "PnL: $%{customdata[2]} (%{customdata[3]}%)<br>"
+                    "Exit: %{customdata[4]}<extra></extra>"
+                ),
+            )
+        )
+        fig_trades.add_hline(y=0, line_dash="dash", line_color="rgba(255,255,255,0.2)")
+        fig_trades.update_layout(
+            template="plotly_dark",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            height=400,
+            title="Trade PnL (% per trade)",
+            hovermode="closest",
+            margin=dict(l=10, r=10, t=40, b=10),
+        )
+        fig_trades.update_yaxes(title_text="PnL (%)")
+    else:
+        fig_trades = empty_trades
+
+    return metric_cards, fig_equity, fig_trades
+
 
 def render_indicators():
     """RSI, MACD, Bollinger Bands, and SMA crossover charts with multi-asset dropdowns."""
