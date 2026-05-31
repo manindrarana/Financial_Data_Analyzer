@@ -10,7 +10,7 @@ _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 import dash
-from dash import dcc, html, dash_table
+from dash import dcc, html, dash_table, DiskcacheManager
 import dash_bootstrap_components as dbc
 import duckdb
 import numpy as np
@@ -19,15 +19,19 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from dotenv import load_dotenv
 from dashboard.predictor import run_prediction
+import diskcache
 
 load_dotenv()
 DB_PATH = os.path.join("database", "financial_data.duckdb")
+
+_cache = diskcache.Cache(os.path.join(os.path.dirname(__file__), "..", ".dash_cache"))
 
 app = dash.Dash(
     __name__,
     external_stylesheets=[dbc.themes.DARKLY],
     suppress_callback_exceptions=True,
     title="Financial Data Analyzer",
+    background_callback_manager=DiskcacheManager(_cache),
 )
 
 PRICE_RANGE_OPTIONS = [
@@ -306,16 +310,7 @@ def render_predictions():
         return dbc.Alert(f"Error: {e}", color="danger")
 
 def render_backtest():
-    import json
-    import os as _os
-
-    METRICS_PATH = _os.path.join("backtesting", "results", "backtest_metrics.json")
-    EQUITY_PATH = _os.path.join("backtesting", "results", "backtest_equity.parquet")
-    TRADES_PATH = _os.path.join("backtesting", "results", "backtest_trades.parquet")
-    SUMMARY_PATH = _os.path.join("backtesting", "results", "walk_forward_summary.json")
-
-    has_data = _os.path.exists(EQUITY_PATH) and _os.path.exists(TRADES_PATH)
-
+    """Interactive walk-forward backtest with configurable asset, date range, and strategy params."""
     return dbc.Row(
         dbc.Col(
             [
@@ -323,219 +318,375 @@ def render_backtest():
                 dbc.Row(
                     [
                         dbc.Col(
-                            html.Div(id="backtest-metrics", className="mb-3"),
-                            width=12,
+                            [
+                                html.Label("Asset Class", className="text-muted small mb-1"),
+                                dcc.Dropdown(
+                                    id="bt-class-dropdown",
+                                    options=[
+                                        {"label": "Crypto", "value": "crypto"},
+                                        {"label": "Stocks", "value": "stocks"},
+                                    ],
+                                    value="crypto",
+                                    clearable=False,
+                                    searchable=False,
+                                    style={"color": "#000"},
+                                ),
+                            ],
+                            width=2,
                         ),
-                    ]
-                ) if has_data else None,
-                dbc.Row(
-                    dbc.Col(
-                        dcc.Graph(
-                            id="backtest-equity-chart",
-                            config={"displayModeBar": True, "responsive": True},
+                        dbc.Col(
+                            [
+                                html.Label("Asset", className="text-muted small mb-1"),
+                                dcc.Dropdown(
+                                    id="bt-asset-dropdown",
+                                    clearable=False,
+                                    searchable=True,
+                                    style={"color": "#000"},
+                                ),
+                            ],
+                            width=2,
                         ),
-                        width=12,
-                    ),
+                        dbc.Col(
+                            [
+                                html.Label("Interval", className="text-muted small mb-1"),
+                                dcc.Dropdown(
+                                    id="bt-interval-dropdown",
+                                    clearable=False,
+                                    searchable=False,
+                                    style={"color": "#000"},
+                                ),
+                            ],
+                            width=2,
+                        ),
+                        dbc.Col(
+                            [
+                                html.Label("Date Range", className="text-muted small mb-1"),
+                                dcc.DatePickerRange(
+                                    id="bt-date-range",
+                                    start_date_placeholder_text="Start",
+                                    end_date_placeholder_text="End",
+                                    calendar_orientation="horizontal",
+                                    display_format="YYYY-MM-DD",
+                                    style={"fontSize": "12px"},
+                                ),
+                            ],
+                            width=3,
+                        ),
+                        dbc.Col(
+                            [
+                                html.Label("\u00A0", className="mb-1", style={"display": "block"}),
+                                dbc.Button(
+                                    "Run Backtest",
+                                    id="bt-run-btn",
+                                    color="info",
+                                    className="w-100",
+                                ),
+                            ],
+                            width=3,
+                        ),
+                    ],
+                    className="mb-3 align-items-end",
                 ),
                 dbc.Row(
-                    dbc.Col(
-                        dcc.Graph(
-                            id="backtest-trades-chart",
-                            config={"displayModeBar": True, "responsive": True},
+                    [
+                        dbc.Col(
+                            [
+                                html.Label("Confidence", className="text-muted small mb-1"),
+                                dbc.Input(id="bt-confidence", type="number", min=0.5, max=0.95, step=0.01, value=0.52, style={"color": "#000"}),
+                            ],
+                            width=2,
                         ),
-                        width=12,
-                    ),
+                        dbc.Col(
+                            [
+                                html.Label("Stop Loss %", className="text-muted small mb-1"),
+                                dbc.Input(id="bt-stop-loss", type="number", min=0.5, max=10, step=0.5, value=2.0, style={"color": "#000"}),
+                            ],
+                            width=2,
+                        ),
+                        dbc.Col(
+                            [
+                                html.Label("Take Profit %", className="text-muted small mb-1"),
+                                dbc.Input(id="bt-take-profit", type="number", min=1, max=20, step=0.5, value=4.0, style={"color": "#000"}),
+                            ],
+                            width=2,
+                        ),
+                        dbc.Col(
+                            [
+                                html.Label("Max Hold Bars", className="text-muted small mb-1"),
+                                dbc.Input(id="bt-max-hold", type="number", min=4, max=200, step=1, value=24, style={"color": "#000"}),
+                            ],
+                            width=2,
+                        ),
+                        dbc.Col(
+                            [
+                                html.Label("Initial Capital", className="text-muted small mb-1"),
+                                dbc.Input(id="bt-capital", type="number", min=1000, max=1000000, step=1000, value=10000, style={"color": "#000"}),
+                            ],
+                            width=2,
+                        ),
+                        dbc.Col(
+                            [
+                                html.Label("Train Months", className="text-muted small mb-1"),
+                                dbc.Input(id="bt-train-months", type="number", min=3, max=24, step=1, value=6, style={"color": "#000"}),
+                            ],
+                            width=1,
+                        ),
+                        dbc.Col(
+                            [
+                                html.Label("Test Months", className="text-muted small mb-1"),
+                                dbc.Input(id="bt-test-months", type="number", min=1, max=6, step=1, value=1, style={"color": "#000"}),
+                            ],
+                            width=1,
+                        ),
+                        dbc.Col(
+                            [
+                                html.Label("Step Months", className="text-muted small mb-1"),
+                                dbc.Input(id="bt-step-months", type="number", min=1, max=6, step=1, value=1, style={"color": "#000"}),
+                            ],
+                            width=1,
+                        ),
+                    ],
+                    className="mb-3 align-items-end",
                 ),
-                dcc.Interval(id="backtest-interval", interval=300_000),
+                html.Div(id="bt-progress-bar", className="mb-2"),
+                html.Div(id="bt-results"),
             ],
             width=12,
         )
     )
 
 
-@app.callback(
-    dash.Output("backtest-metrics", "children"),
-    dash.Output("backtest-equity-chart", "figure"),
-    dash.Output("backtest-trades-chart", "figure"),
-    dash.Input("backtest-interval", "n_intervals"),
-)
-def update_backtest(_n):
-    import json as _json
-    import os as _os
-
-    METRICS_PATH = _os.path.join("backtesting", "results", "backtest_metrics.json")
-    EQUITY_PATH = _os.path.join("backtesting", "results", "backtest_equity.parquet")
-    TRADES_PATH = _os.path.join("backtesting", "results", "backtest_trades.parquet")
-    SUMMARY_PATH = _os.path.join("backtesting", "results", "walk_forward_summary.json")
-
-    empty_equity = go.Figure().update_layout(
-        template="plotly_dark",
-        title="No backtest data — run backtesting/walk_forward.py then backtesting/strategy.py",
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-    )
-    empty_trades = go.Figure().update_layout(
-        template="plotly_dark",
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-    )
-
-    if not _os.path.exists(EQUITY_PATH) or not _os.path.exists(TRADES_PATH):
-        return (
-            dbc.Alert("No backtest results found. Run backtesting scripts first.", color="warning"),
-            empty_equity,
-            empty_trades,
-        )
-
-    metrics = {}
-    if _os.path.exists(METRICS_PATH):
-        with open(METRICS_PATH) as f:
-            metrics = _json.load(f)
-
-    summary = {}
-    if _os.path.exists(SUMMARY_PATH):
-        with open(SUMMARY_PATH) as f:
-            summary = _json.load(f)
-
-    equity_df = pd.read_parquet(EQUITY_PATH)
-    trades_df = pd.read_parquet(TRADES_PATH)
+def _build_backtest_results(metrics, equity_df, trades_df):
+    """Build Dash UI components from backtest results."""
+    if trades_df.empty:
+        return dbc.Alert("No trades executed — try relaxing the confidence threshold or date range.", color="warning")
 
     metric_cards = dbc.Row(
         [
-            dbc.Col(
-                dbc.Card(
-                    dbc.CardBody([
-                        html.H5(f"{metrics.get('total_return_pct', 0):+.2f}%", className="card-title text-info"),
-                        html.P("Total Return", className="card-text text-muted small"),
-                    ]),
-                    color="dark", outline=True,
-                ),
-                width=2,
-            ),
-            dbc.Col(
-                dbc.Card(
-                    dbc.CardBody([
-                        html.H5(f"{metrics.get('sharpe_ratio', 0):.2f}", className="card-title text-info"),
-                        html.P("Sharpe Ratio", className="card-text text-muted small"),
-                    ]),
-                    color="dark", outline=True,
-                ),
-                width=2,
-            ),
-            dbc.Col(
-                dbc.Card(
-                    dbc.CardBody([
-                        html.H5(f"{metrics.get('max_drawdown_pct', 0):.1f}%", className="card-title text-danger"),
-                        html.P("Max Drawdown", className="card-text text-muted small"),
-                    ]),
-                    color="dark", outline=True,
-                ),
-                width=2,
-            ),
-            dbc.Col(
-                dbc.Card(
-                    dbc.CardBody([
-                        html.H5(f"{metrics.get('win_rate', 0):.1f}%", className="card-title text-info"),
-                        html.P("Win Rate", className="card-text text-muted small"),
-                    ]),
-                    color="dark", outline=True,
-                ),
-                width=2,
-            ),
-            dbc.Col(
-                dbc.Card(
-                    dbc.CardBody([
-                        html.H5(f"{metrics.get('profit_factor', 0):.2f}", className="card-title text-info"),
-                        html.P("Profit Factor", className="card-text text-muted small"),
-                    ]),
-                    color="dark", outline=True,
-                ),
-                width=2,
-            ),
-            dbc.Col(
-                dbc.Card(
-                    dbc.CardBody([
-                        html.H5(str(metrics.get("total_trades", 0)), className="card-title text-info"),
-                        html.P("Total Trades", className="card-text text-muted small"),
-                    ]),
-                    color="dark", outline=True,
-                ),
-                width=2,
-            ),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(f"{metrics.get('total_return_pct', 0):+.2f}%", className="card-title text-info"),
+                html.P("Total Return", className="card-text text-muted small"),
+            ]), color="dark", outline=True), width=2),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(f"{metrics.get('sharpe_ratio', 0):.2f}", className="card-title text-info"),
+                html.P("Sharpe Ratio", className="card-text text-muted small"),
+            ]), color="dark", outline=True), width=2),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(f"{metrics.get('max_drawdown_pct', 0):.1f}%", className="card-title text-danger"),
+                html.P("Max Drawdown", className="card-text text-muted small"),
+            ]), color="dark", outline=True), width=2),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(f"{metrics.get('win_rate', 0):.1f}%", className="card-title text-info"),
+                html.P("Win Rate", className="card-text text-muted small"),
+            ]), color="dark", outline=True), width=2),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(f"{metrics.get('profit_factor', 0):.2f}", className="card-title text-info"),
+                html.P("Profit Factor", className="card-text text-muted small"),
+            ]), color="dark", outline=True), width=2),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(str(metrics.get("total_trades", 0)), className="card-title text-info"),
+                html.P("Total Trades", className="card-text text-muted small"),
+            ]), color="dark", outline=True), width=2),
         ],
         className="mb-3",
     )
 
+    exit_reasons = metrics.get("exit_reasons", {})
+    exit_html = None
+    if exit_reasons:
+        exit_items = [html.Span(f"{k}: {v}", className="me-3 text-muted small") for k, v in exit_reasons.items()]
+        exit_html = html.Div(
+            [html.Span("Exit reasons: ", className="text-muted small")] + exit_items,
+            className="mb-2",
+        )
+
+    equity_df = equity_df.copy()
     equity_df["date"] = pd.to_datetime(equity_df["date"])
     equity_df = equity_df.sort_values("date")
 
     fig_equity = go.Figure()
-    fig_equity.add_trace(
-        go.Scatter(
-            x=equity_df["date"], y=equity_df["equity"],
-            mode="lines", name="Equity",
-            line=dict(color="#17a2b8", width=1.5),
-            fill="tozeroy", fillcolor="rgba(23,162,184,0.1)",
-        )
-    )
+    fig_equity.add_trace(go.Scatter(
+        x=equity_df["date"], y=equity_df["equity"],
+        mode="lines", name="Equity",
+        line=dict(color="#17a2b8", width=1.5),
+        fill="tozeroy", fillcolor="rgba(23,162,184,0.1)",
+    ))
     fig_equity.update_layout(
-        template="plotly_dark",
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        height=400,
-        title="Equity Curve",
-        hovermode="x unified",
+        template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        height=400, title="Equity Curve", hovermode="x unified",
         margin=dict(l=10, r=10, t=40, b=10),
     )
     fig_equity.update_yaxes(title_text="Equity ($)")
 
-    if not trades_df.empty:
-        trades_df["entry_time"] = pd.to_datetime(trades_df["entry_time"])
-        trades_df = trades_df.sort_values("entry_time")
-        trades_df["color"] = np.where(trades_df["pnl"] > 0, "#26a69a", "#ef5350")
-        trades_df["symbol"] = np.where(trades_df["pnl"] > 0, "triangle-up", "triangle-down")
+    trades_df = trades_df.copy()
+    trades_df["entry_time"] = pd.to_datetime(trades_df["entry_time"])
+    trades_df = trades_df.sort_values("entry_time")
 
-        fig_trades = go.Figure()
-        fig_trades.add_trace(
-            go.Scatter(
-                x=trades_df["entry_time"], y=trades_df["pnl_pct"],
-                mode="markers",
-                name="Trade PnL",
-                marker=dict(
-                    color=trades_df["color"],
-                    size=8,
-                    symbol=trades_df["symbol"],
-                ),
-                customdata=np.column_stack([
-                    trades_df["entry_time"].dt.strftime("%Y-%m-%d %H:%M"),
-                    trades_df["exit_time"].dt.strftime("%Y-%m-%d %H:%M"),
-                    trades_df["pnl"].round(2),
-                    trades_df["pnl_pct"].round(2),
-                    trades_df["exit_reason"],
-                ]),
-                hovertemplate=(
-                    "Entry: %{customdata[0]}<br>"
-                    "Exit: %{customdata[1]}<br>"
-                    "PnL: $%{customdata[2]} (%{customdata[3]}%)<br>"
-                    "Exit: %{customdata[4]}<extra></extra>"
-                ),
-            )
+    trades_df["color"] = np.where(trades_df["pnl"] > 0, "#26a69a", "#ef5350")
+    trades_df["symbol"] = np.where(trades_df["pnl"] > 0, "triangle-up", "triangle-down")
+
+    fig_trades = go.Figure()
+    fig_trades.add_trace(go.Scatter(
+        x=trades_df["entry_time"], y=trades_df["pnl_pct"],
+        mode="markers", name="Trade PnL",
+        marker=dict(color=trades_df["color"], size=8, symbol=trades_df["symbol"]),
+        customdata=np.column_stack([
+            trades_df["entry_time"].dt.strftime("%Y-%m-%d %H:%M"),
+            trades_df["exit_time"].dt.strftime("%Y-%m-%d %H:%M"),
+            trades_df["pnl"].round(2),
+            trades_df["pnl_pct"].round(2),
+            trades_df["exit_reason"],
+        ]),
+        hovertemplate=(
+            "Entry: %{customdata[0]}<br>Exit: %{customdata[1]}<br>"
+            "PnL: $%{customdata[2]} (%{customdata[3]}%)<br>Exit: %{customdata[4]}<extra></extra>"
+        ),
+    ))
+    fig_trades.add_hline(y=0, line_dash="dash", line_color="rgba(255,255,255,0.2)")
+    fig_trades.update_layout(
+        template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        height=400, title="Trade PnL (% per trade)", hovermode="closest",
+        margin=dict(l=10, r=10, t=40, b=10),
+    )
+    fig_trades.update_yaxes(title_text="PnL (%)")
+
+    fold_breakdown = metrics.get("fold_breakdown", [])
+    fold_table = None
+    if fold_breakdown:
+        fold_rows = []
+        for fm in fold_breakdown:
+            pnl_color = "#26a69a" if fm["pnl"] >= 0 else "#ef5350"
+            fold_rows.append(html.Tr([
+                html.Td(fm["fold_id"], className="text-center"),
+                html.Td(str(fm["trades"]), className="text-center"),
+                html.Td(f"${fm['pnl']:+,.2f}", style={"color": pnl_color}),
+                html.Td(f"{fm['win_rate']:.1f}%", className="text-center"),
+            ]))
+        fold_table = dbc.Table(
+            [html.Thead(html.Tr([
+                html.Th("Fold"), html.Th("Trades"), html.Th("PnL"), html.Th("Win %"),
+            ]))] + [html.Tbody(fold_rows)],
+            bordered=True, dark=True, hover=True, size="sm", striped=True,
+            className="mt-2",
         )
-        fig_trades.add_hline(y=0, line_dash="dash", line_color="rgba(255,255,255,0.2)")
-        fig_trades.update_layout(
-            template="plotly_dark",
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            height=400,
-            title="Trade PnL (% per trade)",
-            hovermode="closest",
-            margin=dict(l=10, r=10, t=40, b=10),
+
+    return html.Div([
+        metric_cards,
+        exit_html,
+        dbc.Row(dbc.Col(dcc.Graph(figure=fig_equity, config={"displayModeBar": True, "responsive": True}), width=12)),
+        dbc.Row(dbc.Col(dcc.Graph(figure=fig_trades, config={"displayModeBar": True, "responsive": True}), width=12)),
+        html.H6("Per-Fold Breakdown", className="text-light mt-3") if fold_table else None,
+        fold_table,
+    ])
+
+
+@app.callback(
+    dash.Output("bt-results", "children"),
+    dash.Input("bt-run-btn", "n_clicks"),
+    dash.State("bt-class-dropdown", "value"),
+    dash.State("bt-asset-dropdown", "value"),
+    dash.State("bt-interval-dropdown", "value"),
+    dash.State("bt-date-range", "start_date"),
+    dash.State("bt-date-range", "end_date"),
+    dash.State("bt-confidence", "value"),
+    dash.State("bt-stop-loss", "value"),
+    dash.State("bt-take-profit", "value"),
+    dash.State("bt-max-hold", "value"),
+    dash.State("bt-capital", "value"),
+    dash.State("bt-train-months", "value"),
+    dash.State("bt-test-months", "value"),
+    dash.State("bt-step-months", "value"),
+    background=True,
+    running=[(dash.Output("bt-run-btn", "disabled"), True, False)],
+    progress=[dash.Output("bt-progress-bar", "children")],
+    prevent_initial_call=True,
+)
+def run_backtest_pipeline(set_progress, n_clicks, asset_class, asset, interval,
+                           date_start, date_end, confidence, stop_loss, take_profit,
+                           max_hold, capital, train_months, test_months, step_months):
+    """Background callback: runs the full walk-forward → strategy → metrics pipeline."""
+    if not n_clicks or not asset:
+        raise dash.exceptions.PreventUpdate
+
+    try:
+        set_progress(dbc.Alert("Loading data & training walk-forward model...", color="info"))
+
+        if asset_class == "stocks":
+            set_progress(dbc.Alert("Stock backtesting not yet supported. Please select Crypto.", color="warning"))
+            return html.Div()
+
+        from backtesting.walk_forward import run_walk_forward
+        from backtesting.strategy import run_strategy
+        from backtesting.metrics import run_metrics
+
+        predictions_df, _summary = run_walk_forward(
+            asset=asset,
+            interval=interval,
+            train_months=int(train_months),
+            test_months=int(test_months),
+            step_months=int(step_months),
+            date_start=date_start if date_start else None,
+            date_end=date_end if date_end else None,
+            return_data=True,
         )
-        fig_trades.update_yaxes(title_text="PnL (%)")
+
+        if predictions_df.empty:
+            return dbc.Alert("No predictions generated. Check date range and asset.", color="warning")
+
+        set_progress(dbc.Alert("Simulating trades...", color="info"))
+        trades_df, equity_df = run_strategy(
+            predictions_df=predictions_df,
+            confidence_threshold=float(confidence),
+            stop_loss_pct=float(stop_loss) / 100,
+            take_profit_pct=float(take_profit) / 100,
+            max_hold_bars=int(max_hold),
+            initial_capital=float(capital),
+            return_data=True,
+        )
+
+        set_progress(dbc.Alert("Computing metrics...", color="info"))
+        metrics = run_metrics(
+            trades_df=trades_df,
+            equity_df=equity_df,
+            initial_capital=float(capital),
+            return_data=True,
+        )
+
+        set_progress(dbc.Alert("Rendering results...", color="success"))
+        return _build_backtest_results(metrics, equity_df, trades_df)
+
+    except Exception as e:
+        return dbc.Alert(f"Backtest failed: {e}", color="danger")
+
+
+@app.callback(
+    dash.Output("bt-asset-dropdown", "options"),
+    dash.Output("bt-asset-dropdown", "value"),
+    dash.Input("bt-class-dropdown", "value"),
+)
+def _update_bt_asset_dropdown(asset_class):
+    if asset_class == "crypto":
+        assets = CRYPTO_ASSETS
+        default = "BTC" if "BTC" in assets else (assets[0] if assets else None)
     else:
-        fig_trades = empty_trades
+        assets = STOCK_ASSETS
+        default = assets[0] if assets else None
+    return [{"label": a, "value": a} for a in assets], default
 
-    return metric_cards, fig_equity, fig_trades
+
+@app.callback(
+    dash.Output("bt-interval-dropdown", "options"),
+    dash.Output("bt-interval-dropdown", "value"),
+    dash.Input("bt-class-dropdown", "value"),
+)
+def _update_bt_interval_dropdown(asset_class):
+    if asset_class == "crypto":
+        intervals = CRYPTO_INTERVALS
+        default = "1h"
+    else:
+        intervals = STOCK_INTERVALS
+        default = "1h"
+    return [{"label": INTERVAL_LABELS.get(iv, iv), "value": iv} for iv in intervals], default
 
 
 def render_indicators():
