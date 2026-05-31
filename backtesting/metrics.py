@@ -85,4 +85,60 @@ def compute_metrics(trades_df, equity_df, initial_capital=10000):
         "losing_trades": losing_trades,
         "exit_reasons": exit_reasons,
         "fold_breakdown": fold_metrics,
-    }
+    }   
+    
+def run_metrics(
+    trades_path=None,
+    equity_path=None,
+    initial_capital=10000,
+):
+    if trades_path is None:
+        trades_path = os.path.join(OUTPUT_DIR, "backtest_trades.parquet")
+    if equity_path is None:
+        equity_path = os.path.join(OUTPUT_DIR, "backtest_equity.parquet")
+
+    if not os.path.exists(trades_path):
+        raise FileNotFoundError(f"Trades file not found: {trades_path}")
+    if not os.path.exists(equity_path):
+        raise FileNotFoundError(f"Equity file not found: {equity_path}")
+
+    print(f"\n=== Performance Metrics ===\n")
+
+    trades_df = pd.read_parquet(trades_path)
+    equity_df = pd.read_parquet(equity_path)
+
+    metrics = compute_metrics(trades_df, equity_df, initial_capital)
+
+    print(f"   Total Return:     {metrics['total_return_pct']:+.2f}%")
+    print(f"   Total PnL:        ${metrics['total_pnl']:+,.2f}")
+    print(f"   Sharpe Ratio:     {metrics['sharpe_ratio']:.2f}")
+    print(f"   Max Drawdown:     {metrics['max_drawdown_pct']:.2f}%")
+    print(f"   Win Rate:         {metrics['win_rate']:.1f}%")
+    print(f"   Profit Factor:    {metrics['profit_factor']:.2f}")
+    print(f"   Avg Win:          ${metrics['avg_win']:,.2f}")
+    print(f"   Avg Loss:         ${metrics['avg_loss']:,.2f}")
+    print(f"   Total Trades:     {metrics['total_trades']}")
+    print(f"   Winning: {metrics['winning_trades']}  |  Losing: {metrics['losing_trades']}")
+
+    if metrics["exit_reasons"]:
+        print(f"\n   Exit reasons:")
+        for reason, count in metrics["exit_reasons"].items():
+            print(f"     {reason}: {count}")
+
+    if metrics["fold_breakdown"]:
+        print(f"\n   Per-fold breakdown:")
+        for fm in metrics["fold_breakdown"]:
+            print(f"     Fold {fm['fold_id']}: {fm['trades']} trades, "
+                  f"PnL ${fm['pnl']:+,.2f}, Win {fm['win_rate']:.1f}%")
+
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    metrics_path = os.path.join(OUTPUT_DIR, "backtest_metrics.json")
+    with open(metrics_path, "w") as f:
+        json.dump(metrics, f, indent=2)
+    print(f"\n   Metrics saved: {metrics_path}")
+
+    return metrics
+
+
+if __name__ == "__main__":
+    run_metrics()    
