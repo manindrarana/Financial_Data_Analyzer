@@ -592,6 +592,7 @@ def _build_backtest_results(metrics, equity_df, trades_df):
         template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         height=400, title="Equity Curve", hovermode="x unified",
         margin=dict(l=10, r=10, t=40, b=10),
+        dragmode="pan",
     )
     fig_equity.update_yaxes(title_text="Equity ($)")
 
@@ -624,6 +625,7 @@ def _build_backtest_results(metrics, equity_df, trades_df):
         template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         height=400, title="Trade PnL (% per trade)", hovermode="closest",
         margin=dict(l=10, r=10, t=40, b=10),
+        dragmode="pan",
     )
     fig_trades.update_yaxes(title_text="PnL (%)")
 
@@ -1660,6 +1662,7 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
         plot_bgcolor="rgba(0,0,0,0)",
         height=650,
         hovermode="x unified",
+        dragmode="pan",
         hoverlabel=dict(bgcolor="#212529", font_size=13),
         showlegend=True,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
@@ -1685,6 +1688,7 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         height=350,
+        dragmode="pan",
         hoverlabel=dict(bgcolor="#212529", font_size=13),
         title="Confidence Distribution",
         xaxis_title="Prediction Confidence",
@@ -1992,6 +1996,7 @@ def build_indicators_chart(asset_class, asset_symbol, interval, range_value):
         plot_bgcolor="rgba(0,0,0,0)",
         height=1200,
         hovermode="x unified",
+        dragmode="pan",
         hoverlabel=dict(bgcolor="#212529", font_size=13),
         showlegend=True,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
