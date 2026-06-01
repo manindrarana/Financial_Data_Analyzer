@@ -164,6 +164,7 @@ def run_pipeline():
 
     elapsed = time.time() - pipeline_start
     logger.info(f"=== Pipeline executed successfully in {elapsed:.1f}s ===")
+    _clear_checkpoint()
     gc.collect()
 
 
