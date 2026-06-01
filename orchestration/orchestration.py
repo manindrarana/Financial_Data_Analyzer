@@ -1,12 +1,48 @@
 import yaml
 import time
 import gc
+import json
+import sys
+from pathlib import Path
 from prefect import flow, task, get_run_logger
 from src.utils import get_logger
 from src.ingestion import YahooFinanceClient, BybitClient
 from src.database import DatabaseLoader, DimensionBuilder, FactLoader
 from src.processing import DataCleaner
 from src.models import GoldLayerProcessor, TechnicalIndicatorProcessor
+
+CHECKPOINT_FILE = Path("data/.pipeline_checkpoint.json")
+
+
+def _load_checkpoint() -> set:
+    if CHECKPOINT_FILE.exists():
+        return set(json.loads(CHECKPOINT_FILE.read_text()))
+    return set()
+
+
+def _save_checkpoint(completed: set):
+    CHECKPOINT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    CHECKPOINT_FILE.write_text(json.dumps(list(completed)))
+
+
+def _clear_checkpoint():
+    if CHECKPOINT_FILE.exists():
+        CHECKPOINT_FILE.unlink()
+
+
+def _should_run(step: str, force: bool) -> bool:
+    if force:
+        return True
+    return step not in _load_checkpoint()
+
+
+def _mark_done(step: str):
+    completed = _load_checkpoint()
+    completed.add(step)
+    _save_checkpoint(completed)
+
+
+FORCE_FLAG = "--force" in sys.argv
 
 
 @task(name="extract-data", retries=2, retry_delay_seconds=30)
