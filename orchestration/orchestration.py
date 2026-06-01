@@ -136,16 +136,31 @@ def run_pipeline():
     logger.info("=== Financial Data Pipeline (ELT) Starting ===")
     pipeline_start = time.time()
 
+    if FORCE_FLAG:
+        _clear_checkpoint()
+        logger.info("--force detected: cleared checkpoint, running all steps")
+
     with open("configs/settings.yml", "r") as f:
         config = yaml.safe_load(f)
 
-    extract_data(config)
-    load_to_duckdb()
-    transform_clean()
-    build_dimensions()
-    load_facts()
-    build_gold_layer()
-    build_technical_indicators()
+    steps = [
+        ("step1_extract",    lambda: extract_data(config)),
+        ("step2_load",       lambda: load_to_duckdb()),
+        ("step3_clean",      lambda: transform_clean()),
+        ("step4_dimensions", lambda: build_dimensions()),
+        ("step5_facts",      lambda: load_facts()),
+        ("step6_gold",       lambda: build_gold_layer()),
+        ("step7_indicators", lambda: build_technical_indicators()),
+    ]
+
+    for step_id, step_fn in steps:
+        if _should_run(step_id, FORCE_FLAG):
+            logger.info(f"[CHECKPOINT] Running {step_id}...")
+            step_fn()
+            _mark_done(step_id)
+            logger.info(f"[CHECKPOINT] {step_id} complete — saved")
+        else:
+            logger.info(f"[CHECKPOINT] Skipping {step_id} (already done)")
 
     elapsed = time.time() - pipeline_start
     logger.info(f"=== Pipeline executed successfully in {elapsed:.1f}s ===")
