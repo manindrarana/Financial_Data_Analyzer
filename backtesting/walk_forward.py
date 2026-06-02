@@ -61,7 +61,7 @@ def _make_stationary(df):
     return df
 
 
-def _load_data(asset="BTC", interval="1h", date_start=None, date_end=None):
+def _load_data(asset="BTC", interval="1h", date_start=None, date_end=None, asset_class="crypto"):
     conn = duckdb.connect(DB_PATH, read_only=True)
     needed_cols = [
         "date", "close",
@@ -76,9 +76,11 @@ def _load_data(asset="BTC", interval="1h", date_start=None, date_end=None):
     ]
     col_list = ", ".join(needed_cols)
 
+    table = "gold_crypto_features" if asset_class.lower() == "crypto" else "gold_stock_features"
+
     query = f"""
         SELECT {col_list}
-        FROM gold_crypto_features
+        FROM {table}
         WHERE asset_symbol = '{asset}' AND interval = '{interval}'
     """
     if date_start:
@@ -160,16 +162,17 @@ def _prepare_fold_data(train_df, test_df):
     return X_train, y_train, X_test, y_test, test_df.loc[X_test.index], available_feats
 
 
-def run_walk_forward(asset="BTC", interval="1h", train_months=6, test_months=1, step_months=1, date_start=None, date_end=None, return_data=False):
+def run_walk_forward(asset="BTC", interval="1h", train_months=6, test_months=1, step_months=1, date_start=None, date_end=None, return_data=False, asset_class="crypto"):
     print(f"\n=== Walk-Forward Backtest: {asset} {interval} ===")
     print(f"   Train window: {train_months} months")
     print(f"   Test window:  {test_months} months")
-    print(f"   Step:         {step_months} months\n")
+    print(f"   Step:         {step_months} months")
+    print(f"   Asset class:  {asset_class}\n")
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    print("[1/4] Loading data from gold_crypto_features...")
-    df = _load_data(asset, interval, date_start, date_end)
+    print(f"[1/4] Loading data from gold_{asset_class}_features...")
+    df = _load_data(asset, interval, date_start, date_end, asset_class)
     print(f"   Loaded {len(df):,} rows ({df['date'].min().date()} to {df['date'].max().date()})")
 
     print("\n[2/4] Generating walk-forward folds...")
@@ -284,6 +287,140 @@ def run_walk_forward(asset="BTC", interval="1h", train_months=6, test_months=1, 
     print(f"   Folds completed: {len(fold_summaries)}")
     print(f"   Total OOS predictions: {len(combined):,}")
     print(f"   Overall accuracy: {overall_acc:.4f} ({overall_acc*100:.2f}%)")
+
+    return combined, fold_summaries
+
+
+def run_walk_forward_pretrained(
+    asset="BTC", interval="1h", train_months=6, test_months=1, step_months=1,
+    date_start=None, date_end=None, return_data=False, asset_class="crypto",
+):
+    model_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "src", "models", f"{asset}_{interval}_xgboost_model.json",
+    )
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(
+            f"No pre-trained model found for {asset} {interval} at {model_path}. "
+            f"Train it first with scripts/train_{asset.lower()}_model.py"
+        )
+
+    print(f"\n=== Pre-trained Model Backtest: {asset} {interval} ===")
+    print(f"   Model: {model_path}")
+    print(f"   Train window: {train_months} months (used only for fold boundaries)")
+    print(f"   Test window:  {test_months} months")
+    print(f"   Step:         {step_months} months")
+    print(f"   Asset class:  {asset_class}\n")
+
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+    print(f"[1/4] Loading pre-trained model...")
+    pt_model = xgb.XGBClassifier()
+    pt_model.load_model(model_path)
+    print(f"   Loaded from {model_path}")
+
+    print(f"[2/4] Loading data from gold_{asset_class}_features...")
+    df = _load_data(asset, interval, date_start, date_end, asset_class)
+    print(f"   Loaded {len(df):,} rows ({df['date'].min().date()} to {df['date'].max().date()})")
+
+    print("\n[3/4] Generating walk-forward folds...")
+    folds = _generate_folds(df, train_months, test_months, step_months)
+    print(f"   Created {len(folds)} folds")
+
+    if len(folds) == 0:
+        raise RuntimeError(f"Not enough data. Need at least {train_months + test_months} months.")
+
+    all_predictions = []
+    fold_summaries = []
+
+    print("\n[4/4] Running pre-trained model on each fold...")
+    for fold in folds:
+        fid = fold["fold_id"]
+        test_df = fold["test_df"]
+
+        test_df = _make_stationary(test_df)
+        test_df["target_direction"] = (test_df["close"].shift(-1) > test_df["close"]).astype(int)
+        test_df = test_df.dropna(subset=["target_direction"])
+
+        available_feats = [f for f in MODEL_FEATURES if f in test_df.columns]
+        X_test = test_df[available_feats].dropna()
+        y_test = test_df.loc[X_test.index, "target_direction"]
+
+        if len(X_test) < 20:
+            print(f"   Fold {fid}: SKIP (only {len(X_test)} rows after dropna)")
+            continue
+
+        y_pred = pt_model.predict(X_test)
+        probs = pt_model.predict_proba(X_test)
+        up_prob = probs[:, 1]
+        confidence = np.where(y_pred == 1, up_prob, 1 - up_prob)
+
+        fold_acc = accuracy_score(y_test, y_pred)
+
+        predictions = test_df.loc[X_test.index, ["date", "close"]].copy()
+        predictions["prediction"] = y_pred
+        predictions["confidence"] = confidence
+        predictions["actual_direction"] = y_test.values
+        predictions["fold_id"] = fid
+        predictions["train_start"] = fold["train_start"]
+        predictions["train_end"] = fold["train_end"]
+        predictions["test_start"] = fold["test_start"]
+        predictions["test_end"] = fold["test_end"]
+
+        all_predictions.append(predictions)
+
+        fold_summaries.append({
+            "fold_id": fid,
+            "train_start": str(fold["train_start"].date()),
+            "train_end": str(fold["train_end"].date()),
+            "test_start": str(fold["test_start"].date()),
+            "test_end": str(fold["test_end"].date()),
+            "train_rows": fold["train_rows"],
+            "test_rows": fold["test_rows"],
+            "test_rows_after_dropna": len(X_test),
+            "accuracy": round(fold_acc, 4),
+            "features_used": available_feats,
+        })
+
+        print(f"   Fold {fid}: {fold['test_start'].date()} to {fold['test_end'].date()}"
+              f" ({len(X_test):,} rows) | Accuracy: {fold_acc:.4f} ({fold_acc*100:.2f}%)")
+
+    if not all_predictions:
+        raise RuntimeError("No folds produced valid predictions. Check date range and data.")
+
+    combined = pd.concat(all_predictions, ignore_index=True)
+    combined = combined.sort_values("date").reset_index(drop=True)
+
+    overall_acc = (combined["prediction"] == combined["actual_direction"]).mean()
+    summary = {
+        "asset": asset,
+        "interval": interval,
+        "model_path": model_path,
+        "train_months": train_months,
+        "test_months": test_months,
+        "step_months": step_months,
+        "total_folds": len(fold_summaries),
+        "total_predictions": len(combined),
+        "overall_accuracy": round(overall_acc, 4),
+        "folds": fold_summaries,
+    }
+
+    print(f"\n=== Done ===")
+    print(f"   Folds completed: {len(fold_summaries)}")
+    print(f"   Total OOS predictions: {len(combined):,}")
+    print(f"   Overall accuracy: {overall_acc:.4f} ({overall_acc*100:.2f}%)")
+
+    if return_data:
+        return combined, summary
+
+    pred_path = os.path.join(OUTPUT_DIR, "walk_forward_predictions_pretrained.parquet")
+    combined.to_parquet(pred_path)
+    print(f"   Predictions saved: {pred_path}")
+
+    summary_path = os.path.join(OUTPUT_DIR, "walk_forward_summary_pretrained.json")
+    with open(summary_path, "w") as f:
+        json.dump(summary, f, indent=2)
+    print(f"   Summary saved: {summary_path}")
 
     return combined, fold_summaries
 
