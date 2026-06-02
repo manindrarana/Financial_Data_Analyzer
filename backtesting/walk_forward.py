@@ -61,7 +61,7 @@ def _make_stationary(df):
     return df
 
 
-def _load_data(asset="BTC", interval="1h", date_start=None, date_end=None):
+def _load_data(asset="BTC", interval="1h", date_start=None, date_end=None, asset_class="crypto"):
     conn = duckdb.connect(DB_PATH, read_only=True)
     needed_cols = [
         "date", "close",
@@ -76,9 +76,11 @@ def _load_data(asset="BTC", interval="1h", date_start=None, date_end=None):
     ]
     col_list = ", ".join(needed_cols)
 
+    table = "gold_crypto_features" if asset_class.lower() == "crypto" else "gold_stock_features"
+
     query = f"""
         SELECT {col_list}
-        FROM gold_crypto_features
+        FROM {table}
         WHERE asset_symbol = '{asset}' AND interval = '{interval}'
     """
     if date_start:
@@ -160,16 +162,17 @@ def _prepare_fold_data(train_df, test_df):
     return X_train, y_train, X_test, y_test, test_df.loc[X_test.index], available_feats
 
 
-def run_walk_forward(asset="BTC", interval="1h", train_months=6, test_months=1, step_months=1, date_start=None, date_end=None, return_data=False):
+def run_walk_forward(asset="BTC", interval="1h", train_months=6, test_months=1, step_months=1, date_start=None, date_end=None, return_data=False, asset_class="crypto"):
     print(f"\n=== Walk-Forward Backtest: {asset} {interval} ===")
     print(f"   Train window: {train_months} months")
     print(f"   Test window:  {test_months} months")
-    print(f"   Step:         {step_months} months\n")
+    print(f"   Step:         {step_months} months")
+    print(f"   Asset class:  {asset_class}\n")
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    print("[1/4] Loading data from gold_crypto_features...")
-    df = _load_data(asset, interval, date_start, date_end)
+    print(f"[1/4] Loading data from gold_{asset_class}_features...")
+    df = _load_data(asset, interval, date_start, date_end, asset_class)
     print(f"   Loaded {len(df):,} rows ({df['date'].min().date()} to {df['date'].max().date()})")
 
     print("\n[2/4] Generating walk-forward folds...")
