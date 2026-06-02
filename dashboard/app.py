@@ -690,10 +690,6 @@ def run_backtest_pipeline(set_progress, n_clicks, asset_class, asset, interval,
     try:
         set_progress(dbc.Alert("Loading data & training walk-forward model...", color="info"))
 
-        if asset_class == "stocks":
-            set_progress(dbc.Alert("Stock backtesting not yet supported. Please select Crypto.", color="warning"))
-            return html.Div()
-
         from backtesting.walk_forward import run_walk_forward
         from backtesting.strategy import run_strategy
         from backtesting.metrics import run_metrics
@@ -707,6 +703,7 @@ def run_backtest_pipeline(set_progress, n_clicks, asset_class, asset, interval,
             date_start=date_start if date_start else None,
             date_end=date_end if date_end else None,
             return_data=True,
+            asset_class=asset_class,
         )
 
         if predictions_df.empty:
