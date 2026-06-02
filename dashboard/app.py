@@ -396,6 +396,22 @@ def render_backtest():
                     [
                         dbc.Col(
                             [
+                                html.Label("Backtest Mode", className="text-muted small mb-1"),
+                                dcc.RadioItems(
+                                    id="bt-mode-radio",
+                                    options=[
+                                        {"label": "Walk-Forward (retrain/fold)", "value": "walk_forward"},
+                                        {"label": "Pre-trained Model", "value": "pretrained"},
+                                    ],
+                                    value="walk_forward",
+                                    labelStyle={"display": "block", "color": "#adb5bd", "fontSize": "12px"},
+                                    inputStyle={"marginRight": "6px"},
+                                ),
+                            ],
+                            width=2,
+                        ),
+                        dbc.Col(
+                            [
                                 html.Label("Asset Class", className="text-muted small mb-1"),
                                 dcc.Dropdown(
                                     id="bt-class-dropdown",
@@ -662,6 +678,7 @@ def _build_backtest_results(metrics, equity_df, trades_df):
 @app.callback(
     dash.Output("bt-results", "children"),
     dash.Input("bt-run-btn", "n_clicks"),
+    dash.State("bt-mode-radio", "value"),
     dash.State("bt-class-dropdown", "value"),
     dash.State("bt-asset-dropdown", "value"),
     dash.State("bt-interval-dropdown", "value"),
@@ -680,7 +697,7 @@ def _build_backtest_results(metrics, equity_df, trades_df):
     progress=[dash.Output("bt-progress-bar", "children")],
     prevent_initial_call=True,
 )
-def run_backtest_pipeline(set_progress, n_clicks, asset_class, asset, interval,
+def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, interval,
                            date_start, date_end, confidence, stop_loss, take_profit,
                            max_hold, capital, train_months, test_months, step_months):
     """Background callback: runs the full walk-forward → strategy → metrics pipeline."""
@@ -688,23 +705,39 @@ def run_backtest_pipeline(set_progress, n_clicks, asset_class, asset, interval,
         raise dash.exceptions.PreventUpdate
 
     try:
-        set_progress(dbc.Alert("Loading data & training walk-forward model...", color="info"))
+        if bt_mode == "pretrained":
+            set_progress(dbc.Alert("Loading pre-trained model...", color="info"))
+        else:
+            set_progress(dbc.Alert("Loading data & training walk-forward model...", color="info"))
 
-        from backtesting.walk_forward import run_walk_forward
+        from backtesting.walk_forward import run_walk_forward, run_walk_forward_pretrained
         from backtesting.strategy import run_strategy
         from backtesting.metrics import run_metrics
 
-        predictions_df, _summary = run_walk_forward(
-            asset=asset,
-            interval=interval,
-            train_months=int(train_months),
-            test_months=int(test_months),
-            step_months=int(step_months),
-            date_start=date_start if date_start else None,
-            date_end=date_end if date_end else None,
-            return_data=True,
-            asset_class=asset_class,
-        )
+        if bt_mode == "pretrained":
+            predictions_df, _summary = run_walk_forward_pretrained(
+                asset=asset,
+                interval=interval,
+                train_months=int(train_months),
+                test_months=int(test_months),
+                step_months=int(step_months),
+                date_start=date_start if date_start else None,
+                date_end=date_end if date_end else None,
+                return_data=True,
+                asset_class=asset_class,
+            )
+        else:
+            predictions_df, _summary = run_walk_forward(
+                asset=asset,
+                interval=interval,
+                train_months=int(train_months),
+                test_months=int(test_months),
+                step_months=int(step_months),
+                date_start=date_start if date_start else None,
+                date_end=date_end if date_end else None,
+                return_data=True,
+                asset_class=asset_class,
+            )
 
         if predictions_df.empty:
             return dbc.Alert("No predictions generated. Check date range and asset.", color="warning")
