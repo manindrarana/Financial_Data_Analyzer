@@ -20,3 +20,6 @@ notebooks/.ipynb_checkpoints/
 # Obsidian notes
 obsidian_notes/
 .obsidian/
+
+#graphify
+graphify-out
