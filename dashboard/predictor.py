@@ -18,41 +18,38 @@ load_dotenv()
 
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "database", "financial_data.duckdb")
 
-MODEL_PATHS = {
-    "crypto": os.path.join("src", "models", "BTC_1h_xgboost_model.json"),
-    "stocks": os.path.join("src", "models", "AAPL_1h_xgboost_model.json"),
-}
+def _model_path(asset, interval, asset_class):
+    subdir = "crypto" if asset_class == "crypto" else "stocks"
+    return os.path.join("src", "models", subdir, f"{asset}_{interval}_xgboost_model.json")
 
-META_PATHS = {
-    "crypto": os.path.join("src", "models", "BTC_1h_xgboost_metadata.json"),
-    "stocks": os.path.join("src", "models", "AAPL_1h_xgboost_metadata.json"),
-}
+
+def _meta_path(asset, interval, asset_class):
+    subdir = "crypto" if asset_class == "crypto" else "stocks"
+    return os.path.join("src", "models", subdir, f"{asset}_{interval}_xgboost_metadata.json")
+
+
+def _model_cache_key(asset, interval, asset_class):
+    return f"{asset_class}/{asset}/{interval}"
+
 
 _train_cutoffs = {}
+_model_cache = {}
 
 
-def get_train_cutoff(asset_class="crypto"):
-    """Return the training end date (pd.Timestamp) for the given asset class.
+def get_train_cutoff(asset, interval, asset_class="crypto"):
+    cache_key = _model_cache_key(asset, interval, asset_class)
+    if cache_key in _train_cutoffs:
+        return _train_cutoffs[cache_key]
 
-    Reads the per-model metadata JSON to find the last date used in training.
-    Returns None if no metadata file exists (e.g., BTC model trained before
-    metadata tracking was added or training script hasn't been re-run).
-
-    The cutoff is cached in _train_cutoffs to avoid re-reading JSON on every
-    Dash callback invocation.
-    """
-    if asset_class in _train_cutoffs:
-        return _train_cutoffs[asset_class]
-
-    meta_path = META_PATHS.get(asset_class)
-    if meta_path and os.path.exists(meta_path):
+    meta_path = _meta_path(asset, interval, asset_class)
+    if os.path.exists(meta_path):
         with open(meta_path) as f:
             meta = json.load(f)
         cutoff = pd.Timestamp(meta["train_end_date"])
-        _train_cutoffs[asset_class] = cutoff
+        _train_cutoffs[cache_key] = cutoff
         return cutoff
 
-    _train_cutoffs[asset_class] = None
+    _train_cutoffs[cache_key] = None
     return None
 
 
@@ -110,20 +107,19 @@ def _make_stationary(df):
     return df
 
 
-_model_cache = {}
-def _get_model(asset_class="crypto"):
-    """Return the cached XGBoost model for the given asset class, loading once."""
-    if asset_class not in _model_cache:
-        model_path = MODEL_PATHS.get(asset_class)
-        if model_path is None or not os.path.exists(model_path):
+def _get_model(asset, interval, asset_class="crypto"):
+    cache_key = _model_cache_key(asset, interval, asset_class)
+    if cache_key not in _model_cache:
+        model_path = _model_path(asset, interval, asset_class)
+        if not os.path.exists(model_path):
             raise FileNotFoundError(
-                f"No model found for asset_class='{asset_class}'. "
-                f"Expected at: {model_path}. Run scripts/train_aapl_model.py first."
+                f"No model found for {asset_class}/{asset}/{interval}. "
+                f"Expected at: {model_path}. Run scripts/train_all_models.py first."
             )
         model = xgb.XGBClassifier()
         model.load_model(model_path)
-        _model_cache[asset_class] = model
-    return _model_cache[asset_class]
+        _model_cache[cache_key] = model
+    return _model_cache[cache_key]
 
 
 def run_prediction(asset="BTC", interval="1h", asset_class="crypto"):
@@ -181,7 +177,7 @@ def run_prediction(asset="BTC", interval="1h", asset_class="crypto"):
     if df_clean.empty:
         return None
 
-    model = _get_model(asset_class)
+    model = _get_model(asset, interval, asset_class)
     X = df_clean[available_features]
     predictions = model.predict(X)
     probabilities = model.predict_proba(X)
@@ -199,7 +195,7 @@ def run_prediction(asset="BTC", interval="1h", asset_class="crypto"):
     results = results.dropna(subset=["actual_direction"])
     results["actual_direction"] = results["actual_direction"].astype(int)
 
-    train_cutoff = get_train_cutoff(asset_class)
+    train_cutoff = get_train_cutoff(asset, interval, asset_class)
     if train_cutoff is not None:
         results["is_oos"] = results["date"] > train_cutoff
     else:
