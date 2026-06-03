@@ -30,7 +30,7 @@ CRYPTO_INTERVAL_MAP = {"60": "1h", "240": "4h", "D": "1d", "W": "1w"}
 STOCK_INTERVAL_MAP = {"1h": "1h", "1d": "1d", "1wk": "1w"}
 
 # set None to train ALL combos or set to filter specific assets
-ONLY_ASSETS = {"BTC", "SOL", "XRP", "AAPL", "AMZN", "TSLA"}
+ONLY_ASSETS = None
 
 MODEL_FEATURES = [
     "rsi_14", "roc_10", "roc_20", "stoch_k", "stoch_d", "bb_percentage",
