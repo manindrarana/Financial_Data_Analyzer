@@ -295,14 +295,15 @@ def run_walk_forward_pretrained(
     asset="BTC", interval="1h", train_months=6, test_months=1, step_months=1,
     date_start=None, date_end=None, return_data=False, asset_class="crypto",
 ):
+    subdir = "crypto" if asset_class.lower() == "crypto" else "stocks"
     model_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "src", "models", f"{asset}_{interval}_xgboost_model.json",
+        "src", "models", subdir, f"{asset}_{interval}_xgboost_model.json",
     )
     if not os.path.exists(model_path):
         raise FileNotFoundError(
             f"No pre-trained model found for {asset} {interval} at {model_path}. "
-            f"Train it first with scripts/train_{asset.lower()}_model.py"
+            f"Train it first with scripts/train_all_models.py"
         )
 
     print(f"\n=== Pre-trained Model Backtest: {asset} {interval} ===")
