@@ -5,7 +5,7 @@
   "train_end_date": "2023-10-02T00:00:00",
   "train_rows": 2662,
   "test_rows": 666,
-  "test_accuracy": 0.5195195195195195,
+  "test_accuracy": 0.5135135135135135,
   "features": [
     "rsi_14",
     "roc_10",
@@ -45,5 +45,6 @@
     "eval_metric": "logloss",
     "random_state": 42
   },
-  "best_cv_score": 0.519729425028185
+  "best_cv_score": 0.520293122886133,
+  "trained_at": "2026-06-04T11:14:11.278288"
 }

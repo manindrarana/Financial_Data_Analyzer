@@ -5,7 +5,7 @@
   "train_end_date": "2026-01-02T14:30:00",
   "train_rows": 2851,
   "test_rows": 713,
-  "test_accuracy": 0.47685834502103785,
+  "test_accuracy": 0.5021037868162693,
   "features": [
     "rsi_14",
     "roc_10",
@@ -38,12 +38,13 @@
     "volatility_pct"
   ],
   "best_params": {
-    "learning_rate": 0.05,
+    "learning_rate": 0.1,
     "max_depth": 5,
     "n_estimators": 200,
     "subsample": 1.0,
     "eval_metric": "logloss",
     "random_state": 42
   },
-  "best_cv_score": 0.5010526315789474
+  "best_cv_score": 0.49894736842105264,
+  "trained_at": "2026-06-04T11:13:49.200881"
 }

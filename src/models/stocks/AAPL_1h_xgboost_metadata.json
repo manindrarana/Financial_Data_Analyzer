@@ -45,5 +45,6 @@
     "eval_metric": "logloss",
     "random_state": 42
   },
-  "best_cv_score": 0.5126315789473684
+  "best_cv_score": 0.5126315789473684,
+  "trained_at": "2026-06-04T11:13:33.809808"
 }
