@@ -64,4 +64,225 @@ class PipelineModelTrainer:
         os.makedirs(self.crypto_dir, exist_ok=True)
         os.makedirs(self.stocks_dir, exist_ok=True)
 
-    
+    def _make_stationary(self, df):
+        df = df.copy()
+        c = df["close"].replace(0, np.nan)
+
+        for window in [7, 30, 50, 100, 200]:
+            col = f"sma_{window}"
+            if col in df.columns:
+                df[f"sma_{window}_dist"] = (df["close"] / df[col]) - 1
+
+        for window in [12, 26, 50, 200]:
+            col = f"ema_{window}"
+            if col in df.columns:
+                df[f"ema_{window}_dist"] = (df["close"] / df[col]) - 1
+
+        if "vwap" in df.columns:
+            df["vwap_dist"] = (df["close"] / df["vwap"]) - 1
+
+        if "macd" in df.columns:
+            df["macd_pct"] = df["macd"] / c
+        if "macd_signal" in df.columns:
+            df["macd_sig_pct"] = df["macd_signal"] / c
+        if "macd_histogram" in df.columns:
+            df["macd_hist_pct"] = df["macd_histogram"] / c
+
+        if "atr_14" in df.columns:
+            df["atr_pct"] = df["atr_14"] / c
+
+        if "daily_volatility" in df.columns:
+            df["volatility_pct"] = df["daily_volatility"] / c
+
+        return df
+
+    def _build_combos(self):
+        combos = []
+        crypto_targets = self.config["ingestion"]["targets"]["bybit"]
+        crypto_intervals = self.config["providers"]["bybit"]["intervals"]
+        stock_targets = self.config["ingestion"]["targets"]["yfinance"]
+        stock_intervals = self.config["providers"]["yfinance"]["intervals"]
+
+        for symbol in crypto_targets:
+            asset = symbol.replace("USDT", "")
+            for raw_interval in crypto_intervals:
+                interval = CRYPTO_INTERVAL_MAP.get(raw_interval)
+                if interval is None:
+                    continue
+                combos.append((asset, interval, "crypto", "gold_crypto_features"))
+
+        for symbol in stock_targets:
+            for raw_interval in stock_intervals:
+                interval = STOCK_INTERVAL_MAP.get(raw_interval)
+                if interval is None:
+                    continue
+                combos.append((symbol, interval, "stocks", "gold_stock_features"))
+
+        return combos
+
+    def _get_metadata_path(self, asset, interval, asset_class):
+        out_dir = self.crypto_dir if asset_class == "crypto" else self.stocks_dir
+        meta_path = os.path.join(out_dir, f"{asset}_{interval}_xgboost_metadata.json")
+        model_path = os.path.join(out_dir, f"{asset}_{interval}_xgboost_model.json")
+        return meta_path, model_path
+
+    def _read_metadata(self, asset, interval, asset_class):
+        meta_path, model_path = self._get_metadata_path(asset, interval, asset_class)
+        if not os.path.exists(meta_path) or not os.path.exists(model_path):
+            return None
+        try:
+            with open(meta_path, "r") as f:
+                return json.load(f)
+        except Exception:
+            return None
+
+    def _get_gold_max_date(self, asset, interval, table_name):
+        try:
+            result = self.conn.execute(f"""
+                SELECT MAX(date)
+                FROM {table_name}
+                WHERE asset_symbol = '{asset}' AND interval = '{interval}'
+            """).fetchone()
+            if result and result[0] is not None:
+                return pd.Timestamp(result[0])
+        except Exception as e:
+            self.logger.warning(f"  Could not query {table_name} for {asset}/{interval}: {e}")
+        return None
+
+    def _needs_training(self, asset, interval, asset_class, table_name):
+        gold_max = self._get_gold_max_date(asset, interval, table_name)
+        if gold_max is None:
+            self.logger.info(f"  {asset}/{interval}: no gold data — skipping")
+            return False, "no_gold_data"
+
+        meta = self._read_metadata(asset, interval, asset_class)
+        if meta is None:
+            return True, "no_model"
+
+        train_end = pd.Timestamp(meta["train_end_date"])
+        if gold_max > train_end:
+            delta = gold_max - train_end
+            return True, f"stale (gold +{delta.days}d beyond train_end)"
+
+        return False, "up_to_date"
+
+    def _fetch_data(self, asset, interval, table_name):
+        col_list = ", ".join(NEEDED_COLS)
+        df = self.conn.execute(f"""
+            SELECT {col_list}
+            FROM {table_name}
+            WHERE asset_symbol = '{asset}' AND interval = '{interval}'
+            ORDER BY date
+        """).df()
+        return df
+
+    def _train_one(self, asset, interval, asset_class, table_name):
+        self.logger.info(f"  Training {asset} {interval} ({asset_class})...")
+
+        df = self._fetch_data(asset, interval, table_name)
+        if len(df) < MIN_ROWS:
+            self.logger.warning(f"  SKIP: only {len(df)} rows (< {MIN_ROWS})")
+            return None
+
+        df["date"] = pd.to_datetime(df["date"])
+        df = self._make_stationary(df)
+        df["target_direction"] = (df["close"].shift(-1) > df["close"]).astype(int)
+        df = df.dropna(subset=["target_direction"])
+        df["target_direction"] = df["target_direction"].astype(int)
+
+        split_idx = int(len(df) * 0.8)
+        train_df = df.iloc[:split_idx]
+        test_df = df.iloc[split_idx:]
+
+        y_train = train_df["target_direction"]
+        y_test = test_df["target_direction"]
+
+        available_features = [f for f in MODEL_FEATURES if f in train_df.columns]
+        X_train = train_df[available_features].dropna()
+        X_test = test_df[available_features].dropna()
+
+        common_train = X_train.index.intersection(y_train.index)
+        common_test = X_test.index.intersection(y_test.index)
+        X_train = X_train.loc[common_train]
+        y_train = y_train.loc[common_train]
+        X_test = X_test.loc[common_test]
+        y_test = y_test.loc[common_test]
+
+        if len(X_train) < 100 or len(X_test) < 20:
+            self.logger.warning(f"  SKIP: train={len(X_train)}, test={len(X_test)} after dropna")
+            return None
+
+        base_model = xgb.XGBClassifier(
+            subsample=1.0, eval_metric="logloss", random_state=42,
+        )
+        tscv = TimeSeriesSplit(n_splits=2)
+        grid = GridSearchCV(
+            base_model, PARAM_GRID, cv=tscv, scoring="accuracy",
+            n_jobs=-1, verbose=0,
+        )
+        grid.fit(X_train, y_train)
+        model = grid.best_estimator_
+
+        y_pred = model.predict(X_test)
+        test_acc = accuracy_score(y_test, y_pred)
+
+        meta_path, model_path = self._get_metadata_path(asset, interval, asset_class)
+        model.save_model(model_path)
+
+        best_params = dict(grid.best_params_)
+        best_params.update({"subsample": 1.0, "eval_metric": "logloss", "random_state": 42})
+
+        metadata = {
+            "asset": asset,
+            "interval": interval,
+            "asset_class": asset_class,
+            "train_end_date": train_df["date"].max().isoformat(),
+            "train_rows": len(train_df),
+            "test_rows": len(test_df),
+            "test_accuracy": float(test_acc),
+            "features": available_features,
+            "best_params": best_params,
+            "best_cv_score": float(grid.best_score_),
+            "trained_at": datetime.utcnow().isoformat(),
+        }
+        with open(meta_path, "w") as f:
+            json.dump(metadata, f, indent=2)
+
+        self.logger.info(f"  Saved {asset}/{interval}: acc={test_acc:.4f}, train_rows={len(train_df)}")
+        return {"asset": asset, "interval": interval, "accuracy": round(test_acc, 4)}
+
+    def run(self):
+        self.logger.info("*" * 60)
+        self.logger.info("STEP 8: MODEL TRAINING (Auto-retrain on new data)")
+        self.logger.info("*" * 60)
+
+        combos = self._build_combos()
+        self.logger.info(f"Checking {len(combos)} asset×interval combos...")
+
+        trained = 0
+        skipped = 0
+        up_to_date = 0
+
+        for asset, interval, asset_class, table_name in combos:
+            needs, reason = self._needs_training(asset, interval, asset_class, table_name)
+
+            if not needs:
+                if reason == "up_to_date":
+                    up_to_date += 1
+                elif reason == "no_gold_data":
+                    skipped += 1
+                continue
+
+            self.logger.info(f"[RETRAIN] {asset}/{interval}: {reason}")
+            result = self._train_one(asset, interval, asset_class, table_name)
+            if result:
+                trained += 1
+            else:
+                skipped += 1
+
+        self.logger.info(f"Step 8 complete: {trained} trained, {up_to_date} up-to-date, {skipped} skipped")
+        self.logger.info("*" * 60)
+
+    def close(self):
+        if self.conn:
+            self.conn.close()
