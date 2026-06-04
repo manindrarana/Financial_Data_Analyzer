@@ -6,6 +6,8 @@ import pandas as pd
 import duckdb
 import xgboost as xgb
 import yaml
+import mlflow
+import mlflow.xgboost
 from datetime import datetime
 from dotenv import load_dotenv
 from sklearn.metrics import accuracy_score
@@ -63,6 +65,10 @@ class PipelineModelTrainer:
         self.stocks_dir = os.path.join(self.models_dir, "stocks")
         os.makedirs(self.crypto_dir, exist_ok=True)
         os.makedirs(self.stocks_dir, exist_ok=True)
+
+        mlflow_uri = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
+        mlflow.set_tracking_uri(mlflow_uri)
+        mlflow.set_experiment("pipeline_auto_retrain")
 
     def _make_stationary(self, df):
         df = df.copy()
@@ -212,41 +218,61 @@ class PipelineModelTrainer:
             self.logger.warning(f"  SKIP: train={len(X_train)}, test={len(X_test)} after dropna")
             return None
 
-        base_model = xgb.XGBClassifier(
-            subsample=1.0, eval_metric="logloss", random_state=42,
-        )
-        tscv = TimeSeriesSplit(n_splits=2)
-        grid = GridSearchCV(
-            base_model, PARAM_GRID, cv=tscv, scoring="accuracy",
-            n_jobs=-1, verbose=0,
-        )
-        grid.fit(X_train, y_train)
-        model = grid.best_estimator_
+        run_name = f"{asset_class}/{asset}/{interval}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
 
-        y_pred = model.predict(X_test)
-        test_acc = accuracy_score(y_test, y_pred)
+        with mlflow.start_run(run_name=run_name):
+            mlflow.set_tag("asset", asset)
+            mlflow.set_tag("interval", interval)
+            mlflow.set_tag("asset_class", asset_class)
+            mlflow.log_params({
+                "asset": asset, "interval": interval, "asset_class": asset_class,
+                "train_rows": len(train_df), "test_rows": len(test_df),
+                "n_features": len(available_features),
+                "train_end_date": train_df["date"].max().isoformat(),
+                "test_start_date": test_df["date"].min().isoformat(),
+                "test_end_date": test_df["date"].max().isoformat(),
+            })
 
-        meta_path, model_path = self._get_metadata_path(asset, interval, asset_class)
-        model.save_model(model_path)
+            base_model = xgb.XGBClassifier(
+                subsample=1.0, eval_metric="logloss", random_state=42,
+            )
+            tscv = TimeSeriesSplit(n_splits=2)
+            grid = GridSearchCV(
+                base_model, PARAM_GRID, cv=tscv, scoring="accuracy",
+                n_jobs=-1, verbose=0,
+            )
+            grid.fit(X_train, y_train)
+            model = grid.best_estimator_
 
-        best_params = dict(grid.best_params_)
-        best_params.update({"subsample": 1.0, "eval_metric": "logloss", "random_state": 42})
+            y_pred = model.predict(X_test)
+            test_acc = accuracy_score(y_test, y_pred)
 
-        metadata = {
-            "asset": asset,
-            "interval": interval,
-            "asset_class": asset_class,
-            "train_end_date": train_df["date"].max().isoformat(),
-            "train_rows": len(train_df),
-            "test_rows": len(test_df),
-            "test_accuracy": float(test_acc),
-            "features": available_features,
-            "best_params": best_params,
-            "best_cv_score": float(grid.best_score_),
-            "trained_at": datetime.utcnow().isoformat(),
-        }
-        with open(meta_path, "w") as f:
-            json.dump(metadata, f, indent=2)
+            mlflow.log_metrics({"test_accuracy": test_acc, "best_cv_score": grid.best_score_})
+            mlflow.log_params(grid.best_params_)
+            mlflow.xgboost.log_model(model, "model")
+
+            meta_path, model_path = self._get_metadata_path(asset, interval, asset_class)
+            model.save_model(model_path)
+
+            best_params = dict(grid.best_params_)
+            best_params.update({"subsample": 1.0, "eval_metric": "logloss", "random_state": 42})
+
+            metadata = {
+                "asset": asset,
+                "interval": interval,
+                "asset_class": asset_class,
+                "train_end_date": train_df["date"].max().isoformat(),
+                "train_rows": len(train_df),
+                "test_rows": len(test_df),
+                "test_accuracy": float(test_acc),
+                "features": available_features,
+                "best_params": best_params,
+                "best_cv_score": float(grid.best_score_),
+                "trained_at": datetime.utcnow().isoformat(),
+                "mlflow_run_id": mlflow.active_run().info.run_id,
+            }
+            with open(meta_path, "w") as f:
+                json.dump(metadata, f, indent=2)
 
         self.logger.info(f"  Saved {asset}/{interval}: acc={test_acc:.4f}, train_rows={len(train_df)}")
         return {"asset": asset, "interval": interval, "accuracy": round(test_acc, 4)}
