@@ -9,7 +9,7 @@ from src.utils import get_logger
 from src.ingestion import YahooFinanceClient, BybitClient
 from src.database import DatabaseLoader, DimensionBuilder, FactLoader
 from src.processing import DataCleaner
-from src.models import GoldLayerProcessor, TechnicalIndicatorProcessor
+from src.models import GoldLayerProcessor, TechnicalIndicatorProcessor, PipelineModelTrainer
 
 CHECKPOINT_FILE = Path("data/.pipeline_checkpoint.json")
 
@@ -130,6 +130,15 @@ def build_technical_indicators():
     indicator_processor.close()
 
 
+@task(name="train-models", retries=1, retry_delay_seconds=30)
+def train_models():
+    logger = get_run_logger()
+    logger.info("STEP 8: MODEL TRAINING (Auto-retrain on new data)")
+    trainer = PipelineModelTrainer()
+    trainer.run()
+    trainer.close()
+
+
 @flow(name="financial-data-pipeline", log_prints=True)
 def run_pipeline():
     logger = get_run_logger()
@@ -151,6 +160,7 @@ def run_pipeline():
         ("step5_facts",      lambda: load_facts()),
         ("step6_gold",       lambda: build_gold_layer()),
         ("step7_indicators", lambda: build_technical_indicators()),
+        ("step8_models",     lambda: train_models()),
     ]
 
     for step_id, step_fn in steps:
