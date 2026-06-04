@@ -219,8 +219,14 @@ class PipelineModelTrainer:
 
         run_name = f"{asset_class}/{asset}/{interval}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
 
-        mlflow.set_experiment(f"pipeline_auto_retrain_{asset_class}")
-        with mlflow.start_run(run_name=run_name):
+        mlflow_run_id = None
+        mlflow_enabled = False
+        try:
+            mlflow.set_experiment(f"pipeline_auto_retrain_{asset_class}")
+            mlflow.start_run(run_name=run_name)
+            mlflow_run = mlflow.active_run()
+            mlflow.run_id = mlflow_run.info.run_id
+            mlflow_enabled = True
             mlflow.set_tag("asset", asset)
             mlflow.set_tag("interval", interval)
             mlflow.set_tag("asset_class", asset_class)
@@ -232,47 +238,59 @@ class PipelineModelTrainer:
                 "test_start_date": test_df["date"].min().isoformat(),
                 "test_end_date": test_df["date"].max().isoformat(),
             })
+        except Exception as e:
+            self.logger.warning(f"  MLflow unavailable: {e} — training without tracking")
 
-            base_model = xgb.XGBClassifier(
-                subsample=1.0, eval_metric="logloss", random_state=42,
-            )
-            tscv = TimeSeriesSplit(n_splits=2)
-            grid = GridSearchCV(
-                base_model, PARAM_GRID, cv=tscv, scoring="accuracy",
-                n_jobs=-1, verbose=0,
-            )
-            grid.fit(X_train, y_train)
-            model = grid.best_estimator_
+        base_model = xgb.XGBClassifier(
+            subsample=1.0, eval_metric="logloss", random_state=42,
+        )
+        tscv = TimeSeriesSplit(n_splits=2)
+        grid = GridSearchCV(
+            base_model, PARAM_GRID, cv=tscv, scoring="accuracy",
+            n_jobs=-1, verbose=0,
+        )
+        grid.fit(X_train, y_train)
+        model = grid.best_estimator_
 
-            y_pred = model.predict(X_test)
-            test_acc = accuracy_score(y_test, y_pred)
+        y_pred = model.predict(X_test)
+        test_acc = accuracy_score(y_test, y_pred)
 
-            mlflow.log_metrics({"test_accuracy": test_acc, "best_cv_score": grid.best_score_})
-            mlflow.log_params(grid.best_params_)
-            mlflow.xgboost.log_model(model, "model")
+        if mlflow_enabled:
+            try:
+                mlflow.log_metrics({"test_accuracy": test_acc, "best_cv_score": grid.best_score_})
+                mlflow.log_params(grid.best_params_)
+                mlflow.xgboost.log_model(model, "model")
+            except Exception as e:
+                self.logger.warning(f"  MLflow log failed: {e}")
 
-            meta_path, model_path = self._get_metadata_path(asset, interval, asset_class)
-            model.save_model(model_path)
+        meta_path, model_path = self._get_metadata_path(asset, interval, asset_class)
+        model.save_model(model_path)
 
-            best_params = dict(grid.best_params_)
-            best_params.update({"subsample": 1.0, "eval_metric": "logloss", "random_state": 42})
+        best_params = dict(grid.best_params_)
+        best_params.update({"subsample": 1.0, "eval_metric": "logloss", "random_state": 42})
 
-            metadata = {
-                "asset": asset,
-                "interval": interval,
-                "asset_class": asset_class,
-                "train_end_date": train_df["date"].max().isoformat(),
-                "train_rows": len(train_df),
-                "test_rows": len(test_df),
-                "test_accuracy": float(test_acc),
-                "features": available_features,
-                "best_params": best_params,
-                "best_cv_score": float(grid.best_score_),
-                "trained_at": datetime.utcnow().isoformat(),
-                "mlflow_run_id": mlflow.active_run().info.run_id,
-            }
-            with open(meta_path, "w") as f:
-                json.dump(metadata, f, indent=2)
+        metadata = {
+            "asset": asset,
+            "interval": interval,
+            "asset_class": asset_class,
+            "train_end_date": train_df["date"].max().isoformat(),
+            "train_rows": len(train_df),
+            "test_rows": len(test_df),
+            "test_accuracy": float(test_acc),
+            "features": available_features,
+            "best_params": best_params,
+            "best_cv_score": float(grid.best_score_),
+            "trained_at": datetime.utcnow().isoformat(),
+            "mlflow_run_id": mlflow_run_id,
+        }
+        with open(meta_path, "w") as f:
+            json.dump(metadata, f, indent=2)
+
+        if mlflow_enabled:
+            try:
+                mlflow.end_run()
+            except Exception:
+                pass
 
         self.logger.info(f"  Saved {asset}/{interval}: acc={test_acc:.4f}, train_rows={len(train_df)}")
         return {"asset": asset, "interval": interval, "accuracy": round(test_acc, 4)}
