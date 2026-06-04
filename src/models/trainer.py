@@ -68,7 +68,6 @@ class PipelineModelTrainer:
 
         mlflow_uri = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
         mlflow.set_tracking_uri(mlflow_uri)
-        mlflow.set_experiment("pipeline_auto_retrain")
 
     def _make_stationary(self, df):
         df = df.copy()
@@ -220,6 +219,7 @@ class PipelineModelTrainer:
 
         run_name = f"{asset_class}/{asset}/{interval}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
 
+        mlflow.set_experiment(f"pipeline_auto_retrain_{asset_class}")
         with mlflow.start_run(run_name=run_name):
             mlflow.set_tag("asset", asset)
             mlflow.set_tag("interval", interval)
