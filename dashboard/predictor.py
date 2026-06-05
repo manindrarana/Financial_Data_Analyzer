@@ -146,12 +146,15 @@ def _make_stationary(df):
 def _get_model(asset, interval, asset_class="crypto"):
     cache_key = _model_cache_key(asset, interval, asset_class)
     if cache_key not in _model_cache:
-        model_path = _model_path(asset, interval, asset_class)
-        if not os.path.exists(model_path):
+        model_path, matched_interval = _discover_model(asset, interval, asset_class)
+        if model_path is None:
             raise FileNotFoundError(
-                f"No model found for {asset_class}/{asset}/{interval}. "
-                f"Expected at: {model_path}. Run scripts/train_all_models.py first."
+                f"No trained model for {asset}/{interval} in {asset_class}. "
+                f"Train one first: scripts/train_all_models.py"
             )
+        if matched_interval != interval:
+            print(f"Warning: no exact model for {asset}/{interval}, "
+                  f"using fallback {asset}/{matched_interval}")
         model = xgb.XGBClassifier()
         model.load_model(model_path)
         _model_cache[cache_key] = model
