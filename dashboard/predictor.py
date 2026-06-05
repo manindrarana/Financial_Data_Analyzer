@@ -28,6 +28,9 @@ def _meta_path(asset, interval, asset_class):
     return os.path.join("src", "models", subdir, f"{asset}_{interval}_xgboost_metadata.json")
 
 
+_INTERVAL_MINUTES = {"1h": 60, "4h": 240, "1d": 1440}
+
+
 def _model_cache_key(asset, interval, asset_class):
     return f"{asset_class}/{asset}/{interval}"
 
