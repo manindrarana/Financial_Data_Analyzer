@@ -72,13 +72,29 @@ _train_cutoffs = {}
 _model_cache = {}
 
 
+def _discover_meta(asset, interval, asset_class):
+    subdir = "crypto" if asset_class == "crypto" else "stocks"
+    models_dir = os.path.join("src", "models", subdir)
+
+    exact = os.path.join(models_dir, f"{asset}_{interval}_xgboost_metadata.json")
+    if os.path.exists(exact):
+        return exact
+
+    _, matched_interval = _discover_model(asset, interval, asset_class)
+    if matched_interval and matched_interval != interval:
+        fallback = os.path.join(models_dir, f"{asset}_{matched_interval}_xgboost_metadata.json")
+        if os.path.exists(fallback):
+            return fallback
+    return None
+
+
 def get_train_cutoff(asset, interval, asset_class="crypto"):
     cache_key = _model_cache_key(asset, interval, asset_class)
     if cache_key in _train_cutoffs:
         return _train_cutoffs[cache_key]
 
-    meta_path = _meta_path(asset, interval, asset_class)
-    if os.path.exists(meta_path):
+    meta_path = _discover_meta(asset, interval, asset_class)
+    if meta_path is not None:
         with open(meta_path) as f:
             meta = json.load(f)
         cutoff = pd.Timestamp(meta["train_end_date"])
