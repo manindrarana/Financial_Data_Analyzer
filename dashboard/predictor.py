@@ -28,6 +28,42 @@ def _meta_path(asset, interval, asset_class):
     return os.path.join("src", "models", subdir, f"{asset}_{interval}_xgboost_metadata.json")
 
 
+_INTERVAL_MINUTES = {"1h": 60, "4h": 240, "1d": 1440}
+
+
+def _discover_model(asset, interval, asset_class):
+    subdir = "crypto" if asset_class == "crypto" else "stocks"
+    models_dir = os.path.join("src", "models", subdir)
+
+    exact = os.path.join(models_dir, f"{asset}_{interval}_xgboost_model.json")
+    if os.path.exists(exact):
+        return exact, interval
+
+    if not os.path.isdir(models_dir):
+        return None, None
+
+    target_mins = _INTERVAL_MINUTES.get(interval, 60)
+    candidates = []
+    for fname in os.listdir(models_dir):
+        if not fname.startswith(f"{asset}_") or not fname.endswith("_xgboost_model.json"):
+            continue
+        parts = fname.split("_")
+        if len(parts) < 3:
+            continue
+        cand_interval = parts[1]
+        cand_mins = _INTERVAL_MINUTES.get(cand_interval)
+        if cand_mins is None:
+            continue
+        candidates.append((abs(cand_mins - target_mins), cand_mins, cand_interval, fname))
+
+    if not candidates:
+        return None, None
+
+    candidates.sort()
+    _, _, best_interval, best_fname = candidates[0]
+    return os.path.join(models_dir, best_fname), best_interval
+
+
 def _model_cache_key(asset, interval, asset_class):
     return f"{asset_class}/{asset}/{interval}"
 
@@ -36,13 +72,29 @@ _train_cutoffs = {}
 _model_cache = {}
 
 
+def _discover_meta(asset, interval, asset_class):
+    subdir = "crypto" if asset_class == "crypto" else "stocks"
+    models_dir = os.path.join("src", "models", subdir)
+
+    exact = os.path.join(models_dir, f"{asset}_{interval}_xgboost_metadata.json")
+    if os.path.exists(exact):
+        return exact
+
+    _, matched_interval = _discover_model(asset, interval, asset_class)
+    if matched_interval and matched_interval != interval:
+        fallback = os.path.join(models_dir, f"{asset}_{matched_interval}_xgboost_metadata.json")
+        if os.path.exists(fallback):
+            return fallback
+    return None
+
+
 def get_train_cutoff(asset, interval, asset_class="crypto"):
     cache_key = _model_cache_key(asset, interval, asset_class)
     if cache_key in _train_cutoffs:
         return _train_cutoffs[cache_key]
 
-    meta_path = _meta_path(asset, interval, asset_class)
-    if os.path.exists(meta_path):
+    meta_path = _discover_meta(asset, interval, asset_class)
+    if meta_path is not None:
         with open(meta_path) as f:
             meta = json.load(f)
         cutoff = pd.Timestamp(meta["train_end_date"])
@@ -110,12 +162,15 @@ def _make_stationary(df):
 def _get_model(asset, interval, asset_class="crypto"):
     cache_key = _model_cache_key(asset, interval, asset_class)
     if cache_key not in _model_cache:
-        model_path = _model_path(asset, interval, asset_class)
-        if not os.path.exists(model_path):
+        model_path, matched_interval = _discover_model(asset, interval, asset_class)
+        if model_path is None:
             raise FileNotFoundError(
-                f"No model found for {asset_class}/{asset}/{interval}. "
-                f"Expected at: {model_path}. Run scripts/train_all_models.py first."
+                f"No trained model for {asset}/{interval} in {asset_class}. "
+                f"Train one first: scripts/train_all_models.py"
             )
+        if matched_interval != interval:
+            print(f"Warning: no exact model for {asset}/{interval}, "
+                  f"using fallback {asset}/{matched_interval}")
         model = xgb.XGBClassifier()
         model.load_model(model_path)
         _model_cache[cache_key] = model
