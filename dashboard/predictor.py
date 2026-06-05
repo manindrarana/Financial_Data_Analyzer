@@ -31,6 +31,39 @@ def _meta_path(asset, interval, asset_class):
 _INTERVAL_MINUTES = {"1h": 60, "4h": 240, "1d": 1440}
 
 
+def _discover_model(asset, interval, asset_class):
+    subdir = "crypto" if asset_class == "crypto" else "stocks"
+    models_dir = os.path.join("src", "models", subdir)
+
+    exact = os.path.join(models_dir, f"{asset}_{interval}_xgboost_model.json")
+    if os.path.exists(exact):
+        return exact, interval
+
+    if not os.path.isdir(models_dir):
+        return None, None
+
+    target_mins = _INTERVAL_MINUTES.get(interval, 60)
+    candidates = []
+    for fname in os.listdir(models_dir):
+        if not fname.startswith(f"{asset}_") or not fname.endswith("_xgboost_model.json"):
+            continue
+        parts = fname.split("_")
+        if len(parts) < 3:
+            continue
+        cand_interval = parts[1]
+        cand_mins = _INTERVAL_MINUTES.get(cand_interval)
+        if cand_mins is None:
+            continue
+        candidates.append((abs(cand_mins - target_mins), cand_mins, cand_interval, fname))
+
+    if not candidates:
+        return None, None
+
+    candidates.sort()
+    _, _, best_interval, best_fname = candidates[0]
+    return os.path.join(models_dir, best_fname), best_interval
+
+
 def _model_cache_key(asset, interval, asset_class):
     return f"{asset_class}/{asset}/{interval}"
 
