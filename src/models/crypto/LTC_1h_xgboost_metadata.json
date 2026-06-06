@@ -4,8 +4,8 @@
   "asset_class": "crypto",
   "train_end_date": "2025-04-23T07:00:00",
   "train_rows": 39280,
-  "test_rows": 9820,
-  "test_accuracy": 0.5245417515274949,
+  "test_rows": 9821,
+  "test_accuracy": 0.5245901639344263,
   "features": [
     "rsi_14",
     "roc_10",
@@ -46,6 +46,6 @@
     "random_state": 42
   },
   "best_cv_score": 0.5349423355991751,
-  "trained_at": "2026-06-06T11:21:06.319715",
+  "trained_at": "2026-06-06T12:43:52.978688",
   "mlflow_run_id": null
 }
