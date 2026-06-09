@@ -2,10 +2,10 @@
   "asset": "XRP",
   "interval": "4h",
   "asset_class": "crypto",
-  "train_end_date": "2025-06-08T20:00:00",
-  "train_rows": 8727,
-  "test_rows": 2182,
-  "test_accuracy": 0.5146654445462878,
+  "train_end_date": "2025-06-10T08:00:00",
+  "train_rows": 8736,
+  "test_rows": 2184,
+  "test_accuracy": 0.5187728937728938,
   "features": [
     "rsi_14",
     "roc_10",
@@ -45,7 +45,7 @@
     "eval_metric": "logloss",
     "random_state": 42
   },
-  "best_cv_score": 0.5328291509109659,
-  "trained_at": "2026-06-07T13:57:58.381454",
+  "best_cv_score": 0.53125,
+  "trained_at": "2026-06-09T11:13:39.249333",
   "mlflow_run_id": null
 }
