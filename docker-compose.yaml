@@ -41,6 +41,8 @@ services:
     container_name: financial_data_pipeline
     env_file:
       - .env
+    environment:
+      - PREFECT_API_URL=http://prefect:4200/api
     volumes:
       - ./database:/app/database
       - .:/app
