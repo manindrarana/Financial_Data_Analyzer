@@ -41,9 +41,12 @@ services:
     container_name: financial_data_pipeline
     env_file:
       - .env
+    environment:
+      - PREFECT_API_URL=http://prefect:4200/api
     volumes:
       - ./database:/app/database
       - .:/app
+      - model_store:/app/model_store
 
     restart: unless-stopped
     depends_on:
@@ -137,6 +140,7 @@ volumes:
   superset_home:
   mlflow_data:
   prefect_data:
+  model_store:
 
 networks:
   custom_net:

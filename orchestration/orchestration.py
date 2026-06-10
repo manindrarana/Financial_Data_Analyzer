@@ -180,10 +180,14 @@ def run_pipeline():
 
 if __name__ == "__main__":
     logger = get_logger("Orchestrator_Main")
-    logger.info("Docker container started. Running initial pipeline execution...")
-    run_pipeline()
 
-    while True:
-        logger.info("Sleeping 3600s until next scheduled run...")
-        time.sleep(3600)
+    if "--once" in sys.argv or "--now" in sys.argv:
+        logger.info("Running single pipeline execution (--once)...")
         run_pipeline()
+    else:
+        logger.info("Starting Prefect deployment — hourly schedule via Prefect server")
+        run_pipeline.serve(
+            name="financial-data-pipeline",
+            cron="0 * * * *",
+            description="Hourly ELT pipeline ingesting stock & crypto data, building gold layer, and retraining models",
+        )
