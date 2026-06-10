@@ -45,35 +45,50 @@ def _mark_done(step: str):
 FORCE_FLAG = "--force" in sys.argv
 
 
-@task(name="extract-data", retries=2, retry_delay_seconds=30)
-def extract_data(config: dict) -> dict:
+@task(name="extract-yahoo", retries=2, retry_delay_seconds=30)
+def extract_yahoo(config: dict) -> int:
     logger = get_run_logger()
-    logger.info("STEP 1: DATA EXTRACTION (APIs -> Parquet)")
+    logger.info("EXTRACT: Yahoo Finance (stocks)")
 
     yfinance_targets = config["ingestion"]["targets"].get("yfinance", [])
+
+    if "yfinance" not in config["ingestion"]["active_provider"]:
+        logger.info("Yahoo Finance provider not active, skipping")
+        return 0
+
+    client = YahooFinanceClient()
+    count = 0
+    for ticker in yfinance_targets:
+        client.fetch_data(ticker)
+        count += 1
+        time.sleep(3)
+    client.close()
+
+    logger.info(f"Yahoo extraction complete: {count} stocks")
+    return count
+
+
+@task(name="extract-bybit", retries=2, retry_delay_seconds=30)
+def extract_bybit(config: dict) -> int:
+    logger = get_run_logger()
+    logger.info("EXTRACT: Bybit (crypto)")
+
     bybit_targets = config["ingestion"]["targets"].get("bybit", [])
-    active_providers = config["ingestion"]["active_provider"]
 
-    stats = {"yfinance_count": 0, "bybit_count": 0}
+    if "bybit" not in config["ingestion"]["active_provider"]:
+        logger.info("Bybit provider not active, skipping")
+        return 0
 
-    if "yfinance" in active_providers:
-        yahoo_client = YahooFinanceClient()
-        for ticker in yfinance_targets:
-            yahoo_client.fetch_data(ticker)
-            stats["yfinance_count"] += 1
-            time.sleep(3)
-        yahoo_client.close()
+    client = BybitClient()
+    count = 0
+    for symbol in bybit_targets:
+        client.fetch_data(symbol)
+        count += 1
+        time.sleep(1)
+    client.close()
 
-    if "bybit" in active_providers:
-        bybit_client = BybitClient()
-        for symbol in bybit_targets:
-            bybit_client.fetch_data(symbol)
-            stats["bybit_count"] += 1
-            time.sleep(1)
-        bybit_client.close()
-
-    logger.info(f"Extraction complete: {stats['yfinance_count']} stocks, {stats['bybit_count']} crypto")
-    return stats
+    logger.info(f"Bybit extraction complete: {count} crypto")
+    return count
 
 
 @task(name="load-to-duckdb", retries=1, retry_delay_seconds=15)
@@ -139,6 +154,22 @@ def train_models():
     trainer.close()
 
 
+def _run_concurrent_extract(config: dict) -> dict:
+    logger = get_logger("Extract")
+    logger.info("STEP 1: DATA EXTRACTION (APIs -> Parquet) — running Yahoo + Bybit concurrently")
+
+    yahoo_future = extract_yahoo.submit(config)
+    bybit_future = extract_bybit.submit(config)
+
+    stats = {
+        "yfinance_count": yahoo_future.result(),
+        "bybit_count": bybit_future.result(),
+    }
+
+    logger.info(f"Extraction complete: {stats['yfinance_count']} stocks, {stats['bybit_count']} crypto")
+    return stats
+
+
 @flow(name="financial-data-pipeline", log_prints=True)
 def run_pipeline():
     logger = get_run_logger()
@@ -153,7 +184,7 @@ def run_pipeline():
         config = yaml.safe_load(f)
 
     steps = [
-        ("step1_extract",    lambda: extract_data(config)),
+        ("step1_extract",    lambda: _run_concurrent_extract(config)),
         ("step2_load",       lambda: load_to_duckdb()),
         ("step3_clean",      lambda: transform_clean()),
         ("step4_dimensions", lambda: build_dimensions()),
