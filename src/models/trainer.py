@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import sys
 import numpy as np
 import pandas as pd
@@ -60,7 +61,7 @@ class PipelineModelTrainer:
             self.db_path = os.path.join("database", "financial_data.duckdb")
         self.conn = duckdb.connect(self.db_path)
 
-        self.models_dir = os.path.join("src", "models")
+        self.models_dir = os.path.join("/app", "model_store")
         self.crypto_dir = os.path.join(self.models_dir, "crypto")
         self.stocks_dir = os.path.join(self.models_dir, "stocks")
         os.makedirs(self.crypto_dir, exist_ok=True)
@@ -285,6 +286,14 @@ class PipelineModelTrainer:
         }
         with open(meta_path, "w") as f:
             json.dump(metadata, f, indent=2)
+
+        local_dir = os.path.join("/app", "src", "models", asset_class)
+        os.makedirs(local_dir, exist_ok=True)
+        try:
+            shutil.copy2(model_path, os.path.join(local_dir, os.path.basename(model_path)))
+            shutil.copy2(meta_path, os.path.join(local_dir, os.path.basename(meta_path)))
+        except OSError as e:
+            self.logger.warning(f"  Sync to repo failed (bind-mount): {e}")
 
         if mlflow_enabled:
             try:
