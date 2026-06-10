@@ -2,10 +2,10 @@
   "asset": "TSLA",
   "interval": "1h",
   "asset_class": "stocks",
-  "train_end_date": "2026-01-07T15:30:00",
-  "train_rows": 2873,
-  "test_rows": 719,
-  "test_accuracy": 0.47983310152990266,
+  "train_end_date": "2026-01-09T18:30:00",
+  "train_rows": 2890,
+  "test_rows": 723,
+  "test_accuracy": 0.4951590594744122,
   "features": [
     "rsi_14",
     "roc_10",
@@ -45,7 +45,7 @@
     "eval_metric": "logloss",
     "random_state": 42
   },
-  "best_cv_score": 0.5193312434691746,
-  "trained_at": "2026-06-10T10:50:04.312572",
+  "best_cv_score": 0.5202492211838006,
+  "trained_at": "2026-06-10T11:24:53.181814",
   "mlflow_run_id": null
 }

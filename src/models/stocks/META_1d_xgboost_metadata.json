@@ -2,10 +2,10 @@
   "asset": "META",
   "interval": "1d",
   "asset_class": "stocks",
-  "train_end_date": "2023-10-04T00:00:00",
-  "train_rows": 2664,
+  "train_end_date": "2023-10-09T00:00:00",
+  "train_rows": 2667,
   "test_rows": 667,
-  "test_accuracy": 0.512743628185907,
+  "test_accuracy": 0.5067466266866567,
   "features": [
     "rsi_14",
     "roc_10",
@@ -45,7 +45,7 @@
     "eval_metric": "logloss",
     "random_state": 42
   },
-  "best_cv_score": 0.5197072072072072,
-  "trained_at": "2026-06-10T10:50:22.676234",
+  "best_cv_score": 0.5213723284589427,
+  "trained_at": "2026-06-10T11:25:13.930888",
   "mlflow_run_id": null
 }
