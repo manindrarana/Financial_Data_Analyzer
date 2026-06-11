@@ -104,11 +104,48 @@ class TechnicalIndicatorProcessor:
         
         return df
     
+    def _create_feature_tables(self):
+        """Create gold feature tables if they don't exist"""
+        crypto_cols = [
+            ("asset_symbol", "VARCHAR"), ("asset_class", "VARCHAR"), ("exchange", "VARCHAR"),
+            ("interval", "VARCHAR"), ("date", "TIMESTAMP"),
+            ("open", "DOUBLE"), ("high", "DOUBLE"), ("low", "DOUBLE"), ("close", "DOUBLE"),
+            ("volume", "DOUBLE"), ("daily_volatility", "DOUBLE"), ("sma_7", "DOUBLE"), ("sma_30", "DOUBLE"),
+            ("rsi_14", "DOUBLE"), ("macd", "DOUBLE"), ("macd_signal", "DOUBLE"), ("macd_histogram", "DOUBLE"),
+            ("roc_10", "DOUBLE"), ("roc_20", "DOUBLE"),
+            ("stoch_k", "DOUBLE"), ("stoch_d", "DOUBLE"),
+            ("ema_12", "DOUBLE"), ("ema_26", "DOUBLE"), ("ema_50", "DOUBLE"), ("ema_200", "DOUBLE"),
+            ("sma_50", "DOUBLE"), ("sma_100", "DOUBLE"), ("sma_200", "DOUBLE"),
+            ("bb_upper", "DOUBLE"), ("bb_middle", "DOUBLE"), ("bb_lower", "DOUBLE"),
+            ("bb_width", "DOUBLE"), ("bb_percentage", "DOUBLE"),
+            ("atr_14", "DOUBLE"), ("obv", "DOUBLE"), ("vwap", "DOUBLE"),
+            ("volume_sma_20", "DOUBLE"), ("volume_ratio", "DOUBLE"),
+            ("returns_1p", "DOUBLE"), ("returns_5p", "DOUBLE"), ("returns_10p", "DOUBLE"), ("returns_20p", "DOUBLE"),
+            ("log_returns", "DOUBLE"), ("hl_ratio", "DOUBLE"), ("close_position", "DOUBLE"),
+            ("prev_close", "DOUBLE"), ("prev_volume", "DOUBLE"), ("prev_high", "DOUBLE"), ("prev_low", "DOUBLE"),
+            ("turnover", "DOUBLE"), ("open_interest", "DOUBLE"), ("funding_rate", "DOUBLE"),
+        ]
+        stock_cols = [c for c in crypto_cols if c[0] not in ('turnover', 'open_interest', 'funding_rate')]
+
+        for asset_class, cols in [('crypto', crypto_cols), ('stock', stock_cols)]:
+            col_defs = ', '.join(f"{name} {dtype}" for name, dtype in cols)
+            self.conn.execute(f"CREATE TABLE IF NOT EXISTS gold_{asset_class}_features ({col_defs})")
+            self.logger.info(f" gold_{asset_class}_features table is ready")
+
     def generate_ml_features_table(self):
-        """Generate asset-class specific gold feature tables with all technical indicators"""
         self.logger.info("=" * 60)
-        self.logger.info("Building Specialized Gold Feature Stores")
+        self.logger.info("Building Specialized Gold Feature Stores (incremental)")
         self.logger.info("=" * 60)
+
+        indicator_cols = ['rsi_14', 'macd', 'macd_signal', 'macd_histogram', 'roc_10', 'roc_20',
+                          'stoch_k', 'stoch_d', 'ema_12', 'ema_26', 'ema_50', 'ema_200',
+                          'sma_50', 'sma_100', 'sma_200', 'bb_upper', 'bb_middle', 'bb_lower',
+                          'bb_width', 'bb_percentage', 'atr_14', 'obv', 'vwap',
+                          'volume_sma_20', 'volume_ratio', 'returns_1p', 'returns_5p',
+                          'returns_10p', 'returns_20p', 'log_returns', 'hl_ratio', 'close_position']
+
+        self._create_feature_tables()
+
         query = """
             SELECT asset_symbol, asset_class, exchange, interval, date,
                    open, high, low, close, volume, daily_volatility, sma_7, sma_30
@@ -127,64 +164,94 @@ class TechnicalIndicatorProcessor:
             FROM gold_crypto_analytics
         """).df()
 
-        result_dfs = []
         total_groups = df_all.groupby(['asset_symbol', 'interval']).ngroups
-        current_group = 0
-        
-        for (asset, interval), group_df in df_all.groupby(['asset_symbol', 'interval']):
-            current_group += 1
+        total_inserted = 0
+
+        for current_group, ((asset, interval), group_df) in enumerate(df_all.groupby(['asset_symbol', 'interval']), 1):
             self.logger.info(f"[{current_group}/{total_groups}] Processing {asset} ({interval})...")
-            
+
+            asset_class = group_df['asset_class'].iloc[0].lower()
+            table_name = f"gold_{asset_class}_features"
+
+            max_date = self.conn.execute(f"""
+                SELECT MAX(date) FROM {table_name}
+                WHERE asset_symbol = ? AND interval = ?
+            """, [asset, interval]).fetchone()[0]
+
+            if max_date is not None:
+                group_df = group_df[group_df['date'] > max_date]
+                if len(group_df) == 0:
+                    self.logger.info(f"  No new data for {asset} ({interval}), skipping")
+                    continue
+
+                cutoff_date = group_df['date'].min()
+                buffer_size = max(MIN_ROWS_FOR_INDICATORS, 300)
+                buffer_df = self.conn.execute(f"""
+                    SELECT asset_symbol, asset_class, exchange, interval, date,
+                           open, high, low, close, volume, daily_volatility, sma_7, sma_30
+                    FROM gold_{asset_class}_analytics
+                    WHERE asset_symbol = ? AND interval = ? AND date < ?
+                    ORDER BY date DESC
+                    LIMIT {buffer_size}
+                """, [asset, interval, cutoff_date]).df()
+
+                if len(buffer_df) > 0:
+                    buffer_df = buffer_df.sort_values('date')
+                    group_df = pd.concat([buffer_df, group_df], ignore_index=True)
+
             if len(group_df) < MIN_ROWS_FOR_INDICATORS:
                 self.logger.warning(f"  Skipping {asset} ({interval}) - only {len(group_df)} rows (need {MIN_ROWS_FOR_INDICATORS}+)")
                 continue
-            
+
             enhanced_df = self.calculate_indicators_for_asset(group_df.copy())
-            result_dfs.append(enhanced_df)
-        
-        if not result_dfs:
-            self.logger.error("No data groups had enough rows for indicator calculation!")
-            return
-        
-        final_df = pd.concat(result_dfs, ignore_index=True)
-        self.logger.info(f"Combined data from {len(result_dfs)} asset-interval groups")
-        
-        for asset_class in final_df['asset_class'].unique():
-            class_df = final_df[final_df['asset_class'] == asset_class].copy()
-            initial_rows = len(class_df)
-            indicator_cols = ['rsi_14', 'macd', 'macd_signal', 'macd_histogram', 'roc_10', 'roc_20',
-                              'stoch_k', 'stoch_d', 'ema_12', 'ema_26', 'ema_50', 'ema_200',
-                              'sma_50', 'sma_100', 'sma_200', 'bb_upper', 'bb_middle', 'bb_lower',
-                              'bb_width', 'bb_percentage', 'atr_14', 'obv', 'vwap',
-                              'volume_sma_20', 'volume_ratio', 'returns_1p', 'returns_5p',
-                              'returns_10p', 'returns_20p', 'log_returns', 'hl_ratio', 'close_position']
-            cols_to_check = [c for c in indicator_cols if c in class_df.columns]
-            class_df = class_df.dropna(subset=cols_to_check)
-            
-            if asset_class.lower() == 'crypto':
+            initial_rows = len(enhanced_df)
+            cols_to_check = [c for c in indicator_cols if c in enhanced_df.columns]
+            enhanced_df = enhanced_df.dropna(subset=cols_to_check)
+            self.logger.info(f"  Dropped {initial_rows - len(enhanced_df)} rows with NaNs (warm-up)")
+
+            if max_date is not None:
+                enhanced_df = enhanced_df[enhanced_df['date'] > max_date]
+
+            if asset_class == 'crypto' and len(enhanced_df) > 0:
                 merge_keys = ['asset_symbol', 'interval', 'date']
-                class_df = class_df.merge(
+                enhanced_df = enhanced_df.merge(
                     crypto_extra[merge_keys + ['turnover', 'open_interest', 'funding_rate']],
                     on=merge_keys, how='left'
                 )
-            
-            self.logger.info(f"--- Processing {asset_class.upper()} Gold Store ---")
-            self.logger.info(f"Dropped {initial_rows - len(class_df)} rows with NaNs (warm-up)")
-            
-            class_key = asset_class.lower()
-            table_name = f"gold_{class_key}_features"
-            self.conn.execute(f"DROP TABLE IF EXISTS {table_name}")
-            
-            self.conn.register('temp_class_df', class_df)
-            self.conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM temp_class_df ORDER BY asset_symbol, interval, date")
+
+            if len(enhanced_df) == 0:
+                self.logger.info(f"  No new rows after filtering for {asset} ({interval})")
+                continue
+
+            self.conn.register('temp_class_df', enhanced_df)
+            self.conn.execute(f"""
+                INSERT INTO {table_name}
+                SELECT * FROM temp_class_df
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM {table_name} f
+                    WHERE f.asset_symbol = temp_class_df.asset_symbol
+                      AND f.interval = temp_class_df.interval
+                      AND f.date = temp_class_df.date
+                )
+            """)
             self.conn.unregister('temp_class_df')
-            
+
+            inserted = self.conn.execute(f"""
+                SELECT COUNT(*) FROM {table_name}
+                WHERE asset_symbol = ? AND interval = ? AND date > ?
+            """, [asset, interval, max_date or '1900-01-01']).fetchone()[0]
+            self.logger.info(f"  Inserted {inserted} new rows for {asset} ({interval})")
+            total_inserted += inserted
+
             cnt = self.conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
-            self.logger.info(f"Successfully created {table_name} with {cnt} rows!")
-            
-            out_path = f"s3://{self.analytics_bucket}/{class_key}_features.parquet"
+            self.logger.info(f"  {table_name} now has {cnt} total rows!")
+
+        self.logger.info(f"Total new rows inserted across all feature tables: {total_inserted}")
+
+        for asset_class in ['crypto', 'stock']:
+            out_path = f"s3://{self.analytics_bucket}/{asset_class}_features.parquet"
             try:
-                self.conn.execute(f"COPY {table_name} TO '{out_path}' (FORMAT PARQUET)")
+                self.conn.execute(f"COPY gold_{asset_class}_features TO '{out_path}' (FORMAT PARQUET)")
                 self.logger.info(f"Exported to MinIO: {out_path}")
             except Exception as e:
                 self.logger.error(f"Failed to export {asset_class} Features to MinIO: {e}")
