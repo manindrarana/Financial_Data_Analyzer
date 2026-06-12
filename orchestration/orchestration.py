@@ -3,6 +3,8 @@ import time
 import gc
 import json
 import sys
+import os
+import duckdb
 from pathlib import Path
 from prefect import flow, task, get_run_logger
 from src.utils import get_logger
@@ -43,7 +45,35 @@ def _mark_done(step: str):
 
 
 FORCE_FLAG = "--force" in sys.argv
+def _get_db_con():
+    with open("configs/settings.yml", "r") as f:
+        config = yaml.safe_load(f)
+    return duckdb.connect(config["paths"]["database"], read_only=True)
 
+def _validate_extract():
+    conn = _get_db_con()
+    try:
+        yahoo_count = conn.execute("SELECT COUNT(*) FROM yahoo_stocks").fetchone()[0]
+        if yahoo_count == 0:
+            raise RuntimeError("step1_extract failed: yahoo_stocks has 0 rows")
+        bybit_count = conn.execute("SELECT COUNT(*) FROM bybit_crypto").fetchone()[0]
+        if bybit_count == 0:
+            raise RuntimeError("step1_extract failed: bybit_crypto has 0 rows")
+        return yahoo_count, bybit_count
+    finally:
+        conn.close()
+
+def _validate_clean():
+    conn = _get_db_con()
+    try:
+        for table in ["clean_yahoo_stocks", "clean_bybit_crypto"]:
+            null_count = conn.execute(
+                f"SELECT COUNT(*) FROM {table} WHERE close IS NULL"
+            ).fetchone()[0]
+            if null_count > 0:
+                raise RuntimeError(f"step3_clean failed: {table} has {null_count} nulls in close")
+    finally:
+        conn.close()
 
 @task(name="extract-yahoo", retries=2, retry_delay_seconds=30)
 def extract_yahoo(config: dict) -> int:
@@ -198,6 +228,10 @@ def run_pipeline():
         if _should_run(step_id, FORCE_FLAG):
             logger.info(f"[CHECKPOINT] Running {step_id}...")
             step_fn()
+            validator = STEP_VALIDATORS.get(step_id)
+            if validator:
+                validator()
+                logger.info(f"[VALIDATE] {step_id} validation passed")
             _mark_done(step_id)
             logger.info(f"[CHECKPOINT] {step_id} complete — saved")
         else:
