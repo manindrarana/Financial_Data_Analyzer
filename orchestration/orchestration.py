@@ -93,6 +93,65 @@ def _validate_facts():
             raise RuntimeError("step5_facts failed: fact_price_history has 0 rows")
     finally:
         conn.close()
+        
+
+_GOLD_ANALYTICS_COLS = [
+    "asset_symbol", "asset_class", "exchange", "interval", "date",
+    "open", "high", "low", "close", "volume",
+    "daily_volatility", "sma_7", "sma_30",
+]
+
+_FEATURE_INDICATOR_COLS = [
+    "close", "rsi_14", "macd", "macd_signal", "macd_histogram",
+    "roc_10", "roc_20", "stoch_k", "stoch_d",
+    "ema_12", "ema_26", "ema_50", "ema_200",
+    "sma_50", "sma_100", "sma_200",
+    "bb_upper", "bb_middle", "bb_lower", "bb_width", "bb_percentage",
+    "atr_14", "obv", "vwap", "volume_sma_20", "volume_ratio",
+    "returns_1p", "returns_5p", "returns_10p", "returns_20p",
+    "log_returns", "hl_ratio", "close_position",
+]
+
+
+def _validate_gold():
+    conn = _get_db_con()
+    try:
+        for table in ["gold_crypto_analytics", "gold_stock_analytics"]:
+            try:
+                existing = [
+                    r[0] for r in conn.execute(
+                        f"SELECT column_name FROM information_schema.columns WHERE table_name = '{table}'"
+                    ).fetchall()
+                ]
+            except Exception:
+                raise RuntimeError(f"step6_gold failed: {table} does not exist")
+            missing = [c for c in _GOLD_ANALYTICS_COLS if c not in existing]
+            if missing:
+                raise RuntimeError(f"step6_gold failed: {table} missing columns: {missing}")
+    finally:
+        conn.close()
+
+
+def _validate_features():
+    conn = _get_db_con()
+    try:
+        for table in ["gold_crypto_features", "gold_stock_features"]:
+            try:
+                existing = [
+                    r[0] for r in conn.execute(
+                        f"SELECT column_name FROM information_schema.columns WHERE table_name = '{table}'"
+                    ).fetchall()
+                ]
+            except Exception:
+                raise RuntimeError(f"step7_indicators failed: {table} does not exist")
+            missing = [c for c in _FEATURE_INDICATOR_COLS if c not in existing]
+            if missing:
+                raise RuntimeError(f"step7_indicators failed: {table} missing columns: {missing}")
+            null_count = conn.execute(f"SELECT COUNT(*) FROM {table} WHERE close IS NULL").fetchone()[0]
+            if null_count > 0:
+                raise RuntimeError(f"step7_indicators failed: {table} has {null_count} nulls in close")
+    finally:
+        conn.close()
 
 @task(name="extract-yahoo", retries=2, retry_delay_seconds=30)
 def extract_yahoo(config: dict) -> int:
