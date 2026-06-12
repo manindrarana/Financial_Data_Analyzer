@@ -75,6 +75,25 @@ def _validate_clean():
     finally:
         conn.close()
 
+def _validate_dimensions():
+    conn = _get_db_con()
+    try:
+        dim_count = conn.execute("SELECT COUNT(*) FROM dim_assets").fetchone()[0]
+        if dim_count == 0:
+            raise RuntimeError("step4_dimensions failed: dim_assets has 0 rows")
+    finally:
+        conn.close()
+
+
+def _validate_facts():
+    conn = _get_db_con()
+    try:
+        fact_count = conn.execute("SELECT COUNT(*) FROM fact_price_history").fetchone()[0]
+        if fact_count == 0:
+            raise RuntimeError("step5_facts failed: fact_price_history has 0 rows")
+    finally:
+        conn.close()
+
 @task(name="extract-yahoo", retries=2, retry_delay_seconds=30)
 def extract_yahoo(config: dict) -> int:
     logger = get_run_logger()
