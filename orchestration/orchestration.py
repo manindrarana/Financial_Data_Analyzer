@@ -152,6 +152,31 @@ def _validate_features():
                 raise RuntimeError(f"step7_indicators failed: {table} has {null_count} nulls in close")
     finally:
         conn.close()
+        
+        
+def _validate_train():
+    models_dir = os.path.join("/app", "model_store")
+    if not os.path.exists(models_dir):
+        raise RuntimeError("step8_models failed: model_store/ directory does not exist")
+    json_files = []
+    for _root, _dirs, files in os.walk(models_dir):
+        json_files = [f for f in files if f.endswith(".json")]
+        if json_files:
+            break
+    if not json_files:
+        raise RuntimeError("step8_models failed: no model JSON files found in model_store/")
+
+
+STEP_VALIDATORS = {
+    "step1_extract": _validate_extract,
+    "step2_load": None,
+    "step3_clean": _validate_clean,
+    "step4_dimensions": _validate_dimensions,
+    "step5_facts": _validate_facts,
+    "step6_gold": _validate_gold,
+    "step7_indicators": _validate_features,
+    "step8_models": _validate_train,
+}
 
 @task(name="extract-yahoo", retries=2, retry_delay_seconds=30)
 def extract_yahoo(config: dict) -> int:
