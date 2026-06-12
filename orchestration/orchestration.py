@@ -3,6 +3,8 @@ import time
 import gc
 import json
 import sys
+import os
+import duckdb
 from pathlib import Path
 from prefect import flow, task, get_run_logger
 from src.utils import get_logger
@@ -43,7 +45,138 @@ def _mark_done(step: str):
 
 
 FORCE_FLAG = "--force" in sys.argv
+def _get_db_con():
+    with open("configs/settings.yml", "r") as f:
+        config = yaml.safe_load(f)
+    return duckdb.connect(config["paths"]["database"], read_only=True)
 
+def _validate_extract():
+    conn = _get_db_con()
+    try:
+        yahoo_count = conn.execute("SELECT COUNT(*) FROM yahoo_stocks").fetchone()[0]
+        if yahoo_count == 0:
+            raise RuntimeError("step1_extract failed: yahoo_stocks has 0 rows")
+        bybit_count = conn.execute("SELECT COUNT(*) FROM bybit_crypto").fetchone()[0]
+        if bybit_count == 0:
+            raise RuntimeError("step1_extract failed: bybit_crypto has 0 rows")
+        return yahoo_count, bybit_count
+    finally:
+        conn.close()
+
+def _validate_clean():
+    conn = _get_db_con()
+    try:
+        for table in ["clean_yahoo_stocks", "clean_bybit_crypto"]:
+            null_count = conn.execute(
+                f"SELECT COUNT(*) FROM {table} WHERE close IS NULL"
+            ).fetchone()[0]
+            if null_count > 0:
+                raise RuntimeError(f"step3_clean failed: {table} has {null_count} nulls in close")
+    finally:
+        conn.close()
+
+def _validate_dimensions():
+    conn = _get_db_con()
+    try:
+        dim_count = conn.execute("SELECT COUNT(*) FROM dim_assets").fetchone()[0]
+        if dim_count == 0:
+            raise RuntimeError("step4_dimensions failed: dim_assets has 0 rows")
+    finally:
+        conn.close()
+
+
+def _validate_facts():
+    conn = _get_db_con()
+    try:
+        fact_count = conn.execute("SELECT COUNT(*) FROM fact_price_history").fetchone()[0]
+        if fact_count == 0:
+            raise RuntimeError("step5_facts failed: fact_price_history has 0 rows")
+    finally:
+        conn.close()
+        
+
+_GOLD_ANALYTICS_COLS = [
+    "asset_symbol", "asset_class", "exchange", "interval", "date",
+    "open", "high", "low", "close", "volume",
+    "daily_volatility", "sma_7", "sma_30",
+]
+
+_FEATURE_INDICATOR_COLS = [
+    "close", "rsi_14", "macd", "macd_signal", "macd_histogram",
+    "roc_10", "roc_20", "stoch_k", "stoch_d",
+    "ema_12", "ema_26", "ema_50", "ema_200",
+    "sma_50", "sma_100", "sma_200",
+    "bb_upper", "bb_middle", "bb_lower", "bb_width", "bb_percentage",
+    "atr_14", "obv", "vwap", "volume_sma_20", "volume_ratio",
+    "returns_1p", "returns_5p", "returns_10p", "returns_20p",
+    "log_returns", "hl_ratio", "close_position",
+]
+
+
+def _validate_gold():
+    conn = _get_db_con()
+    try:
+        for table in ["gold_crypto_analytics", "gold_stock_analytics"]:
+            try:
+                existing = [
+                    r[0] for r in conn.execute(
+                        f"SELECT column_name FROM information_schema.columns WHERE table_name = '{table}'"
+                    ).fetchall()
+                ]
+            except Exception:
+                raise RuntimeError(f"step6_gold failed: {table} does not exist")
+            missing = [c for c in _GOLD_ANALYTICS_COLS if c not in existing]
+            if missing:
+                raise RuntimeError(f"step6_gold failed: {table} missing columns: {missing}")
+    finally:
+        conn.close()
+
+
+def _validate_features():
+    conn = _get_db_con()
+    try:
+        for table in ["gold_crypto_features", "gold_stock_features"]:
+            try:
+                existing = [
+                    r[0] for r in conn.execute(
+                        f"SELECT column_name FROM information_schema.columns WHERE table_name = '{table}'"
+                    ).fetchall()
+                ]
+            except Exception:
+                raise RuntimeError(f"step7_indicators failed: {table} does not exist")
+            missing = [c for c in _FEATURE_INDICATOR_COLS if c not in existing]
+            if missing:
+                raise RuntimeError(f"step7_indicators failed: {table} missing columns: {missing}")
+            null_count = conn.execute(f"SELECT COUNT(*) FROM {table} WHERE close IS NULL").fetchone()[0]
+            if null_count > 0:
+                raise RuntimeError(f"step7_indicators failed: {table} has {null_count} nulls in close")
+    finally:
+        conn.close()
+        
+        
+def _validate_train():
+    models_dir = os.path.join("/app", "model_store")
+    if not os.path.exists(models_dir):
+        raise RuntimeError("step8_models failed: model_store/ directory does not exist")
+    json_files = []
+    for _root, _dirs, files in os.walk(models_dir):
+        json_files = [f for f in files if f.endswith(".json")]
+        if json_files:
+            break
+    if not json_files:
+        raise RuntimeError("step8_models failed: no model JSON files found in model_store/")
+
+
+STEP_VALIDATORS = {
+    "step1_extract": _validate_extract,
+    "step2_load": None,
+    "step3_clean": _validate_clean,
+    "step4_dimensions": _validate_dimensions,
+    "step5_facts": _validate_facts,
+    "step6_gold": _validate_gold,
+    "step7_indicators": _validate_features,
+    "step8_models": _validate_train,
+}
 
 @task(name="extract-yahoo", retries=2, retry_delay_seconds=30)
 def extract_yahoo(config: dict) -> int:
@@ -198,6 +331,10 @@ def run_pipeline():
         if _should_run(step_id, FORCE_FLAG):
             logger.info(f"[CHECKPOINT] Running {step_id}...")
             step_fn()
+            validator = STEP_VALIDATORS.get(step_id)
+            if validator:
+                validator()
+                logger.info(f"[VALIDATE] {step_id} validation passed")
             _mark_done(step_id)
             logger.info(f"[CHECKPOINT] {step_id} complete — saved")
         else:
