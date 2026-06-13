@@ -72,7 +72,8 @@ class DatabaseLoader:
                     """)
                     self.logger.info(f"Loaded {ticker} [{interval}] from S3")
                 except Exception as e:
-                    self.logger.warning(f"Skipped {file_path}: {e}")
+                    self.logger.error(f"FATAL: failed to load {file_path}: {e}")
+                    raise
 
     def load_bybit_data(self):
         """Load configured Bybit parquet files from S3 into bybit_crypto table"""
@@ -117,7 +118,8 @@ class DatabaseLoader:
                     """)
                     self.logger.info(f"Loaded {symbol} [{interval}] from S3")
                 except Exception as e:
-                    self.logger.error(f"Failed to load {file_path}: {e}")
+                    self.logger.error(f"FATAL: failed to load {file_path}: {e}")
+                    raise
 
     def load_all(self):
         self.load_yahoo_data()
