@@ -139,8 +139,9 @@ class PipelineModelTrainer:
         try:
             with open(meta_path, "r") as f:
                 return json.load(f)
-        except Exception:
-            return None
+        except json.JSONDecodeError as e:
+            self.logger.error(f"FATAL: corrupt metadata JSON at {meta_path}: {e}")
+            raise
 
     def _get_gold_max_date(self, asset, interval, table_name):
         try:

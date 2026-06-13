@@ -42,8 +42,11 @@ class YahooFinanceClient:
             query = f"SELECT MAX(date) FROM clean_yahoo_stocks WHERE ticker='{ticker}' AND interval='{interval}'"
             res = conn.execute(query).fetchone()
             return res[0] if res and res[0] else None
-        except Exception:
-            return None
+        except Exception as e:
+            if "does not exist" in str(e).lower() or "not found" in str(e).lower():
+                return None
+            self.logger.error(f"FATAL: DB error querying last fetched date for {ticker}/{interval}: {e}")
+            raise
         finally:
             if conn:
                 conn.close()

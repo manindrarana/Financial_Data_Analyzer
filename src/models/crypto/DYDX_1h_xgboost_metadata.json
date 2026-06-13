@@ -2,10 +2,10 @@
   "asset": "DYDX",
   "interval": "1h",
   "asset_class": "crypto",
-  "train_end_date": "2025-07-08T03:00:00",
-  "train_rows": 32583,
-  "test_rows": 8146,
-  "test_accuracy": 0.5263933218757673,
+  "train_end_date": "2025-07-08T20:00:00",
+  "train_rows": 32600,
+  "test_rows": 8150,
+  "test_accuracy": 0.5240490797546012,
   "features": [
     "rsi_14",
     "roc_10",
@@ -45,7 +45,7 @@
     "eval_metric": "logloss",
     "random_state": 42
   },
-  "best_cv_score": 0.5298315072276953,
-  "trained_at": "2026-06-12T13:22:57.254148",
+  "best_cv_score": 0.5291735689306092,
+  "trained_at": "2026-06-13T10:37:49.154438",
   "mlflow_run_id": null
 }
