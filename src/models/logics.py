@@ -59,8 +59,12 @@ class GoldLayerProcessor:
         for col in ('turnover', 'open_interest', 'funding_rate'):
             try:
                 self.conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {col} DOUBLE")
-            except Exception:
-                pass
+            except Exception as e:
+                if "already exists" in str(e).lower():
+                    self.logger.debug(f"Column {col} already exists in {table_name}, skipping")
+                else:
+                    self.logger.error(f"FATAL: ALTER TABLE {table_name} ADD COLUMN {col} failed: {e}")
+                    raise
 
         if asset_class == 'Crypto':
             insert_sql = f"""
