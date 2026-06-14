@@ -46,6 +46,6 @@
     "random_state": 42
   },
   "best_cv_score": 0.5339366515837104,
-  "trained_at": "2026-06-14T11:59:36.851296",
+  "trained_at": "2026-06-14T12:46:10.847417",
   "mlflow_run_id": null
 }
