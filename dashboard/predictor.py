@@ -172,7 +172,7 @@ def run_prediction(asset="BTC", interval="1h", asset_class="crypto"):
 
     df["date"] = pd.to_datetime(df["date"])
 
-    df = _make_stationary(df)
+    df = make_stationary(df)
 
     available_features = [f for f in MODEL_FEATURES if f in df.columns]
     if len(available_features) < len(MODEL_FEATURES):

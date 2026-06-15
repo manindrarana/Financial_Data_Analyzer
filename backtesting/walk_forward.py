@@ -5,18 +5,10 @@ import pandas as pd
 import duckdb
 import xgboost as xgb
 from sklearn.metrics import accuracy_score
+from src.models.feature_engineering import MODEL_FEATURES, NEEDED_COLS, make_stationary
 
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "database", "financial_data.duckdb")
 OUTPUT_DIR = os.path.join("backtesting", "results")
-
-MODEL_FEATURES = [
-    "rsi_14", "roc_10", "roc_20", "stoch_k", "stoch_d", "bb_percentage",
-    "volume_ratio", "returns_1p", "returns_5p", "returns_10p", "returns_20p",
-    "log_returns", "hl_ratio", "close_position",
-    "sma_7_dist", "sma_30_dist", "sma_50_dist", "sma_100_dist", "sma_200_dist",
-    "ema_12_dist", "ema_26_dist", "ema_50_dist", "ema_200_dist", "vwap_dist",
-    "macd_pct", "macd_sig_pct", "macd_hist_pct", "atr_pct", "volatility_pct",
-]
 
 XGB_PARAMS = {
     "n_estimators": 100,
