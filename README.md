@@ -64,9 +64,10 @@ The project uses a **Medallion Data Lake Architecture** with three layers stored
   Contains the main Prefect flow and checkpoint/resume logic that runs the whole pipeline automatically.
 
 - **`scripts/`**
-  Contains Python scripts for data analysis and model training:
-  - `train_btc_model.py`: Trains XGBoost model for BTC.
-  - `train_aapl_model.py`: Trains XGBoost model for AAPL.
+  Legacy/manual training scripts (not used by the pipeline — pipeline uses `PipelineModelTrainer`):
+  - `train_all_models.py`: Trains one XGBoost per asset×interval combo.
+  - `train_btc_model.py`: Trains XGBoost model for BTC 1h.
+  - `train_aapl_model.py`: Trains XGBoost model for AAPL 1h.
   - `eda_ml.py`: Checks data volume and readiness for ML.
   - `top15_feat.py`: Finds top 15 important features.
   - `target_analysis.py`: Analyzes the target variable (returns_1d).
@@ -76,7 +77,7 @@ The project uses a **Medallion Data Lake Architecture** with three layers stored
   - `ingestion/`: API clients for Yahoo Finance (`yahoo_finance.py`) and Bybit (`bybit_client.py`).
   - `database/`: DuckDB loading (`loader.py`), dimensional modeling (`dimensions.py`), and fact tables (`facts.py`).
   - `processing/`: Data scaling, cleaning, and chronological transformation (`transformation.py`).
-  - `models/`: Gold layer processor, technical indicators processor, and feature analyzer.
+  - `models/`: Gold layer processor, technical indicators processor, feature analyzer, and shared feature engineering (`feature_engineering.py`).
   - `utils/`: Helper scripts (like custom console logging).
 
 - **`tests/`**  
@@ -102,7 +103,8 @@ The project uses a **Medallion Data Lake Architecture** with three layers stored
 4. **Run the pipeline:**
     ```bash
     python -m orchestration.orchestration             # Normal run (resumes from checkpoint)
-    python -m orchestration.orchestration --force     # Force full re-run (clears checkpoint)
+    python -m orchestration.orchestration --once       # Single run (no hourly schedule)
+    python -m orchestration.orchestration --force      # Force full re-run (clears checkpoint)
     ```
 
 ### Running with Docker
