@@ -48,7 +48,7 @@ def main():
     print(f"   Date range: {df['date'].min()} --> {df['date'].max()}")
 
     print("\n[2/5] Applying stationarity transformations...")
-    df = _make_stationary(df)
+    df = make_stationary(df)
 
     print("[3/5] Creating target (next-bar direction)...")
     df["target_direction"] = (df["close"].shift(-1) > df["close"]).astype(int)
