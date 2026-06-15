@@ -26,7 +26,6 @@ PARAM_GRID = {
 CRYPTO_INTERVAL_MAP = {"60": "1h", "240": "4h", "D": "1d", "W": "1w"}
 STOCK_INTERVAL_MAP = {"1h": "1h", "1d": "1d", "1wk": "1w"}
 
-
 class PipelineModelTrainer:
 
     def __init__(self):
@@ -49,38 +48,6 @@ class PipelineModelTrainer:
 
         mlflow_uri = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
         mlflow.set_tracking_uri(mlflow_uri)
-
-    def _make_stationary(self, df):
-        df = df.copy()
-        c = df["close"].replace(0, np.nan)
-
-        for window in [7, 30, 50, 100, 200]:
-            col = f"sma_{window}"
-            if col in df.columns:
-                df[f"sma_{window}_dist"] = (df["close"] / df[col]) - 1
-
-        for window in [12, 26, 50, 200]:
-            col = f"ema_{window}"
-            if col in df.columns:
-                df[f"ema_{window}_dist"] = (df["close"] / df[col]) - 1
-
-        if "vwap" in df.columns:
-            df["vwap_dist"] = (df["close"] / df["vwap"]) - 1
-
-        if "macd" in df.columns:
-            df["macd_pct"] = df["macd"] / c
-        if "macd_signal" in df.columns:
-            df["macd_sig_pct"] = df["macd_signal"] / c
-        if "macd_histogram" in df.columns:
-            df["macd_hist_pct"] = df["macd_histogram"] / c
-
-        if "atr_14" in df.columns:
-            df["atr_pct"] = df["atr_14"] / c
-
-        if "daily_volatility" in df.columns:
-            df["volatility_pct"] = df["daily_volatility"] / c
-
-        return df
 
     def _build_combos(self):
         combos = []
@@ -172,7 +139,7 @@ class PipelineModelTrainer:
             return None
 
         df["date"] = pd.to_datetime(df["date"])
-        df = self._make_stationary(df)
+        df = make_stationary(df)
         df["target_direction"] = (df["close"].shift(-1) > df["close"]).astype(int)
         df = df.dropna(subset=["target_direction"])
         df["target_direction"] = df["target_direction"].astype(int)
