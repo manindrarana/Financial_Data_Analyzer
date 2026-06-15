@@ -20,53 +20,9 @@ XGB_PARAMS = {
 }
 
 
-def _make_stationary(df):
-    df = df.copy()
-    c = df["close"].replace(0, np.nan)
-
-    for window in [7, 30, 50, 100, 200]:
-        col = f"sma_{window}"
-        if col in df.columns:
-            df[f"sma_{window}_dist"] = (df["close"] / df[col]) - 1
-
-    for window in [12, 26, 50, 200]:
-        col = f"ema_{window}"
-        if col in df.columns:
-            df[f"ema_{window}_dist"] = (df["close"] / df[col]) - 1
-
-    if "vwap" in df.columns:
-        df["vwap_dist"] = (df["close"] / df["vwap"]) - 1
-
-    if "macd" in df.columns:
-        df["macd_pct"] = df["macd"] / c
-    if "macd_signal" in df.columns:
-        df["macd_sig_pct"] = df["macd_signal"] / c
-    if "macd_histogram" in df.columns:
-        df["macd_hist_pct"] = df["macd_histogram"] / c
-
-    if "atr_14" in df.columns:
-        df["atr_pct"] = df["atr_14"] / c
-
-    if "daily_volatility" in df.columns:
-        df["volatility_pct"] = df["daily_volatility"] / c
-
-    return df
-
-
 def _load_data(asset="BTC", interval="1h", date_start=None, date_end=None, asset_class="crypto"):
     conn = duckdb.connect(DB_PATH, read_only=True)
-    needed_cols = [
-        "date", "close",
-        "sma_7", "sma_30", "sma_50", "sma_100", "sma_200",
-        "ema_12", "ema_26", "ema_50", "ema_200",
-        "vwap", "macd", "macd_signal", "macd_histogram",
-        "atr_14", "daily_volatility",
-        "rsi_14", "roc_10", "roc_20", "stoch_k", "stoch_d",
-        "bb_percentage", "volume_ratio",
-        "returns_1p", "returns_5p", "returns_10p", "returns_20p",
-        "log_returns", "hl_ratio", "close_position",
-    ]
-    col_list = ", ".join(needed_cols)
+    col_list = ", ".join(NEEDED_COLS)
 
     table = "gold_crypto_features" if asset_class.lower() == "crypto" else "gold_stock_features"
 
@@ -134,8 +90,8 @@ def _generate_folds(df, train_months=6, test_months=1, step_months=1):
 
 
 def _prepare_fold_data(train_df, test_df):
-    train_df = _make_stationary(train_df)
-    test_df = _make_stationary(test_df)
+    train_df = make_stationary(train_df)
+    test_df = make_stationary(test_df)
 
     train_df["target_direction"] = (train_df["close"].shift(-1) > train_df["close"]).astype(int)
     test_df["target_direction"] = (test_df["close"].shift(-1) > test_df["close"]).astype(int)
@@ -331,7 +287,7 @@ def run_walk_forward_pretrained(
         fid = fold["fold_id"]
         test_df = fold["test_df"]
 
-        test_df = _make_stationary(test_df)
+        test_df = make_stationary(test_df)
         test_df["target_direction"] = (test_df["close"].shift(-1) > test_df["close"]).astype(int)
         test_df = test_df.dropna(subset=["target_direction"])
 
