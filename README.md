@@ -40,6 +40,12 @@ The project uses a **Medallion Data Lake Architecture** with three layers stored
 - **MLflow**: ML experiment tracking (Port: 5000)
 - **DuckDB**: In-process analytical database for SQL transformations
 
+### Model Training
+
+- **Per-asset, per-interval models**: Separate XGBoost models for each combination (e.g., BTC 1h, BTC 4h, AAPL 1h, AAPL 1d). `PipelineModelTrainer` reads `settings.yml` and auto-discovers all combos.
+- **Stationarity transforms**: Raw indicators (SMA, EMA, MACD) are non-stationary. `make_stationary()` in `src/models/feature_engineering.py` converts them to distance-from-close ratios, making features comparable across price levels.
+- **Walk-forward backtesting**: `backtesting/walk_forward.py` validates models by walking a 6-month training window forward month-by-month, retraining on each fold to mirror real-world periodic retraining.
+
 ## Project Structure
 
 - **`backtesting/`**  
