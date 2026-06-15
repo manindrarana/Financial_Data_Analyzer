@@ -2,12 +2,18 @@
 
 Project involves both  **Data Engineering** and **Data Science** to analyze financial markets. The goal is to build a system that downloads stock/crypto data, cleans it, saves it securely, and then uses Machine Learning to predict future prices.
 
-## How it Works (ELT pipeline)
+## How it Works (8-step ELT pipeline)
 
-1. **Extract (Ingestion)**: Scripts download historical data from Yahoo Finance and Bybit APIs, standardizing timezones and saving the raw data locally as `.parquet` files.
-2. **Load (Storage)**: Raw Parquet files are loaded into a local **DuckDB** analytical database.
-3. **Transform (Processing)**: In-database SQL transformations clean the data (removing duplicates and filtering 0/negative prices), cast all dates to a unified timezone-naive `TIMESTAMP` format, and enforce strict chronological ordering for time-series modeling.
-4. **Analyze (Modeling)**: ML models (XGBoost) use this clean data to predict market direction.
+1. **Extract**: Yahoo Finance and Bybit APIs run concurrently, fetching historical OHLCV data and saving to MinIO (S3) as Parquet files.
+2. **Load**: DuckDB reads raw Parquet files from MinIO into staging tables (`yahoo_stocks`, `bybit_crypto`).
+3. **Clean**: Removes duplicates, filters invalid prices, normalizes timestamps, enforces chronological ordering → `clean_*` tables.
+4. **Dimensions**: Builds a star schema (`dim_assets`, `dim_dates`) for analytical querying.
+5. **Facts**: Loads cleaned data into `fact_price_history` from the silver layer.
+6. **Gold Analytics**: Aggregates analytics (daily volatility, moving averages) → `gold_crypto_analytics`, `gold_stock_analytics`.
+7. **Technical Indicators**: Computes 30+ indicators (RSI, MACD, ATR, Bollinger Bands, VWAP, OBV, etc.) → `gold_crypto_features`, `gold_stock_features`.
+8. **Model Training**: `PipelineModelTrainer` auto-discovers all asset×interval combos from `settings.yml`, applies stationarity transformations (SMA/EMA distances, MACD/ATR as % of close) via `src/models/feature_engineering.py`, and trains one XGBoost model per combo. Saves to `model_store/`.
+
+The pipeline uses **checkpoint/resume** — if it crashes mid-run, restarting skips completed steps. Use `--force` to clear checkpoints and run all steps fresh. Use `--once` for a single run (vs. the default hourly schedule).
 
 ## Architecture
 
@@ -34,6 +40,12 @@ The project uses a **Medallion Data Lake Architecture** with three layers stored
 - **MLflow**: ML experiment tracking (Port: 5000)
 - **DuckDB**: In-process analytical database for SQL transformations
 
+### Model Training
+
+- **Per-asset, per-interval models**: Separate XGBoost models for each combination (e.g., BTC 1h, BTC 4h, AAPL 1h, AAPL 1d). `PipelineModelTrainer` reads `settings.yml` and auto-discovers all combos.
+- **Stationarity transforms**: Raw indicators (SMA, EMA, MACD) are non-stationary. `make_stationary()` in `src/models/feature_engineering.py` converts them to distance-from-close ratios, making features comparable across price levels.
+- **Walk-forward backtesting**: `backtesting/walk_forward.py` validates models by walking a 6-month training window forward month-by-month, retraining on each fold to mirror real-world periodic retraining.
+
 ## Project Structure
 
 - **`backtesting/`**  
@@ -52,9 +64,10 @@ The project uses a **Medallion Data Lake Architecture** with three layers stored
   Contains the main Prefect flow and checkpoint/resume logic that runs the whole pipeline automatically.
 
 - **`scripts/`**
-  Contains Python scripts for data analysis and model training:
-  - `train_btc_model.py`: Trains XGBoost model for BTC.
-  - `train_aapl_model.py`: Trains XGBoost model for AAPL.
+  Legacy/manual training scripts (not used by the pipeline — pipeline uses `PipelineModelTrainer`):
+  - `train_all_models.py`: Trains one XGBoost per asset×interval combo.
+  - `train_btc_model.py`: Trains XGBoost model for BTC 1h.
+  - `train_aapl_model.py`: Trains XGBoost model for AAPL 1h.
   - `eda_ml.py`: Checks data volume and readiness for ML.
   - `top15_feat.py`: Finds top 15 important features.
   - `target_analysis.py`: Analyzes the target variable (returns_1d).
@@ -64,7 +77,7 @@ The project uses a **Medallion Data Lake Architecture** with three layers stored
   - `ingestion/`: API clients for Yahoo Finance (`yahoo_finance.py`) and Bybit (`bybit_client.py`).
   - `database/`: DuckDB loading (`loader.py`), dimensional modeling (`dimensions.py`), and fact tables (`facts.py`).
   - `processing/`: Data scaling, cleaning, and chronological transformation (`transformation.py`).
-  - `models/`: Gold layer processor, technical indicators processor, and feature analyzer.
+  - `models/`: Gold layer processor, technical indicators processor, feature analyzer, and shared feature engineering (`feature_engineering.py`).
   - `utils/`: Helper scripts (like custom console logging).
 
 - **`tests/`**  
@@ -90,7 +103,8 @@ The project uses a **Medallion Data Lake Architecture** with three layers stored
 4. **Run the pipeline:**
     ```bash
     python -m orchestration.orchestration             # Normal run (resumes from checkpoint)
-    python -m orchestration.orchestration --force     # Force full re-run (clears checkpoint)
+    python -m orchestration.orchestration --once       # Single run (no hourly schedule)
+    python -m orchestration.orchestration --force      # Force full re-run (clears checkpoint)
     ```
 
 ### Running with Docker

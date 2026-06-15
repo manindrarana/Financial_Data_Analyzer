@@ -68,7 +68,7 @@ services:
     volumes:
       - prefect_data:/root/.prefect
     command: >
-      bash -c "pip install prefect &&
+      bash -c "pip install 'fastapi<0.137.0' prefect &&
                prefect server start --host 0.0.0.0"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4200/api/health')"]
