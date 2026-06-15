@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
 from src.utils import get_logger
+from src.models.feature_engineering import MODEL_FEATURES, NEEDED_COLS, make_stationary
 
 MIN_ROWS = 200
 PARAM_GRID = {
@@ -24,27 +25,6 @@ PARAM_GRID = {
 
 CRYPTO_INTERVAL_MAP = {"60": "1h", "240": "4h", "D": "1d", "W": "1w"}
 STOCK_INTERVAL_MAP = {"1h": "1h", "1d": "1d", "1wk": "1w"}
-
-MODEL_FEATURES = [
-    "rsi_14", "roc_10", "roc_20", "stoch_k", "stoch_d", "bb_percentage",
-    "volume_ratio", "returns_1p", "returns_5p", "returns_10p", "returns_20p",
-    "log_returns", "hl_ratio", "close_position",
-    "sma_7_dist", "sma_30_dist", "sma_50_dist", "sma_100_dist", "sma_200_dist",
-    "ema_12_dist", "ema_26_dist", "ema_50_dist", "ema_200_dist", "vwap_dist",
-    "macd_pct", "macd_sig_pct", "macd_hist_pct", "atr_pct", "volatility_pct",
-]
-
-NEEDED_COLS = [
-    "date", "close",
-    "sma_7", "sma_30", "sma_50", "sma_100", "sma_200",
-    "ema_12", "ema_26", "ema_50", "ema_200",
-    "vwap", "macd", "macd_signal", "macd_histogram",
-    "atr_14", "daily_volatility",
-    "rsi_14", "roc_10", "roc_20", "stoch_k", "stoch_d",
-    "bb_percentage", "volume_ratio",
-    "returns_1p", "returns_5p", "returns_10p", "returns_20p",
-    "log_returns", "hl_ratio", "close_position",
-]
 
 
 class PipelineModelTrainer:
