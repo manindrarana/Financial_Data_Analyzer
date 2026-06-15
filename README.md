@@ -2,12 +2,18 @@
 
 Project involves both  **Data Engineering** and **Data Science** to analyze financial markets. The goal is to build a system that downloads stock/crypto data, cleans it, saves it securely, and then uses Machine Learning to predict future prices.
 
-## How it Works (ELT pipeline)
+## How it Works (8-step ELT pipeline)
 
-1. **Extract (Ingestion)**: Scripts download historical data from Yahoo Finance and Bybit APIs, standardizing timezones and saving the raw data locally as `.parquet` files.
-2. **Load (Storage)**: Raw Parquet files are loaded into a local **DuckDB** analytical database.
-3. **Transform (Processing)**: In-database SQL transformations clean the data (removing duplicates and filtering 0/negative prices), cast all dates to a unified timezone-naive `TIMESTAMP` format, and enforce strict chronological ordering for time-series modeling.
-4. **Analyze (Modeling)**: ML models (XGBoost) use this clean data to predict market direction.
+1. **Extract**: Yahoo Finance and Bybit APIs run concurrently, fetching historical OHLCV data and saving to MinIO (S3) as Parquet files.
+2. **Load**: DuckDB reads raw Parquet files from MinIO into staging tables (`yahoo_stocks`, `bybit_crypto`).
+3. **Clean**: Removes duplicates, filters invalid prices, normalizes timestamps, enforces chronological ordering → `clean_*` tables.
+4. **Dimensions**: Builds a star schema (`dim_assets`, `dim_dates`) for analytical querying.
+5. **Facts**: Loads cleaned data into `fact_price_history` from the silver layer.
+6. **Gold Analytics**: Aggregates analytics (daily volatility, moving averages) → `gold_crypto_analytics`, `gold_stock_analytics`.
+7. **Technical Indicators**: Computes 30+ indicators (RSI, MACD, ATR, Bollinger Bands, VWAP, OBV, etc.) → `gold_crypto_features`, `gold_stock_features`.
+8. **Model Training**: `PipelineModelTrainer` auto-discovers all asset×interval combos from `settings.yml`, applies stationarity transformations (SMA/EMA distances, MACD/ATR as % of close) via `src/models/feature_engineering.py`, and trains one XGBoost model per combo. Saves to `model_store/`.
+
+The pipeline uses **checkpoint/resume** — if it crashes mid-run, restarting skips completed steps. Use `--force` to clear checkpoints and run all steps fresh. Use `--once` for a single run (vs. the default hourly schedule).
 
 ## Architecture
 
