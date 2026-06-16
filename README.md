@@ -109,5 +109,7 @@ The project uses a **Medallion Data Lake Architecture** with three layers stored
 
 ### Running with Docker
 ```bash
-docker-compose up --build -d
+docker-compose up --build -d                           # Start all services (pipeline runs hourly)
+docker exec financial_data_pipeline python -m orchestration.orchestration --once   # Single manual run
+docker exec financial_data_pipeline python -m orchestration.orchestration --force  # Force full re-run
 ```
