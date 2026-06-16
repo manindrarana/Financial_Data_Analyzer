@@ -38,7 +38,7 @@ class PipelineModelTrainer:
         self.db_path = os.getenv("DB_PATH", self.config["paths"]["database"])
         if not os.path.exists(self.db_path):
             self.db_path = os.path.join("database", "financial_data.duckdb")
-        self.conn = duckdb.connect(self.db_path)
+        self.conn = duckdb.connect(self.db_path, read_only=True)
 
         self.models_dir = os.path.join("/app", "model_store")
         self.crypto_dir = os.path.join(self.models_dir, "crypto")
