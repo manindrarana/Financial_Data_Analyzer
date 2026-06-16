@@ -23,3 +23,6 @@ obsidian_notes/
 
 #graphify
 graphify-out
+
+# lockfile 
+data/.pipeline_running.lock
