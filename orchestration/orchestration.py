@@ -14,6 +14,7 @@ from src.processing import DataCleaner
 from src.models import GoldLayerProcessor, TechnicalIndicatorProcessor, PipelineModelTrainer
 
 CHECKPOINT_FILE = Path("data/.pipeline_checkpoint.json")
+LOCK_FILE = Path("data/.pipeline_running.lock")
 
 
 def _load_checkpoint() -> set:
@@ -306,6 +307,27 @@ def _run_concurrent_extract(config: dict) -> dict:
 @flow(name="financial-data-pipeline", log_prints=True)
 def run_pipeline():
     logger = get_run_logger()
+
+    if LOCK_FILE.exists():
+        try:
+            existing_pid = int(LOCK_FILE.read_text().strip())
+            os.kill(existing_pid, 0)
+            logger.warning(f"Another pipeline run is active (PID {existing_pid}). Exiting.")
+            return
+        except (ValueError, ProcessLookupError, OSError):
+            logger.info("Stale lock file found — removing and acquiring lock")
+
+    LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+    LOCK_FILE.write_text(str(os.getpid()))
+
+    try:
+        _run_pipeline_impl(logger)
+    finally:
+        if LOCK_FILE.exists():
+            LOCK_FILE.unlink()
+
+
+def _run_pipeline_impl(logger):
     logger.info("=== Financial Data Pipeline (ELT) Starting ===")
     pipeline_start = time.time()
 
