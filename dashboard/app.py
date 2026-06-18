@@ -1564,6 +1564,8 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
             color="warning",
         )
 
+    latest_prediction = results.iloc[-1]
+
     if range_value and range_value != "all":
         days = PRICE_RANGE_MAP.get(range_value, 90)
         cutoff = results["date"].max() - pd.Timedelta(days=days)
@@ -1603,6 +1605,25 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
         marker_data = results.iloc[-MAX_MARKERS:]
     else:
         marker_data = results
+
+    interval_label = INTERVAL_LABELS.get(interval, interval)
+    prediction_direction = "UP" if latest_prediction["prediction"] == 1 else "DOWN"
+    prediction_color = "#26a69a" if prediction_direction == "UP" else "#ef5350"
+    prediction_confidence = latest_prediction["confidence"] * 100
+    next_prediction_card = dbc.Card(
+        dbc.CardBody([
+            html.P("Next Prediction", className="text-muted small mb-1"),
+            html.H4(f"{asset_symbol} {interval_label}", className="text-light mb-2"),
+            html.H2(prediction_direction, style={"color": prediction_color}, className="mb-2"),
+            html.P(
+                f"Confidence: {prediction_confidence:.1f}%",
+                className="text-muted mb-0",
+            ),
+        ]),
+        color="dark",
+        outline=True,
+        className="mb-3",
+    )
 
     correct_pct = accuracy * 100
     wrong_pct = (1 - accuracy) * 100
@@ -1757,12 +1778,12 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
         margin=dict(l=10, r=10, t=40, b=10),
     )
 
-    interval_label = INTERVAL_LABELS.get(interval, interval)
     range_label = f" ({range_value})" if range_value and range_value != "all" else " (all time)"
     title = f"{asset_symbol}/USDT {interval_label}{range_label} -- XGBoost Direction Predictions"
 
     return html.Div([
         html.H3(title, className="text-light mb-3"),
+        next_prediction_card,
         summary_cards,
         dbc.Row(
             [
