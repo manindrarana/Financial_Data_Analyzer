@@ -1778,12 +1778,12 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
         margin=dict(l=10, r=10, t=40, b=10),
     )
 
-    interval_label = INTERVAL_LABELS.get(interval, interval)
     range_label = f" ({range_value})" if range_value and range_value != "all" else " (all time)"
     title = f"{asset_symbol}/USDT {interval_label}{range_label} -- XGBoost Direction Predictions"
 
     return html.Div([
         html.H3(title, className="text-light mb-3"),
+        next_prediction_card,
         summary_cards,
         dbc.Row(
             [
