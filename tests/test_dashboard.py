@@ -5,8 +5,23 @@ sys.modules["dotenv"] = MagicMock()
 
 import pytest
 import os
+import pandas as pd
 from unittest.mock import patch, MagicMock
 from dashboard.predictor import _discover_model, _INTERVAL_MINUTES, FEATURE_TABLES
+
+
+def _collect_text(component):
+    if isinstance(component, str):
+        return [component]
+    children = getattr(component, "children", None)
+    if children is None:
+        return []
+    if isinstance(children, list):
+        values = []
+        for child in children:
+            values.extend(_collect_text(child))
+        return values
+    return _collect_text(children)
 
 
 class TestIntervalMinutes:
@@ -53,3 +68,26 @@ class TestFeatureTables:
 
     def test_stocks_table(self):
         assert FEATURE_TABLES["stocks"] == "gold_stock_features"
+
+
+class TestPredictionCards:
+    def test_next_prediction_card_uses_latest_prediction(self):
+        from dashboard import app as dashboard_app
+
+        prediction_rows = pd.DataFrame({
+            "date": pd.to_datetime(["2026-06-18 10:00", "2026-06-18 11:00"]),
+            "close": [100.0, 101.0],
+            "prediction": [0, 1],
+            "confidence": [0.62, 0.873],
+            "actual_direction": [0, 1],
+            "is_oos": [True, True],
+        })
+
+        with patch.object(dashboard_app, "run_prediction", return_value=prediction_rows):
+            content = dashboard_app.build_prediction_charts("crypto", "BTC", "1h", "all")
+
+        text = _collect_text(content)
+        assert "Next Prediction" in text
+        assert "BTC 1 Hour" in text
+        assert "UP" in text
+        assert "Confidence: 87.3%" in text
