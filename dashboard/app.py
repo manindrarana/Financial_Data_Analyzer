@@ -19,6 +19,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from dotenv import load_dotenv
 from dashboard.predictor import run_prediction
+from dashboard.model_health import get_model_health, get_summary_counts, STATUS_LABELS, STATUS_COLORS
 import diskcache
 
 load_dotenv()
@@ -154,6 +155,7 @@ app.layout = dbc.Container(
                 dbc.Tab(label=" Backtest", tab_id="tab-backtest"),
                 dbc.Tab(label=" Technical Indicators", tab_id="tab-indicators"),
                 dbc.Tab(label=" Data Explorer", tab_id="tab-explorer"),
+                dbc.Tab(label=" Model Health", tab_id="tab-model-health"),
             ],
         ),
         html.Hr(),
@@ -283,6 +285,8 @@ def render_tab(active_tab: str):
         return render_indicators()
     elif active_tab == "tab-explorer":
         return render_explorer()
+    elif active_tab == "tab-model-health":
+        return render_model_health()
     return html.P("Select a tab.", className="text-muted")
 
 
@@ -961,7 +965,145 @@ def update_explorer_table(table_name):
         return table, row_text
     except Exception as e:
         return dbc.Alert(f"Error loading table '{table_name}': {e}", color="danger"), ""
-    
+
+def render_model_health():
+    models = get_model_health()
+    counts = get_summary_counts(models)
+
+    summary_cards = dbc.Row(
+        [
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(str(counts["total"]), className="card-title text-info text-center"),
+                html.P("Total Models", className="card-text text-muted small text-center"),
+            ]), color="dark", outline=True), width=2),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(str(counts["healthy"]), className="card-title text-success text-center"),
+                html.P("Healthy", className="card-text text-muted small text-center"),
+            ]), color="dark", outline=True), width=2),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(str(counts["stale"]), className="card-title text-warning text-center"),
+                html.P("Stale", className="card-text text-muted small text-center"),
+            ]), color="dark", outline=True), width=2),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(str(counts["missing_model"]), className="card-title text-danger text-center"),
+                html.P("Missing Model", className="card-text text-muted small text-center"),
+            ]), color="dark", outline=True), width=2),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(str(counts["missing_metadata"]), className="card-text text-warning-emphasis text-center"),
+                html.P("Missing Metadata", className="card-text text-muted small text-center"),
+            ]), color="dark", outline=True), width=2),
+        ],
+        className="mb-3",
+    )
+
+    if not models:
+        return html.Div([
+            html.H3("Model Health", className="text-light mb-3"),
+            summary_cards,
+            dbc.Alert("No models found. Run the training pipeline first.", color="info"),
+        ])
+
+    table_data = []
+    for m in models:
+        trained_at = m.get("trained_at")
+        if trained_at:
+            try:
+                dt = datetime.fromisoformat(str(trained_at))
+                trained_at_display = dt.strftime("%Y-%m-%d %H:%M")
+            except (ValueError, TypeError):
+                trained_at_display = str(trained_at)
+        else:
+            trained_at_display = "N/A"
+
+        train_end = m.get("train_end_date") or "N/A"
+        if train_end != "N/A":
+            try:
+                train_end = str(train_end)[:10]
+            except Exception:
+                pass
+
+        accuracy = m.get("test_accuracy")
+        accuracy_display = f"{accuracy:.1%}" if accuracy is not None else "N/A"
+
+        cv_score = m.get("best_cv_score")
+        cv_display = f"{cv_score:.1%}" if cv_score is not None else "N/A"
+
+        status = m["status"]
+        badge_color = STATUS_COLORS.get(status, "#888")
+
+        table_data.append({
+            "Asset": m["asset"],
+            "Interval": m["interval"],
+            "Class": m["asset_class"].capitalize(),
+            "Last Trained": trained_at_display,
+            "Train End": train_end,
+            "Train Rows": m.get("train_rows") or "N/A",
+            "Test Rows": m.get("test_rows") or "N/A",
+            "Accuracy": accuracy_display,
+            "CV Score": cv_display,
+            "Status": status,
+        })
+
+    columns = [
+        {"name": "Asset", "id": "Asset"},
+        {"name": "Interval", "id": "Interval"},
+        {"name": "Class", "id": "Class"},
+        {"name": "Last Trained", "id": "Last Trained"},
+        {"name": "Train End", "id": "Train End"},
+        {"name": "Train Rows", "id": "Train Rows"},
+        {"name": "Test Rows", "id": "Test Rows"},
+        {"name": "Accuracy", "id": "Accuracy"},
+        {"name": "CV Score", "id": "CV Score"},
+        {"name": "Status", "id": "Status"},
+    ]
+
+    status_style = []
+    for status_key, color in STATUS_COLORS.items():
+        status_style.append({
+            "if": {"filter_query": "{Status} = '" + status_key + "'", "column_id": "Status"},
+            "backgroundColor": color,
+            "color": "#fff",
+            "fontWeight": "bold",
+        })
+
+    table = dash_table.DataTable(
+        data=table_data,
+        columns=columns,
+        page_size=50,
+        sort_action="native",
+        filter_action="native",
+        style_table={"overflowX": "auto"},
+        style_cell={
+            "backgroundColor": "#222222",
+            "color": "#e0e0e0",
+            "borderColor": "#404040",
+            "fontSize": "12px",
+            "padding": "4px 8px",
+            "minWidth": "80px",
+        },
+        style_header={
+            "backgroundColor": "#333333",
+            "fontWeight": "bold",
+            "borderColor": "#555555",
+        },
+        style_filter={
+            "backgroundColor": "#2a2a2a",
+            "borderColor": "#555555",
+        },
+        style_data_conditional=[
+            {
+                "if": {"row_index": "odd"},
+                "backgroundColor": "#262626",
+            },
+        ] + status_style,
+    )
+
+    return html.Div([
+        html.H3("Model Health", className="text-light mb-3"),
+        summary_cards,
+        table,
+    ])
+
 PRICE_RANGE_MAP = {
     "1d": 1, "3d": 3, "7d": 7, "30d": 30,
     "90d": 90, "180d": 180, "365d": 365,
