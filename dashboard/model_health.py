@@ -2,6 +2,7 @@ import os
 import json
 import re
 from datetime import datetime, timezone, timedelta
+from typing import Optional, List
 
 MODEL_DIRS = {
     "crypto": os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src", "models", "crypto"),
@@ -43,7 +44,7 @@ def _read_metadata(path: str):
         return None
 
 
-def _classify_status(metadata: dict | None, has_model: bool, has_metadata: bool, threshold_days: int = STALE_THRESHOLD_DAYS):
+def _classify_status(metadata: Optional[dict], has_model: bool, has_metadata: bool, threshold_days: int = STALE_THRESHOLD_DAYS):
     if not has_metadata:
         return "missing_metadata"
     if not has_model:
@@ -123,7 +124,7 @@ def get_model_health(threshold_days: int = STALE_THRESHOLD_DAYS):
     return results
 
 
-def get_summary_counts(results: list[dict]):
+def get_summary_counts(results: List[dict]):
     counts = {"total": len(results), "healthy": 0, "stale": 0, "missing_model": 0, "missing_metadata": 0}
     for r in results:
         status = r.get("status", "healthy")
