@@ -11,7 +11,7 @@ Project involves both  **Data Engineering** and **Data Science** to analyze fina
 5. **Facts**: Loads cleaned data into `fact_price_history` from the silver layer.
 6. **Gold Analytics**: Aggregates analytics (daily volatility, moving averages) → `gold_crypto_analytics`, `gold_stock_analytics`.
 7. **Technical Indicators**: Computes 30+ indicators (RSI, MACD, ATR, Bollinger Bands, VWAP, OBV, etc.) → `gold_crypto_features`, `gold_stock_features`.
-8. **Model Training**: `PipelineModelTrainer` auto-discovers all asset×interval combos from `settings.yml`, applies stationarity transformations (SMA/EMA distances, MACD/ATR as % of close) via `src/models/feature_engineering.py`, and trains one XGBoost model per combo. Saves to `model_store/`.
+8. **Model Training**: `PipelineModelTrainer` auto-discovers all asset×interval combos from `settings.yml`, applies stationarity transformations (SMA/EMA distances, MACD/ATR as % of close) via `src/models/feature_engineering.py`, and trains one XGBoost model per combo. Saves to `src/models/crypto/` and `src/models/stocks/`.
 
 The pipeline uses **checkpoint/resume** — if it crashes mid-run, restarting skips completed steps. Use `--force` to clear checkpoints and run all steps fresh. Use `--once` for a single run (vs. the default hourly schedule).
 
@@ -35,7 +35,7 @@ The project uses a **Medallion Data Lake Architecture** with three layers stored
 - **MinIO**: S3-compatible object storage (Ports: 9000 for API, 9001 for web console)
 - **Prefect**: Flow orchestration with task-level retries and checkpoint/resume recovery (Port: 4200)
 - **Python Pipeline**: Automated ELT orchestration using Prefect (executes on startup + scheduled hourly)
-- **Plotly Dash**: Interactive dashboard with 5 tabs — Price, Predictions, Backtest, Indicators, Data Explorer (Port: 8050)
+- **Plotly Dash**: Interactive dashboard with 6 tabs — Price, Predictions, Backtest, Indicators, Data Explorer, Model Health (Port: 8050)
 - **Apache Superset**: Interactive BI dashboard for data visualization (Port: 8088)
 - **MLflow**: ML experiment tracking (Port: 5000)
 - **DuckDB**: In-process analytical database for SQL transformations
@@ -54,8 +54,8 @@ The project uses a **Medallion Data Lake Architecture** with three layers stored
 - **`configs/`**  
   Settings for the project, like API keys and database paths.
 
-- **`dashboard/`**  
-  Plotly Dash web application (`app.py`) with XGBoost predictor (`predictor.py`).
+- **`dashboard/`**
+  Plotly Dash web application (`app.py`) with XGBoost predictor (`predictor.py`) and model health monitoring (`model_health.py`).
 
 - **`notebooks/`**  
   Jupyter notebooks where test ideas and visualize data before writing the final code.
