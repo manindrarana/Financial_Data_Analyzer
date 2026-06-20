@@ -302,6 +302,17 @@ def toggle_price_chart_area(active_tab):
         return {"display": "block"}
     return {"display": "none"}
 
+
+@app.callback(
+    dash.Output("indicator-toggles-container", "style"),
+    dash.Input("main-tabs", "active_tab"),
+)
+def toggle_indicator_toggles(active_tab):
+    if active_tab == "tab-price":
+        return {"display": "block"}
+    return {"display": "none"}
+
+
 def render_price_dashboard():
     return None
 
