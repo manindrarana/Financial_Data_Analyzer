@@ -159,26 +159,29 @@ app.layout = dbc.Container(
             ],
         ),
         html.Hr(),
-        dbc.Checklist(
-            id="indicator-toggles",
-            options=[
-                {"label": "EMA 9", "value": "ema9"},
-                {"label": "EMA 21", "value": "ema21"},
-                {"label": "EMA 50", "value": "ema50"},
-                {"label": "SMA 50", "value": "sma50"},
-                {"label": "SMA 200", "value": "sma200"},
-                {"label": "Bollinger Bands", "value": "bb"},
-                {"label": "VWAP", "value": "vwap"},
-                {"label": "SMA Crossover", "value": "sma_crossover"},
-                {"label": "MACD", "value": "macd"},
-                {"label": "RSI", "value": "rsi"},
-                {"label": "ATR", "value": "atr"},
-                {"label": "OBV", "value": "obv"},
-                {"label": "Volume", "value": "volume"},
-            ],
-            value=[],
-            inline=True,
-            className="mb-2",
+        html.Div(
+            id="indicator-toggles-container",
+            children=dbc.Checklist(
+                id="indicator-toggles",
+                options=[
+                    {"label": "EMA 9", "value": "ema9"},
+                    {"label": "EMA 21", "value": "ema21"},
+                    {"label": "EMA 50", "value": "ema50"},
+                    {"label": "SMA 50", "value": "sma50"},
+                    {"label": "SMA 200", "value": "sma200"},
+                    {"label": "Bollinger Bands", "value": "bb"},
+                    {"label": "VWAP", "value": "vwap"},
+                    {"label": "SMA Crossover", "value": "sma_crossover"},
+                    {"label": "MACD", "value": "macd"},
+                    {"label": "RSI", "value": "rsi"},
+                    {"label": "ATR", "value": "atr"},
+                    {"label": "OBV", "value": "obv"},
+                    {"label": "Volume", "value": "volume"},
+                ],
+                value=[],
+                inline=True,
+                className="mb-2",
+            ),
         ),
         html.Div(
             id="price-chart-area",
@@ -298,6 +301,17 @@ def toggle_price_chart_area(active_tab):
     if active_tab == "tab-price":
         return {"display": "block"}
     return {"display": "none"}
+
+
+@app.callback(
+    dash.Output("indicator-toggles-container", "style"),
+    dash.Input("main-tabs", "active_tab"),
+)
+def toggle_indicator_toggles(active_tab):
+    if active_tab == "tab-price":
+        return {"display": "block"}
+    return {"display": "none"}
+
 
 def render_price_dashboard():
     return None
