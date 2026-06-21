@@ -1084,7 +1084,7 @@ def render_overview():
             html.H5(label, className="text-light mb-2"),
             dbc.Table(
                 [table_header, html.Tbody(rows)],
-                dark=True,
+                color="dark",
                 hover=True,
                 striped=True,
                 size="sm",
