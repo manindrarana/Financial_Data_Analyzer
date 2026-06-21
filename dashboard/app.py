@@ -1099,6 +1099,51 @@ def render_overview():
             d = datetime.fromisoformat(d)
         return d.strftime("%Y-%m-%d %H:%M UTC")
 
+    freshness_row = dbc.Row(
+        [
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(str(crypto_count), className="card-title text-info text-center"),
+                html.P("Crypto Assets", className="card-text text-muted small text-center"),
+                html.Small(f"Latest: {_fmt_date(crypto_latest)}", className="text-muted"),
+            ]), color="dark", outline=True), width=3),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(str(stock_count), className="card-title text-success text-center"),
+                html.P("Stock Assets", className="card-text text-muted small text-center"),
+                html.Small(f"Latest: {_fmt_date(stock_latest)}", className="text-muted"),
+            ]), color="dark", outline=True), width=3),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(str(crypto_count + stock_count), className="card-title text-warning text-center"),
+                html.P("Total Tracked", className="card-text text-muted small text-center"),
+            ]), color="dark", outline=True), width=3),
+        ],
+        className="mb-4",
+    )
+
+    top5_row = dbc.Row(
+        [
+            _build_top5_table(top5_crypto, "Top 5 Crypto", "info"),
+            _build_top5_table(top5_stocks, "Top 5 Stocks", "success"),
+        ],
+        className="mb-4",
+    )
+
+    return html.Div([
+        html.H3("Dashboard Overview", className="text-light mb-3"),
+        freshness_row,
+        html.H5("Top Assets by Latest Price", className="text-light mb-2"),
+        top5_row,
+        html.Hr(),
+        html.H5("Model Health Summary", className="text-light mb-2"),
+        model_cards,
+        dbc.Row(
+            dbc.Col(
+                html.Small(
+                    "Switch to the Model Health tab for detailed per-model status.",
+                    className="text-muted",
+                ),
+            )
+        ),
+    ])
 
 def render_model_health():
     models = get_model_health()
