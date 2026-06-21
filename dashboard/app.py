@@ -148,8 +148,9 @@ app.layout = dbc.Container(
         dcc.Interval(id="freshness-interval", interval=60_000),
         dbc.Tabs(
             id="main-tabs",
-            active_tab="tab-price",
+            active_tab="tab-overview",
             children=[
+                dbc.Tab(label=" Overview", tab_id="tab-overview"),
                 dbc.Tab(label=" Price Dashboard", tab_id="tab-price"),
                 dbc.Tab(label=" Predictions", tab_id="tab-predictions"),
                 dbc.Tab(label=" Backtest", tab_id="tab-backtest"),
@@ -278,7 +279,9 @@ app.layout = dbc.Container(
 
 def render_tab(active_tab: str):
     """Route to the correct tab layout based on the active tab ID."""
-    if active_tab == "tab-price":
+    if active_tab == "tab-overview":
+        return render_overview()
+    elif active_tab == "tab-price":
         return render_price_dashboard()
     elif active_tab == "tab-predictions":
         return render_predictions()
@@ -979,6 +982,177 @@ def update_explorer_table(table_name):
         return table, row_text
     except Exception as e:
         return dbc.Alert(f"Error loading table '{table_name}': {e}", color="danger"), ""
+
+def render_overview():
+    conn = duckdb.connect(DB_PATH, read_only=True)
+
+    crypto_count = conn.execute(
+        "SELECT COUNT(DISTINCT asset_symbol) FROM gold_crypto_analytics"
+    ).fetchone()[0]
+
+    stock_count = conn.execute(
+        "SELECT COUNT(DISTINCT asset_symbol) FROM gold_stock_analytics"
+    ).fetchone()[0]
+
+    crypto_latest = conn.execute(
+        "SELECT MAX(date) FROM gold_crypto_analytics"
+    ).fetchone()[0]
+
+    stock_latest = conn.execute(
+        "SELECT MAX(date) FROM gold_stock_analytics"
+    ).fetchone()[0]
+
+    top5_crypto = conn.execute("""
+        WITH latest AS (
+            SELECT asset_symbol, close, date,
+                   ROW_NUMBER() OVER (PARTITION BY asset_symbol ORDER BY date DESC) AS rn
+            FROM gold_crypto_analytics
+        )
+        SELECT asset_symbol, close, date
+        FROM latest WHERE rn = 1
+        ORDER BY date DESC
+        LIMIT 5
+    """).df()
+
+    top5_stocks = conn.execute("""
+        WITH latest AS (
+            SELECT asset_symbol, close, date,
+                   ROW_NUMBER() OVER (PARTITION BY asset_symbol ORDER BY date DESC) AS rn
+            FROM gold_stock_analytics
+        )
+        SELECT asset_symbol, close, date
+        FROM latest WHERE rn = 1
+        ORDER BY date DESC
+        LIMIT 5
+    """).df()
+
+    conn.close()
+
+    models = get_model_health()
+    counts = get_summary_counts(models)
+
+    model_cards = dbc.Row(
+        [
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(str(counts["total"]), className="card-title text-info text-center"),
+                html.P("Total Models", className="card-text text-muted small text-center"),
+            ]), color="dark", outline=True), width=2),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(str(counts["healthy"]), className="card-title text-success text-center"),
+                html.P("Healthy", className="card-text text-muted small text-center"),
+            ]), color="dark", outline=True), width=2),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(str(counts["stale"]), className="card-title text-warning text-center"),
+                html.P("Stale", className="card-text text-muted small text-center"),
+            ]), color="dark", outline=True), width=2),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(str(counts["missing_model"]), className="card-title text-danger text-center"),
+                html.P("Missing Model", className="card-text text-muted small text-center"),
+            ]), color="dark", outline=True), width=2),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(str(counts["missing_metadata"]), className="card-text text-warning-emphasis text-center"),
+                html.P("Missing Metadata", className="card-text text-muted small text-center"),
+            ]), color="dark", outline=True), width=2),
+        ],
+        className="mb-3",
+    )
+
+    def _fmt_price(p):
+        if p >= 1:
+            return f"${p:,.2f}"
+        if p >= 0.01:
+            return f"${p:,.4f}"
+        if p >= 0.0001:
+            return f"${p:,.6f}"
+        return f"${p:.8f}"
+
+    def _build_top5_table(df, label, color):
+        if df.empty:
+            return dbc.Col([
+                html.H5(label, className="text-light mb-2"),
+                dbc.Alert("No data available", color="secondary"),
+            ], width=6)
+
+        rows = []
+        for _, row in df.iterrows():
+            price = row["close"]
+            date_str = pd.Timestamp(row["date"]).strftime("%Y-%m-%d %H:%M")
+            rows.append(html.Tr([
+                html.Td(row["asset_symbol"], className="text-light"),
+                html.Td(_fmt_price(price), className="text-light"),
+                html.Td(date_str, className="text-muted small"),
+            ]))
+
+        table_header = html.Thead(html.Tr([
+            html.Th("Asset", className="text-muted"),
+            html.Th("Latest Price", className="text-muted"),
+            html.Th("Date", className="text-muted"),
+        ]))
+
+        return dbc.Col([
+            html.H5(label, className="text-light mb-2"),
+            dbc.Table(
+                [table_header, html.Tbody(rows)],
+                color="dark",
+                hover=True,
+                striped=True,
+                size="sm",
+                className="mb-0",
+            ),
+        ], width=6)
+
+    def _fmt_date(d):
+        if d is None:
+            return "No data"
+        if isinstance(d, str):
+            d = datetime.fromisoformat(d)
+        return d.strftime("%Y-%m-%d %H:%M UTC")
+
+    freshness_row = dbc.Row(
+        [
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(str(crypto_count), className="card-title text-info text-center"),
+                html.P("Crypto Assets", className="card-text text-muted small text-center"),
+                html.Small(f"Latest: {_fmt_date(crypto_latest)}", className="text-muted"),
+            ]), color="dark", outline=True), width=3),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(str(stock_count), className="card-title text-success text-center"),
+                html.P("Stock Assets", className="card-text text-muted small text-center"),
+                html.Small(f"Latest: {_fmt_date(stock_latest)}", className="text-muted"),
+            ]), color="dark", outline=True), width=3),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(str(crypto_count + stock_count), className="card-title text-warning text-center"),
+                html.P("Total Tracked", className="card-text text-muted small text-center"),
+            ]), color="dark", outline=True), width=3),
+        ],
+        className="mb-4",
+    )
+
+    top5_row = dbc.Row(
+        [
+            _build_top5_table(top5_crypto, "Top 5 Crypto", "info"),
+            _build_top5_table(top5_stocks, "Top 5 Stocks", "success"),
+        ],
+        className="mb-4",
+    )
+
+    return html.Div([
+        html.H3("Dashboard Overview", className="text-light mb-3"),
+        freshness_row,
+        html.H5("Top Assets by Latest Price", className="text-light mb-2"),
+        top5_row,
+        html.Hr(),
+        html.H5("Model Health Summary", className="text-light mb-2"),
+        model_cards,
+        dbc.Row(
+            dbc.Col(
+                html.Small(
+                    "Switch to the Model Health tab for detailed per-model status.",
+                    className="text-muted",
+                ),
+            )
+        ),
+    ])
 
 def render_model_health():
     models = get_model_health()
