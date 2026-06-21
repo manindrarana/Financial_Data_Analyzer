@@ -1057,6 +1057,47 @@ def render_overview():
         className="mb-3",
     )
 
+    def _build_top5_table(df, label, color):
+        if df.empty:
+            return dbc.Col([
+                html.H5(label, className="text-light mb-2"),
+                dbc.Alert("No data available", color="secondary"),
+            ], width=6)
+
+        rows = []
+        for _, row in df.iterrows():
+            price = row["close"]
+            date_str = pd.Timestamp(row["date"]).strftime("%Y-%m-%d %H:%M")
+            rows.append(html.Tr([
+                html.Td(row["asset_symbol"], className="text-light"),
+                html.Td(f"${price:,.2f}", className="text-light"),
+                html.Td(date_str, className="text-muted small"),
+            ]))
+
+        table_header = html.Thead(html.Tr([
+            html.Th("Asset", className="text-muted"),
+            html.Th("Latest Price", className="text-muted"),
+            html.Th("Date", className="text-muted"),
+        ]))
+
+        return dbc.Col([
+            html.H5(label, className="text-light mb-2"),
+            dbc.Table(
+                [table_header, html.Tbody(rows)],
+                dark=True,
+                hover=True,
+                striped=True,
+                size="sm",
+                className="mb-0",
+            ),
+        ], width=6)
+
+    def _fmt_date(d):
+        if d is None:
+            return "No data"
+        if isinstance(d, str):
+            d = datetime.fromisoformat(d)
+        return d.strftime("%Y-%m-%d %H:%M UTC")
 
 
 def render_model_health():
