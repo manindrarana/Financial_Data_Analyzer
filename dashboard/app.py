@@ -1057,6 +1057,15 @@ def render_overview():
         className="mb-3",
     )
 
+    def _fmt_price(p):
+        if p >= 1:
+            return f"${p:,.2f}"
+        if p >= 0.01:
+            return f"${p:,.4f}"
+        if p >= 0.0001:
+            return f"${p:,.6f}"
+        return f"${p:.8f}"
+
     def _build_top5_table(df, label, color):
         if df.empty:
             return dbc.Col([
@@ -1070,7 +1079,7 @@ def render_overview():
             date_str = pd.Timestamp(row["date"]).strftime("%Y-%m-%d %H:%M")
             rows.append(html.Tr([
                 html.Td(row["asset_symbol"], className="text-light"),
-                html.Td(f"${price:,.2f}", className="text-light"),
+                html.Td(_fmt_price(price), className="text-light"),
                 html.Td(date_str, className="text-muted small"),
             ]))
 
