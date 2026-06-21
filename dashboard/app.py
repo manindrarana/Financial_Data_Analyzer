@@ -983,6 +983,53 @@ def update_explorer_table(table_name):
     except Exception as e:
         return dbc.Alert(f"Error loading table '{table_name}': {e}", color="danger"), ""
 
+def render_overview():
+    conn = duckdb.connect(DB_PATH, read_only=True)
+
+    crypto_count = conn.execute(
+        "SELECT COUNT(DISTINCT asset_symbol) FROM gold_crypto_analytics"
+    ).fetchone()[0]
+
+    stock_count = conn.execute(
+        "SELECT COUNT(DISTINCT asset_symbol) FROM gold_stock_analytics"
+    ).fetchone()[0]
+
+    crypto_latest = conn.execute(
+        "SELECT MAX(date) FROM gold_crypto_analytics"
+    ).fetchone()[0]
+
+    stock_latest = conn.execute(
+        "SELECT MAX(date) FROM gold_stock_analytics"
+    ).fetchone()[0]
+
+    top5_crypto = conn.execute("""
+        WITH latest AS (
+            SELECT asset_symbol, close, date,
+                   ROW_NUMBER() OVER (PARTITION BY asset_symbol ORDER BY date DESC) AS rn
+            FROM gold_crypto_analytics
+        )
+        SELECT asset_symbol, close, date
+        FROM latest WHERE rn = 1
+        ORDER BY date DESC
+        LIMIT 5
+    """).df()
+
+    top5_stocks = conn.execute("""
+        WITH latest AS (
+            SELECT asset_symbol, close, date,
+                   ROW_NUMBER() OVER (PARTITION BY asset_symbol ORDER BY date DESC) AS rn
+            FROM gold_stock_analytics
+        )
+        SELECT asset_symbol, close, date
+        FROM latest WHERE rn = 1
+        ORDER BY date DESC
+        LIMIT 5
+    """).df()
+
+    conn.close()
+
+
+
 def render_model_health():
     models = get_model_health()
     counts = get_summary_counts(models)
