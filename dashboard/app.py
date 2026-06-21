@@ -1028,6 +1028,35 @@ def render_overview():
 
     conn.close()
 
+    models = get_model_health()
+    counts = get_summary_counts(models)
+
+    model_cards = dbc.Row(
+        [
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(str(counts["total"]), className="card-title text-info text-center"),
+                html.P("Total Models", className="card-text text-muted small text-center"),
+            ]), color="dark", outline=True), width=2),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(str(counts["healthy"]), className="card-title text-success text-center"),
+                html.P("Healthy", className="card-text text-muted small text-center"),
+            ]), color="dark", outline=True), width=2),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(str(counts["stale"]), className="card-title text-warning text-center"),
+                html.P("Stale", className="card-text text-muted small text-center"),
+            ]), color="dark", outline=True), width=2),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(str(counts["missing_model"]), className="card-title text-danger text-center"),
+                html.P("Missing Model", className="card-text text-muted small text-center"),
+            ]), color="dark", outline=True), width=2),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(str(counts["missing_metadata"]), className="card-text text-warning-emphasis text-center"),
+                html.P("Missing Metadata", className="card-text text-muted small text-center"),
+            ]), color="dark", outline=True), width=2),
+        ],
+        className="mb-3",
+    )
+
 
 
 def render_model_health():
