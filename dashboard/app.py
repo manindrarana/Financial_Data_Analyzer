@@ -148,8 +148,9 @@ app.layout = dbc.Container(
         dcc.Interval(id="freshness-interval", interval=60_000),
         dbc.Tabs(
             id="main-tabs",
-            active_tab="tab-price",
+            active_tab="tab-overview",
             children=[
+                dbc.Tab(label=" Overview", tab_id="tab-overview"),
                 dbc.Tab(label=" Price Dashboard", tab_id="tab-price"),
                 dbc.Tab(label=" Predictions", tab_id="tab-predictions"),
                 dbc.Tab(label=" Backtest", tab_id="tab-backtest"),
@@ -278,7 +279,9 @@ app.layout = dbc.Container(
 
 def render_tab(active_tab: str):
     """Route to the correct tab layout based on the active tab ID."""
-    if active_tab == "tab-price":
+    if active_tab == "tab-overview":
+        return render_overview()
+    elif active_tab == "tab-price":
         return render_price_dashboard()
     elif active_tab == "tab-predictions":
         return render_predictions()
