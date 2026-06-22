@@ -69,34 +69,28 @@ class TestBybitGetLastFetchedDate:
             client.get_last_fetched_date("BTCUSDT", "60")
 
 
-class TestYahooGetLastFetchedDate:
+class TestYahooFetchData:
     @patch("src.ingestion.yahoo_finance.load_dotenv")
     @patch("os.path.exists", return_value=False)
-    def test_returns_none_when_db_missing(self, mock_exists, mock_dotenv):
-        client = YahooFinanceClient()
-        result = client.get_last_fetched_date("AAPL", "1h")
-        assert result is None
-
-    @patch("src.ingestion.yahoo_finance.load_dotenv")
-    @patch("os.path.exists", return_value=True)
-    @patch("duckdb.connect")
-    def test_returns_none_when_table_not_found(self, mock_connect, mock_exists, mock_dotenv):
-        mock_conn = MagicMock()
-        mock_conn.execute.side_effect = Exception("table does not exist")
-        mock_connect.return_value = mock_conn
-
-        client = YahooFinanceClient()
-        result = client.get_last_fetched_date("AAPL", "1h")
-        assert result is None
-
-    @patch("src.ingestion.yahoo_finance.load_dotenv")
-    @patch("os.path.exists", return_value=True)
-    @patch("duckdb.connect")
-    def test_raises_on_other_db_error(self, mock_connect, mock_exists, mock_dotenv):
-        mock_conn = MagicMock()
-        mock_conn.execute.side_effect = Exception("disk I/O error")
-        mock_connect.return_value = mock_conn
+    @patch("time.sleep")
+    @patch("src.ingestion.yahoo_finance.yf.download")
+    @patch("pandas.read_parquet", side_effect=FileNotFoundError("missing parquet"))
+    @patch("pandas.DataFrame.to_parquet", side_effect=Exception("S3 write failed"))
+    def test_raises_on_parquet_write_error(self, mock_to_parquet, mock_read_parquet, mock_download, mock_sleep, mock_exists, mock_dotenv):
+        dates = pd.date_range("2024-01-01", periods=2, freq="D", name="Date")
+        mock_download.return_value = pd.DataFrame(
+            {
+                "Open": [100.0, 101.0],
+                "High": [102.0, 103.0],
+                "Low": [99.0, 100.0],
+                "Close": [101.0, 102.0],
+                "Volume": [1000, 1100],
+            },
+            index=dates,
+        )
 
         client = YahooFinanceClient()
-        with pytest.raises(Exception):
-            client.get_last_fetched_date("AAPL", "1h")
+        client.config["providers"]["yfinance"]["intervals"] = ["1d"]
+
+        with pytest.raises(Exception, match="S3 write failed"):
+            client.fetch_data("AAPL")
