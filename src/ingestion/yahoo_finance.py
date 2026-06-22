@@ -178,7 +178,7 @@ class YahooFinanceClient:
 
             except Exception as e:
                 self.logger.error(f"Critical error processing {ticker}: {e}")
-                continue
+                raise
 
         return True
 

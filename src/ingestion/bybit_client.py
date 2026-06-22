@@ -33,7 +33,7 @@ class BybitClient:
         db_path = self.config["paths"]["database"]
         if not os.path.exists(db_path):
             return None
-            
+
         conn = None
         try:
             conn = duckdb.connect(db_path, read_only=True)
@@ -41,12 +41,13 @@ class BybitClient:
             query = f"SELECT MAX(date) FROM clean_bybit_crypto WHERE symbol='{symbol}' AND interval='{readable_interval}'"
             res = conn.execute(query).fetchone()
             return res[0] if res and res[0] else None
-        except Exception:
-            return None
+        except Exception as e:
+            self.logger.error(f"FATAL: DB error querying last fetched date for {symbol}/{interval}: {e}")
+            raise
         finally:
             if conn:
                 conn.close()
-    
+
     def _map_to_oi_interval(self, kline_interval: str):
         """Map kline interval to open interest interval supported by Bybit API"""
         mapping = {
