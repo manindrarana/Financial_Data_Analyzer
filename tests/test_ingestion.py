@@ -14,6 +14,7 @@ mock_requests_ratelimiter = MagicMock()
 sys.modules["requests_ratelimiter"] = mock_requests_ratelimiter
 
 import pytest
+import pandas as pd
 from unittest.mock import patch, MagicMock
 from src.ingestion.bybit_client import BybitClient
 from src.ingestion.yahoo_finance import YahooFinanceClient
@@ -58,14 +59,14 @@ class TestBybitGetLastFetchedDate:
     @patch("src.ingestion.bybit_client.load_dotenv")
     @patch("os.path.exists", return_value=True)
     @patch("duckdb.connect")
-    def test_returns_none_on_exception(self, mock_connect, mock_exists, mock_dotenv):
+    def test_raises_on_db_error(self, mock_connect, mock_exists, mock_dotenv):
         mock_conn = MagicMock()
-        mock_conn.execute.side_effect = Exception("table not found")
+        mock_conn.execute.side_effect = Exception("disk I/O error")
         mock_connect.return_value = mock_conn
 
         client = BybitClient()
-        result = client.get_last_fetched_date("BTCUSDT", "60")
-        assert result is None
+        with pytest.raises(Exception):
+            client.get_last_fetched_date("BTCUSDT", "60")
 
 
 class TestYahooGetLastFetchedDate:
