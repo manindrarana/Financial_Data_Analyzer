@@ -69,6 +69,40 @@ class TestBybitGetLastFetchedDate:
             client.get_last_fetched_date("BTCUSDT", "60")
 
 
+
+class TestYahooGetLastFetchedDate:
+    @patch("src.ingestion.yahoo_finance.load_dotenv")
+    @patch("os.path.exists", return_value=False)
+    def test_returns_none_when_db_missing(self, mock_exists, mock_dotenv):
+        client = YahooFinanceClient()
+        result = client.get_last_fetched_date("AAPL", "1h")
+        assert result is None
+
+    @patch("src.ingestion.yahoo_finance.load_dotenv")
+    @patch("os.path.exists", return_value=True)
+    @patch("duckdb.connect")
+    def test_returns_none_when_table_not_found(self, mock_connect, mock_exists, mock_dotenv):
+        mock_conn = MagicMock()
+        mock_conn.execute.side_effect = Exception("table does not exist")
+        mock_connect.return_value = mock_conn
+
+        client = YahooFinanceClient()
+        result = client.get_last_fetched_date("AAPL", "1h")
+        assert result is None
+
+    @patch("src.ingestion.yahoo_finance.load_dotenv")
+    @patch("os.path.exists", return_value=True)
+    @patch("duckdb.connect")
+    def test_raises_on_other_db_error(self, mock_connect, mock_exists, mock_dotenv):
+        mock_conn = MagicMock()
+        mock_conn.execute.side_effect = Exception("disk I/O error")
+        mock_connect.return_value = mock_conn
+
+        client = YahooFinanceClient()
+        with pytest.raises(Exception):
+            client.get_last_fetched_date("AAPL", "1h")
+
+
 class TestYahooFetchData:
     @patch("src.ingestion.yahoo_finance.load_dotenv")
     @patch("os.path.exists", return_value=False)
