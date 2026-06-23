@@ -1922,11 +1922,16 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
     oos_accuracy = oos_correct / oos_total if oos_total > 0 else 0
 
     comparison_rows = []
+    sma20 = results["close"].rolling(window=20).mean()
+    sma50 = results["close"].rolling(window=50).mean()
+    sma_rule = (sma20 > sma50).astype(int)
+    sma_rule[sma20.isna() | sma50.isna()] = np.nan
     comparison_rules = [
         ("XGBoost", results["prediction"]),
         ("Always Up", pd.Series(1, index=results.index)),
+        ("Always Down", pd.Series(0, index=results.index)),
         ("Last Candle Direction", (results["close"].diff() > 0).astype(int).shift(1)),
-        ("SMA Rule", (results["close"].rolling(window=20).mean() > results["close"].rolling(window=50).mean()).astype(int)),
+        ("SMA 20 > SMA 50 Rule", sma_rule),
     ]
     for name, rule_prediction in comparison_rules:
         valid = rule_prediction.notna()
