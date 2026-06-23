@@ -2143,6 +2143,8 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
         html.H3(title, className="text-light mb-3"),
         next_prediction_card,
         summary_cards,
+        html.H5("Model Comparison", className="text-light mb-2"),
+        comparison_table,
         dbc.Row(
             [
                 dbc.Col(dcc.Graph(figure=fig_gauge, config={"responsive": True}), width=4),
