@@ -129,5 +129,6 @@ class TestPredictionCards:
         assert "Model Comparison" in text
         assert "XGBoost" in text
         assert "Always Up" in text
+        assert "Always Down" in text
         assert "Last Candle Direction" in text
-        assert "SMA Rule" in text
+        assert "SMA 20 > SMA 50 Rule" in text
