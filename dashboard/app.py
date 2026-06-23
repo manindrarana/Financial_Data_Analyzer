@@ -1921,6 +1921,34 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
     oos_correct = (oos["prediction"] == oos["actual_direction"]).sum()
     oos_accuracy = oos_correct / oos_total if oos_total > 0 else 0
 
+    comparison_rows = []
+    comparison_rules = [
+        ("XGBoost", results["prediction"]),
+        ("Always Up", pd.Series(1, index=results.index)),
+        ("Last Candle Direction", (results["close"].diff() > 0).astype(int).shift(1)),
+        ("SMA Rule", (results["close"].rolling(window=20).mean() > results["close"].rolling(window=50).mean()).astype(int)),
+    ]
+    for name, rule_prediction in comparison_rules:
+        valid = rule_prediction.notna()
+        rows_tested = int(valid.sum())
+        correct_count = int((rule_prediction[valid].astype(int) == results.loc[valid, "actual_direction"]).sum())
+        rule_accuracy = correct_count / rows_tested if rows_tested > 0 else 0
+        comparison_rows.append({
+            "Model / Rule": name,
+            "Accuracy": f"{rule_accuracy * 100:.1f}%",
+            "Correct": correct_count,
+            "Rows Tested": rows_tested,
+        })
+
+    comparison_table = dbc.Table.from_dataframe(
+        pd.DataFrame(comparison_rows),
+        striped=True,
+        bordered=True,
+        hover=True,
+        color="dark",
+        className="mb-3",
+    )
+
     up_pred_pct = (results["prediction"] == 1).sum() / total * 100
 
     MAX_CHART_POINTS = 2000
