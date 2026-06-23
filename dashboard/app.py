@@ -1921,6 +1921,39 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
     oos_correct = (oos["prediction"] == oos["actual_direction"]).sum()
     oos_accuracy = oos_correct / oos_total if oos_total > 0 else 0
 
+    comparison_rows = []
+    sma20 = results["close"].rolling(window=20).mean()
+    sma50 = results["close"].rolling(window=50).mean()
+    sma_rule = (sma20 > sma50).astype(int)
+    sma_rule[sma20.isna() | sma50.isna()] = np.nan
+    comparison_rules = [
+        ("XGBoost", results["prediction"]),
+        ("Always Up", pd.Series(1, index=results.index)),
+        ("Always Down", pd.Series(0, index=results.index)),
+        ("Last Candle Direction", (results["close"].diff() > 0).astype(int).shift(1)),
+        ("SMA 20 > SMA 50 Rule", sma_rule),
+    ]
+    for name, rule_prediction in comparison_rules:
+        valid = rule_prediction.notna()
+        rows_tested = int(valid.sum())
+        correct_count = int((rule_prediction[valid].astype(int) == results.loc[valid, "actual_direction"]).sum())
+        rule_accuracy = correct_count / rows_tested if rows_tested > 0 else 0
+        comparison_rows.append({
+            "Model / Rule": name,
+            "Accuracy": f"{rule_accuracy * 100:.1f}%",
+            "Correct": correct_count,
+            "Rows Tested": rows_tested,
+        })
+
+    comparison_table = dbc.Table.from_dataframe(
+        pd.DataFrame(comparison_rows),
+        striped=True,
+        bordered=True,
+        hover=True,
+        color="dark",
+        className="mb-3",
+    )
+
     up_pred_pct = (results["prediction"] == 1).sum() / total * 100
 
     MAX_CHART_POINTS = 2000
@@ -2115,6 +2148,8 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
         html.H3(title, className="text-light mb-3"),
         next_prediction_card,
         summary_cards,
+        html.H5("Model Comparison", className="text-light mb-2"),
+        comparison_table,
         dbc.Row(
             [
                 dbc.Col(dcc.Graph(figure=fig_gauge, config={"responsive": True}), width=4),

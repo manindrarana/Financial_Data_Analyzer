@@ -91,3 +91,44 @@ class TestPredictionCards:
         assert "BTC 1 Hour" in text
         assert "UP" in text
         assert "Confidence: 87.3%" in text
+
+    def test_model_comparison_table_shows_baselines(self):
+        from dashboard import app as dashboard_app
+
+        prediction_rows = pd.DataFrame({
+            "date": pd.to_datetime([
+                "2026-06-18 10:00", "2026-06-18 11:00", "2026-06-18 12:00",
+                "2026-06-18 13:00", "2026-06-18 14:00", "2026-06-18 15:00",
+                "2026-06-18 16:00", "2026-06-18 17:00", "2026-06-18 18:00",
+                "2026-06-18 19:00", "2026-06-18 20:00", "2026-06-18 21:00",
+                "2026-06-18 22:00", "2026-06-18 23:00", "2026-06-19 00:00",
+                "2026-06-19 01:00", "2026-06-19 02:00", "2026-06-19 03:00",
+                "2026-06-19 04:00", "2026-06-19 05:00", "2026-06-19 06:00",
+                "2026-06-19 07:00", "2026-06-19 08:00", "2026-06-19 09:00",
+                "2026-06-19 10:00", "2026-06-19 11:00", "2026-06-19 12:00",
+                "2026-06-19 13:00", "2026-06-19 14:00", "2026-06-19 15:00",
+                "2026-06-19 16:00", "2026-06-19 17:00", "2026-06-19 18:00",
+                "2026-06-19 19:00", "2026-06-19 20:00", "2026-06-19 21:00",
+                "2026-06-19 22:00", "2026-06-19 23:00", "2026-06-20 00:00",
+                "2026-06-20 01:00", "2026-06-20 02:00", "2026-06-20 03:00",
+                "2026-06-20 04:00", "2026-06-20 05:00", "2026-06-20 06:00",
+                "2026-06-20 07:00", "2026-06-20 08:00", "2026-06-20 09:00",
+                "2026-06-20 10:00", "2026-06-20 11:00", "2026-06-20 12:00",
+            ]),
+            "close": list(range(100, 151)),
+            "prediction": [1] * 51,
+            "confidence": [0.60] * 51,
+            "actual_direction": [1] * 51,
+            "is_oos": [True] * 51,
+        })
+
+        with patch.object(dashboard_app, "run_prediction", return_value=prediction_rows):
+            content = dashboard_app.build_prediction_charts("crypto", "BTC", "1h", "all")
+
+        text = _collect_text(content)
+        assert "Model Comparison" in text
+        assert "XGBoost" in text
+        assert "Always Up" in text
+        assert "Always Down" in text
+        assert "Last Candle Direction" in text
+        assert "SMA 20 > SMA 50 Rule" in text

@@ -2,10 +2,10 @@
   "asset": "LTC",
   "interval": "1h",
   "asset_class": "crypto",
-  "train_end_date": "2025-05-05T23:00:00",
-  "train_rows": 39584,
-  "test_rows": 9897,
-  "test_accuracy": 0.5248054966151359,
+  "train_end_date": "2025-05-06T19:00:00",
+  "train_rows": 39604,
+  "test_rows": 9902,
+  "test_accuracy": 0.5239345586750151,
   "features": [
     "rsi_14",
     "roc_10",
@@ -45,7 +45,7 @@
     "eval_metric": "logloss",
     "random_state": 42
   },
-  "best_cv_score": 0.5330832196452933,
-  "trained_at": "2026-06-22T08:28:31.057610",
+  "best_cv_score": 0.5345807135823044,
+  "trained_at": "2026-06-23T10:09:56.014638",
   "mlflow_run_id": null
 }
