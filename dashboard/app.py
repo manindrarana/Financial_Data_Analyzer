@@ -2178,6 +2178,7 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
         next_prediction_card,
         summary_cards,
         html.H5("Model Comparison", className="text-light mb-2"),
+        comparison_summary,
         comparison_table,
         dbc.Row(
             [
