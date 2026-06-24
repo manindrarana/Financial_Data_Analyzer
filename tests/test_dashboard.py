@@ -116,9 +116,9 @@ class TestPredictionCards:
                 "2026-06-20 10:00", "2026-06-20 11:00", "2026-06-20 12:00",
             ]),
             "close": list(range(100, 151)),
-            "prediction": [1] * 51,
+            "prediction": [1, 0, 1] * 17,
             "confidence": [0.60] * 51,
-            "actual_direction": [1] * 51,
+            "actual_direction": [1, 0, 1] * 17,
             "is_oos": [True] * 51,
         })
 
@@ -127,6 +127,8 @@ class TestPredictionCards:
 
         text = _collect_text(content)
         assert "Model Comparison" in text
+        assert "XGBoost beats best baseline (Last Candle Direction) by 32.0%" in text
+        assert "Model beats baselines" in text
         assert "XGBoost" in text
         assert "Always Up" in text
         assert "Always Down" in text
