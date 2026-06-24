@@ -1922,6 +1922,7 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
     oos_accuracy = oos_correct / oos_total if oos_total > 0 else 0
 
     comparison_rows = []
+    comparison_scores = []
     sma20 = results["close"].rolling(window=20).mean()
     sma50 = results["close"].rolling(window=50).mean()
     sma_rule = (sma20 > sma50).astype(int)
@@ -1938,12 +1939,40 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
         rows_tested = int(valid.sum())
         correct_count = int((rule_prediction[valid].astype(int) == results.loc[valid, "actual_direction"]).sum())
         rule_accuracy = correct_count / rows_tested if rows_tested > 0 else 0
+        comparison_scores.append((name, rule_accuracy))
         comparison_rows.append({
             "Model / Rule": name,
             "Accuracy": f"{rule_accuracy * 100:.1f}%",
             "Correct": correct_count,
             "Rows Tested": rows_tested,
         })
+
+    xgboost_accuracy = next(score for name, score in comparison_scores if name == "XGBoost")
+    baseline_scores = [(name, score) for name, score in comparison_scores if name != "XGBoost"]
+    best_baseline_name, best_baseline_accuracy = max(baseline_scores, key=lambda item: item[1])
+    baseline_gap = xgboost_accuracy - best_baseline_accuracy
+    baseline_gap_pct = abs(baseline_gap) * 100
+    if baseline_gap > 0:
+        gap_text = f"XGBoost beats best baseline ({best_baseline_name}) by {baseline_gap_pct:.1f}%"
+        badge_text = "Model beats baselines"
+        badge_color = "success"
+    elif baseline_gap >= -0.005:
+        gap_text = f"XGBoost is close to best baseline ({best_baseline_name}) by {baseline_gap_pct:.1f}%"
+        badge_text = "Close to baseline"
+        badge_color = "warning"
+    else:
+        gap_text = f"XGBoost trails best baseline ({best_baseline_name}) by {baseline_gap_pct:.1f}%"
+        badge_text = "Baseline beats model"
+        badge_color = "danger"
+
+    comparison_summary = dbc.Row(
+        [
+            dbc.Col(html.P(gap_text, className="text-muted mb-0"), width=True),
+            dbc.Col(dbc.Badge(badge_text, color=badge_color, className="p-2"), width="auto"),
+        ],
+        align="center",
+        className="mb-2",
+    )
 
     comparison_table = dbc.Table.from_dataframe(
         pd.DataFrame(comparison_rows),
@@ -2149,6 +2178,7 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
         next_prediction_card,
         summary_cards,
         html.H5("Model Comparison", className="text-light mb-2"),
+        comparison_summary,
         comparison_table,
         dbc.Row(
             [
