@@ -1966,9 +1966,13 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
         badge_text = "Baseline beats model"
         badge_color = "danger"
 
+    comparison_scope_text = "Comparison uses out-of-sample rows only" if oos_total > 0 else "Comparison uses visible rows"
     comparison_summary = dbc.Row(
         [
-            dbc.Col(html.P(gap_text, className="text-muted mb-0"), width=True),
+            dbc.Col([
+                html.P(gap_text, className="text-muted mb-0"),
+                html.Small(comparison_scope_text, className="text-muted"),
+            ], width=True),
             dbc.Col(dbc.Badge(badge_text, color=badge_color, className="p-2"), width="auto"),
         ],
         align="center",
