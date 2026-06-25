@@ -1921,23 +1921,24 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
     oos_correct = (oos["prediction"] == oos["actual_direction"]).sum()
     oos_accuracy = oos_correct / oos_total if oos_total > 0 else 0
 
+    comparison_data = oos if oos_total > 0 else results
     comparison_rows = []
     comparison_scores = []
-    sma20 = results["close"].rolling(window=20).mean()
-    sma50 = results["close"].rolling(window=50).mean()
+    sma20 = comparison_data["close"].rolling(window=20).mean()
+    sma50 = comparison_data["close"].rolling(window=50).mean()
     sma_rule = (sma20 > sma50).astype(int)
     sma_rule[sma20.isna() | sma50.isna()] = np.nan
     comparison_rules = [
-        ("XGBoost", results["prediction"]),
-        ("Always Up", pd.Series(1, index=results.index)),
-        ("Always Down", pd.Series(0, index=results.index)),
-        ("Last Candle Direction", (results["close"].diff() > 0).astype(int).shift(1)),
+        ("XGBoost", comparison_data["prediction"]),
+        ("Always Up", pd.Series(1, index=comparison_data.index)),
+        ("Always Down", pd.Series(0, index=comparison_data.index)),
+        ("Last Candle Direction", (comparison_data["close"].diff() > 0).astype(int).shift(1)),
         ("SMA 20 > SMA 50 Rule", sma_rule),
     ]
     for name, rule_prediction in comparison_rules:
         valid = rule_prediction.notna()
         rows_tested = int(valid.sum())
-        correct_count = int((rule_prediction[valid].astype(int) == results.loc[valid, "actual_direction"]).sum())
+        correct_count = int((rule_prediction[valid].astype(int) == comparison_data.loc[valid, "actual_direction"]).sum())
         rule_accuracy = correct_count / rows_tested if rows_tested > 0 else 0
         comparison_scores.append((name, rule_accuracy))
         comparison_rows.append({
