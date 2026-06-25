@@ -134,3 +134,31 @@ class TestPredictionCards:
         assert "Always Down" in text
         assert "Last Candle Direction" in text
         assert "SMA 20 > SMA 50 Rule" in text
+
+    def test_model_comparison_table_uses_only_oos_rows(self):
+        from dashboard import app as dashboard_app
+
+        prediction_rows = pd.DataFrame({
+            "date": pd.to_datetime([
+                "2026-06-18 10:00", "2026-06-18 11:00", "2026-06-18 12:00",
+                "2026-06-18 13:00", "2026-06-18 14:00",
+            ]),
+            "close": [100.0, 101.0, 102.0, 103.0, 104.0],
+            "prediction": [1, 1, 1, 1, 1],
+            "confidence": [0.60] * 5,
+            "actual_direction": [1, 1, 1, 0, 1],
+            "is_oos": [False, False, False, True, True],
+        })
+        comparison_tables = []
+
+        def capture_comparison_table(df, *args, **kwargs):
+            comparison_tables.append(df)
+            return dashboard_app.html.Div("comparison table")
+
+        with patch.object(dashboard_app, "run_prediction", return_value=prediction_rows):
+            with patch.object(dashboard_app.dbc.Table, "from_dataframe", side_effect=capture_comparison_table):
+                dashboard_app.build_prediction_charts("crypto", "BTC", "1h", "all")
+
+        xgboost_row = comparison_tables[0].loc[comparison_tables[0]["Model / Rule"] == "XGBoost"].iloc[0]
+        assert xgboost_row["Correct"] == 1
+        assert xgboost_row["Rows Tested"] == 2
