@@ -128,3 +128,17 @@ class TestYahooFetchData:
 
         with pytest.raises(Exception, match="S3 write failed"):
             client.fetch_data("AAPL")
+
+    @patch("src.ingestion.yahoo_finance.load_dotenv")
+    @patch("os.path.exists", return_value=False)
+    @patch("time.sleep")
+    @patch("src.ingestion.yahoo_finance.yf.download", return_value=pd.DataFrame())
+    def test_stops_yahoo_run_after_repeated_empty_downloads(self, mock_download, mock_sleep, mock_exists, mock_dotenv):
+        client = YahooFinanceClient()
+        client.config["providers"]["yfinance"]["intervals"] = ["1h", "1d"]
+
+        result = client.fetch_data("AAPL")
+
+        assert result is False
+        assert client._rate_limited is True
+        assert mock_download.call_count == 2

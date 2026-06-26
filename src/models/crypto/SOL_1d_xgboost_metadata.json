@@ -2,8 +2,8 @@
   "asset": "SOL",
   "interval": "1d",
   "asset_class": "crypto",
-  "train_end_date": "2025-08-25T00:00:00",
-  "train_rows": 1212,
+  "train_end_date": "2025-08-26T00:00:00",
+  "train_rows": 1213,
   "test_rows": 304,
   "test_accuracy": 0.46381578947368424,
   "features": [
@@ -46,6 +46,6 @@
     "random_state": 42
   },
   "best_cv_score": 0.5012376237623762,
-  "trained_at": "2026-06-25T06:44:52.238537",
+  "trained_at": "2026-06-26T10:24:29.172657",
   "mlflow_run_id": null
 }
