@@ -63,7 +63,7 @@ class YahooFinanceClient:
         for interval in intervals:
             if self._rate_limited:
                 self.logger.warning(f"Yahoo Finance rate limit detected earlier — skipping {ticker} [{interval}] (existing data will be used)")
-                continue
+                return False
 
             self.logger.info(f"Fetching data for {ticker} using yfinance... [{interval}]")
             
@@ -138,9 +138,13 @@ class YahooFinanceClient:
                             time.sleep(5)
                 
                 if df.empty:
-                    self.logger.error(f"Failed to fetch {ticker} [{interval}] after {max_retries} retries. Skipping.")
-                    continue
-                
+                    self._rate_limited = True
+                    self.logger.warning(
+                        f"Failed to fetch {ticker} [{interval}] after {max_retries} retries. "
+                        f"Stopping Yahoo extraction for this run; existing data will be used."
+                    )
+                    return False
+
                 if isinstance(df.columns, pd.MultiIndex):
                     df.columns = df.columns.get_level_values(0)
 
