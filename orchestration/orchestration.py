@@ -8,7 +8,7 @@ import duckdb
 from pathlib import Path
 from prefect import flow, task, get_run_logger
 from src.utils import get_logger
-from src.ingestion import YahooFinanceClient, BybitClient
+from src.ingestion import YahooFinanceClient, BybitClient, FearGreedClient
 from src.database import DatabaseLoader, DimensionBuilder, FactLoader
 from src.processing import DataCleaner
 from src.models import GoldLayerProcessor, TechnicalIndicatorProcessor, PipelineModelTrainer
@@ -223,6 +223,23 @@ def extract_bybit(config: dict) -> int:
 
     logger.info(f"Bybit extraction complete: {count} crypto")
     return count
+
+
+@task(name="extract-fear-greed", retries=2, retry_delay_seconds=30)
+def extract_fear_greed(config: dict) -> int:
+    logger = get_run_logger()
+    logger.info("EXTRACT: Fear & Greed Index (crypto sentiment)")
+
+    if "bybit" not in config["ingestion"]["active_provider"]:
+        logger.info("Crypto not active, skipping Fear & Greed extraction")
+        return 0
+
+    client = FearGreedClient()
+    client.fetch_data()
+    client.close()
+
+    logger.info("Fear & Greed extraction complete")
+    return 1
 
 
 @task(name="load-to-duckdb", retries=1, retry_delay_seconds=15)
