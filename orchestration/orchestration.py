@@ -76,6 +76,9 @@ def _validate_clean():
             ).fetchone()[0]
             if null_count > 0:
                 raise RuntimeError(f"step3_clean failed: {table} has {null_count} nulls in close")
+        fg_null_count = conn.execute("SELECT COUNT(*) FROM clean_fear_greed WHERE value IS NULL").fetchone()[0]
+        if fg_null_count > 0:
+            raise RuntimeError(f"step3_clean failed: clean_fear_greed has {fg_null_count} nulls in value")
     finally:
         conn.close()
 
