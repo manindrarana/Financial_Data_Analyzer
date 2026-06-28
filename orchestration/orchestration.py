@@ -60,7 +60,10 @@ def _validate_extract():
         bybit_count = conn.execute("SELECT COUNT(*) FROM bybit_crypto").fetchone()[0]
         if bybit_count == 0:
             raise RuntimeError("step1_extract failed: bybit_crypto has 0 rows")
-        return yahoo_count, bybit_count
+        fg_count = conn.execute("SELECT COUNT(*) FROM fear_greed").fetchone()[0]
+        if fg_count == 0:
+            raise RuntimeError("step1_extract failed: fear_greed has 0 rows")
+        return yahoo_count, bybit_count, fg_count
     finally:
         conn.close()
 
@@ -311,13 +314,15 @@ def _run_concurrent_extract(config: dict) -> dict:
 
     yahoo_future = extract_yahoo.submit(config)
     bybit_future = extract_bybit.submit(config)
+    fg_future = extract_fear_greed.submit(config)
 
     stats = {
         "yfinance_count": yahoo_future.result(),
         "bybit_count": bybit_future.result(),
+        "fear_greed_count": fg_future.result(),
     }
 
-    logger.info(f"Extraction complete: {stats['yfinance_count']} stocks, {stats['bybit_count']} crypto")
+    logger.info(f"Extraction complete: {stats['yfinance_count']} stocks, {stats['bybit_count']} crypto, {stats['fear_greed_count']} sentiment")
     return stats
 
 
