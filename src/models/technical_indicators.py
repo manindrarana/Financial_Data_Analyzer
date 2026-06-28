@@ -237,6 +237,16 @@ class TechnicalIndicatorProcessor:
                     on=merge_keys, how='left'
                 )
 
+                fg_lookup = fear_greed_df[['date', 'fear_greed']].copy()
+                fg_lookup['join_date'] = fg_lookup['date'].dt.date
+                fg_lookup = fg_lookup[['join_date', 'fear_greed']]
+                enhanced_df['join_date'] = enhanced_df['date'].dt.date
+                enhanced_df = enhanced_df.merge(
+                    fg_lookup,
+                    on='join_date', how='left'
+                )
+                enhanced_df.drop(columns=['join_date'], inplace=True)
+
             if len(enhanced_df) == 0:
                 self.logger.info(f"  No new rows after filtering for {asset} ({interval})")
                 continue
