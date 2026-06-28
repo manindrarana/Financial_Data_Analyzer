@@ -22,7 +22,10 @@ XGB_PARAMS = {
 
 def _load_data(asset="BTC", interval="1h", date_start=None, date_end=None, asset_class="crypto"):
     conn = duckdb.connect(DB_PATH, read_only=True)
-    col_list = ", ".join(NEEDED_COLS)
+    cols = NEEDED_COLS
+    if asset_class.lower() != "crypto":
+        cols = [c for c in NEEDED_COLS if c != "fear_greed"]
+    col_list = ", ".join(cols)
 
     table = "gold_crypto_features" if asset_class.lower() == "crypto" else "gold_stock_features"
 

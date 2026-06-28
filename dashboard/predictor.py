@@ -156,6 +156,8 @@ def run_prediction(asset="BTC", interval="1h", asset_class="crypto"):
         "returns_1p", "returns_5p", "returns_10p", "returns_20p",
         "log_returns", "hl_ratio", "close_position",
     ]
+    if asset_class == "crypto":
+        needed_cols.append("fear_greed")
     col_list = ", ".join(needed_cols)
 
     df = conn.execute(f"""
