@@ -124,8 +124,21 @@ class TechnicalIndicatorProcessor:
             ("log_returns", "DOUBLE"), ("hl_ratio", "DOUBLE"), ("close_position", "DOUBLE"),
             ("prev_close", "DOUBLE"), ("prev_volume", "DOUBLE"), ("prev_high", "DOUBLE"), ("prev_low", "DOUBLE"),
             ("turnover", "DOUBLE"), ("open_interest", "DOUBLE"), ("funding_rate", "DOUBLE"),
+            ("fear_greed", "DOUBLE"),
         ]
-        stock_cols = [c for c in crypto_cols if c[0] not in ('turnover', 'open_interest', 'funding_rate')]
+        stock_cols = [c for c in crypto_cols if c[0] not in ('turnover', 'open_interest', 'funding_rate', 'fear_greed')]
+
+        try:
+            existing_crypto_cols = [
+                r[0] for r in self.conn.execute(
+                    "SELECT column_name FROM information_schema.columns WHERE table_name = 'gold_crypto_features'"
+                ).fetchall()
+            ]
+            if existing_crypto_cols and 'fear_greed' not in existing_crypto_cols:
+                self.logger.info("gold_crypto_features missing fear_greed column - dropping for rebuild")
+                self.conn.execute("DROP TABLE IF EXISTS gold_crypto_features")
+        except Exception:
+            pass
 
         for asset_class, cols in [('crypto', crypto_cols), ('stock', stock_cols)]:
             col_defs = ', '.join(f"{name} {dtype}" for name, dtype in cols)
@@ -162,6 +175,11 @@ class TechnicalIndicatorProcessor:
             SELECT asset_symbol, interval, date,
                    turnover, open_interest, funding_rate
             FROM gold_crypto_analytics
+        """).df()
+
+        fear_greed_df = self.conn.execute("""
+            SELECT date, value AS fear_greed
+            FROM clean_fear_greed
         """).df()
 
         total_groups = df_all.groupby(['asset_symbol', 'interval']).ngroups
@@ -218,6 +236,16 @@ class TechnicalIndicatorProcessor:
                     crypto_extra[merge_keys + ['turnover', 'open_interest', 'funding_rate']],
                     on=merge_keys, how='left'
                 )
+
+                fg_lookup = fear_greed_df[['date', 'fear_greed']].copy()
+                fg_lookup['join_date'] = fg_lookup['date'].dt.date
+                fg_lookup = fg_lookup[['join_date', 'fear_greed']]
+                enhanced_df['join_date'] = enhanced_df['date'].dt.date
+                enhanced_df = enhanced_df.merge(
+                    fg_lookup,
+                    on='join_date', how='left'
+                )
+                enhanced_df.drop(columns=['join_date'], inplace=True)
 
             if len(enhanced_df) == 0:
                 self.logger.info(f"  No new rows after filtering for {asset} ({interval})")

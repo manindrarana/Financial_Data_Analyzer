@@ -96,14 +96,46 @@ class DataCleaner:
         """)
         self.logger.info("Export successful!")
 
+    def clean_fear_greed(self):
+        self.logger.info("=" * 60)
+        self.logger.info("Cleaning fear_greed ...> clean_fear_greed")
+        self.logger.info("=" * 60)
+
+        self.conn.execute("DROP TABLE IF EXISTS clean_fear_greed")
+        self.conn.execute("""
+            CREATE TABLE clean_fear_greed AS
+            SELECT
+                CAST(date AS TIMESTAMP) AS date,
+                value,
+                classification
+            FROM (
+                SELECT *,
+                    ROW_NUMBER() OVER (PARTITION BY date ORDER BY value DESC) AS rn
+                FROM fear_greed
+                WHERE date IS NOT NULL AND value IS NOT NULL
+            ) sub
+            WHERE rn = 1
+            ORDER BY date
+        """)
+        cnt = self.conn.execute("SELECT COUNT(*) FROM clean_fear_greed").fetchone()[0]
+        self.logger.info(f"Rows in clean_fear_greed: {cnt}")
+
+        self.logger.info(f"Exporting clean_fear_greed to MinIO ({self.processed_bucket})...")
+        self.conn.execute(f"""
+            COPY clean_fear_greed
+            TO 's3://{self.processed_bucket}/clean_fear_greed.parquet' (FORMAT PARQUET)
+        """)
+        self.logger.info("Export successful!")
+
     def run(self):
         self.logger.info("*" * 60)
         self.logger.info("Starting Data Cleaning Process")
         self.logger.info("*" * 60)
-        
+
         self.clean_yahoo()
         self.clean_bybit()
-        
+        self.clean_fear_greed()
+
         self.logger.info("*" * 60)
         self.logger.info("Data Cleaning Completed")
         self.logger.info("*" * 60)

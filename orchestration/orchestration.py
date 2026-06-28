@@ -8,7 +8,7 @@ import duckdb
 from pathlib import Path
 from prefect import flow, task, get_run_logger
 from src.utils import get_logger
-from src.ingestion import YahooFinanceClient, BybitClient
+from src.ingestion import YahooFinanceClient, BybitClient, FearGreedClient
 from src.database import DatabaseLoader, DimensionBuilder, FactLoader
 from src.processing import DataCleaner
 from src.models import GoldLayerProcessor, TechnicalIndicatorProcessor, PipelineModelTrainer
@@ -60,6 +60,15 @@ def _validate_extract():
         bybit_count = conn.execute("SELECT COUNT(*) FROM bybit_crypto").fetchone()[0]
         if bybit_count == 0:
             raise RuntimeError("step1_extract failed: bybit_crypto has 0 rows")
+        try:
+            fg_count = conn.execute("SELECT COUNT(*) FROM fear_greed").fetchone()[0]
+            if fg_count == 0:
+                raise RuntimeError("step1_extract failed: fear_greed has 0 rows")
+        except Exception as e:
+            if "does not exist" in str(e).lower():
+                pass
+            else:
+                raise
         return yahoo_count, bybit_count
     finally:
         conn.close()
@@ -73,6 +82,9 @@ def _validate_clean():
             ).fetchone()[0]
             if null_count > 0:
                 raise RuntimeError(f"step3_clean failed: {table} has {null_count} nulls in close")
+        fg_null_count = conn.execute("SELECT COUNT(*) FROM clean_fear_greed WHERE value IS NULL").fetchone()[0]
+        if fg_null_count > 0:
+            raise RuntimeError(f"step3_clean failed: clean_fear_greed has {fg_null_count} nulls in value")
     finally:
         conn.close()
 
@@ -225,6 +237,23 @@ def extract_bybit(config: dict) -> int:
     return count
 
 
+@task(name="extract-fear-greed", retries=2, retry_delay_seconds=30)
+def extract_fear_greed(config: dict) -> int:
+    logger = get_run_logger()
+    logger.info("EXTRACT: Fear & Greed Index (crypto sentiment)")
+
+    if "bybit" not in config["ingestion"]["active_provider"]:
+        logger.info("Crypto not active, skipping Fear & Greed extraction")
+        return 0
+
+    client = FearGreedClient()
+    client.fetch_data()
+    client.close()
+
+    logger.info("Fear & Greed extraction complete")
+    return 1
+
+
 @task(name="load-to-duckdb", retries=1, retry_delay_seconds=15)
 def load_to_duckdb():
     logger = get_run_logger()
@@ -294,13 +323,15 @@ def _run_concurrent_extract(config: dict) -> dict:
 
     yahoo_future = extract_yahoo.submit(config)
     bybit_future = extract_bybit.submit(config)
+    fg_future = extract_fear_greed.submit(config)
 
     stats = {
         "yfinance_count": yahoo_future.result(),
         "bybit_count": bybit_future.result(),
+        "fear_greed_count": fg_future.result(),
     }
 
-    logger.info(f"Extraction complete: {stats['yfinance_count']} stocks, {stats['bybit_count']} crypto")
+    logger.info(f"Extraction complete: {stats['yfinance_count']} stocks, {stats['bybit_count']} crypto, {stats['fear_greed_count']} sentiment")
     return stats
 
 

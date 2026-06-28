@@ -121,9 +121,37 @@ class DatabaseLoader:
                     self.logger.error(f"FATAL: failed to load {file_path}: {e}")
                     raise
 
+    def load_fear_greed_data(self):
+        self.logger.info("=" * 60)
+        self.logger.info("Loading Fear & Greed Index data into DuckDB from S3...")
+        self.logger.info("=" * 60)
+
+        self.conn.execute("DROP TABLE IF EXISTS fear_greed")
+        self.conn.execute("""
+            CREATE TABLE fear_greed (
+                date TIMESTAMP,
+                value INTEGER,
+                classification VARCHAR
+            )
+        """)
+
+        file_path = f"s3://{self.s3_bucket}/fear_greed.parquet"
+        try:
+            self.conn.execute(f"""
+                INSERT INTO fear_greed
+                SELECT date, value, classification
+                FROM read_parquet('{file_path}')
+            """)
+            cnt = self.conn.execute("SELECT COUNT(*) FROM fear_greed").fetchone()[0]
+            self.logger.info(f"Loaded {cnt} rows from fear_greed.parquet")
+        except Exception as e:
+            self.logger.error(f"FATAL: failed to load {file_path}: {e}")
+            raise
+
     def load_all(self):
         self.load_yahoo_data()
         self.load_bybit_data()
+        self.load_fear_greed_data()
 
     def close(self):
         self.conn.close()

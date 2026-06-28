@@ -120,8 +120,11 @@ class PipelineModelTrainer:
 
         return False, "up_to_date"
 
-    def _fetch_data(self, asset, interval, table_name):
-        col_list = ", ".join(NEEDED_COLS)
+    def _fetch_data(self, asset, interval, asset_class, table_name):
+        cols = NEEDED_COLS
+        if asset_class == "stocks":
+            cols = [c for c in NEEDED_COLS if c != "fear_greed"]
+        col_list = ", ".join(cols)
         df = self.conn.execute(f"""
             SELECT {col_list}
             FROM {table_name}
@@ -133,7 +136,7 @@ class PipelineModelTrainer:
     def _train_one(self, asset, interval, asset_class, table_name):
         self.logger.info(f"  Training {asset} {interval} ({asset_class})...")
 
-        df = self._fetch_data(asset, interval, table_name)
+        df = self._fetch_data(asset, interval, asset_class, table_name)
         if len(df) < MIN_ROWS:
             self.logger.warning(f"  SKIP: only {len(df)} rows (< {MIN_ROWS})")
             return None
