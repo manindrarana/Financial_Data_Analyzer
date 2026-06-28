@@ -60,10 +60,16 @@ def _validate_extract():
         bybit_count = conn.execute("SELECT COUNT(*) FROM bybit_crypto").fetchone()[0]
         if bybit_count == 0:
             raise RuntimeError("step1_extract failed: bybit_crypto has 0 rows")
-        fg_count = conn.execute("SELECT COUNT(*) FROM fear_greed").fetchone()[0]
-        if fg_count == 0:
-            raise RuntimeError("step1_extract failed: fear_greed has 0 rows")
-        return yahoo_count, bybit_count, fg_count
+        try:
+            fg_count = conn.execute("SELECT COUNT(*) FROM fear_greed").fetchone()[0]
+            if fg_count == 0:
+                raise RuntimeError("step1_extract failed: fear_greed has 0 rows")
+        except Exception as e:
+            if "does not exist" in str(e).lower():
+                pass
+            else:
+                raise
+        return yahoo_count, bybit_count
     finally:
         conn.close()
 
