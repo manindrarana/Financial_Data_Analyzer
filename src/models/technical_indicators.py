@@ -177,6 +177,11 @@ class TechnicalIndicatorProcessor:
             FROM gold_crypto_analytics
         """).df()
 
+        fear_greed_df = self.conn.execute("""
+            SELECT date, value AS fear_greed
+            FROM clean_fear_greed
+        """).df()
+
         total_groups = df_all.groupby(['asset_symbol', 'interval']).ngroups
         total_inserted = 0
 
