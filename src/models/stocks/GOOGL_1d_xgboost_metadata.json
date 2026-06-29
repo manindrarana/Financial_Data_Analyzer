@@ -4,7 +4,7 @@
   "asset_class": "stocks",
   "train_end_date": "2023-09-25T00:00:00",
   "train_rows": 2752,
-  "test_rows": 688,
+  "test_rows": 689,
   "test_accuracy": 0.5465288035450517,
   "features": [
     "rsi_14",
@@ -46,6 +46,6 @@
     "random_state": 42
   },
   "best_cv_score": 0.5338058887677208,
-  "trained_at": "2026-06-28T07:56:28.401035",
+  "trained_at": "2026-06-29T09:09:49.803578",
   "mlflow_run_id": null
 }
