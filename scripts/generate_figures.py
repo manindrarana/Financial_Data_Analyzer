@@ -102,6 +102,141 @@ def chart_data_volume():
     save_fig(fig, "data_volume_by_asset.png")
 
 
+def chart_eda_price_trend():
+    conn = duckdb.connect(DB_PATH, read_only=True)
+
+    btc_df = conn.execute("""
+        SELECT date, close FROM gold_crypto_features
+        WHERE asset_symbol = 'BTC' AND interval = '1h'
+        ORDER BY date
+    """).df()
+
+    aapl_df = conn.execute("""
+        SELECT date, close FROM gold_stock_features
+        WHERE asset_symbol = 'AAPL' AND interval = '1d'
+        ORDER BY date
+    """).df()
+
+    conn.close()
+
+    fig, axes = plt.subplots(1, 2, figsize=(16, 5))
+
+    ax1 = axes[0]
+    ax1.plot(btc_df["date"], btc_df["close"], color="#3498db", linewidth=0.8)
+    ax1.set_xlabel("Date")
+    ax1.set_ylabel("Close Price (USD)")
+    ax1.set_title("BTC Closing Price (1h)")
+
+    ax2 = axes[1]
+    ax2.plot(aapl_df["date"], aapl_df["close"], color="#e67e22", linewidth=0.8)
+    ax2.set_xlabel("Date")
+    ax2.set_ylabel("Close Price (USD)")
+    ax2.set_title("AAPL Closing Price (1d)")
+
+    plt.tight_layout()
+    save_fig(fig, "eda_price_trend.png")
+
+
+def chart_eda_return_distribution():
+    conn = duckdb.connect(DB_PATH, read_only=True)
+
+    btc_df = conn.execute("""
+        SELECT date, close FROM gold_crypto_features
+        WHERE asset_symbol = 'BTC' AND interval = '1h'
+        ORDER BY date
+    """).df()
+
+    aapl_df = conn.execute("""
+        SELECT date, close FROM gold_stock_features
+        WHERE asset_symbol = 'AAPL' AND interval = '1d'
+        ORDER BY date
+    """).df()
+
+    conn.close()
+
+    btc_returns = btc_df["close"].pct_change().dropna() * 100
+    aapl_returns = aapl_df["close"].pct_change().dropna() * 100
+
+    fig, axes = plt.subplots(1, 2, figsize=(16, 5))
+
+    ax1 = axes[0]
+    ax1.hist(btc_returns, bins=100, color="#3498db", edgecolor="#1a5276", alpha=0.8)
+    ax1.set_xlabel("1-Period Return (%)")
+    ax1.set_ylabel("Count")
+    ax1.set_title("BTC Return Distribution (1h)")
+    ax1.set_xlim(-10, 10)
+
+    ax2 = axes[1]
+    ax2.hist(aapl_returns, bins=100, color="#e67e22", edgecolor="#a04000", alpha=0.8)
+    ax2.set_xlabel("1-Period Return (%)")
+    ax2.set_ylabel("Count")
+    ax2.set_title("AAPL Return Distribution (1d)")
+    ax2.set_xlim(-10, 10)
+
+    plt.tight_layout()
+    save_fig(fig, "eda_return_distribution.png")
+
+
+def chart_eda_correlation_heatmap():
+    conn = duckdb.connect(DB_PATH, read_only=True)
+
+    crypto_assets = ["BTC", "ETH", "SOL", "ADA", "XRP"]
+    stock_assets = ["AAPL", "GOOGL", "MSFT", "AMZN", "TSLA"]
+
+    all_returns = {}
+
+    for asset in crypto_assets:
+        df = conn.execute(f"""
+            SELECT date, close FROM gold_crypto_features
+            WHERE asset_symbol = '{asset}' AND interval = '1d'
+            ORDER BY date
+        """).df()
+        if not df.empty:
+            rets = df.set_index("date")["close"].pct_change().dropna()
+            all_returns[asset] = rets
+
+    for asset in stock_assets:
+        df = conn.execute(f"""
+            SELECT date, close FROM gold_stock_features
+            WHERE asset_symbol = '{asset}' AND interval = '1d'
+            ORDER BY date
+        """).df()
+        if not df.empty:
+            rets = df.set_index("date")["close"].pct_change().dropna()
+            all_returns[asset] = rets
+
+    conn.close()
+
+    returns_df = pd.DataFrame(all_returns)
+    corr_matrix = returns_df.corr()
+
+    fig, ax = plt.subplots(figsize=(10, 8))
+    im = ax.imshow(corr_matrix.values, cmap="RdYlBu_r", vmin=-1, vmax=1, aspect="auto")
+
+    ax.set_xticks(range(len(corr_matrix.columns)))
+    ax.set_yticks(range(len(corr_matrix.columns)))
+    ax.set_xticklabels(corr_matrix.columns, rotation=45, ha="right", fontsize=10)
+    ax.set_yticklabels(corr_matrix.columns, fontsize=10)
+
+    for i in range(len(corr_matrix.columns)):
+        for j in range(len(corr_matrix.columns)):
+            val = corr_matrix.values[i, j]
+            color = "white" if abs(val) > 0.5 else "#e0e0e0"
+            ax.text(j, i, f"{val:.2f}", ha="center", va="center", fontsize=8, color=color)
+
+    cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    cbar.set_label("Correlation", color="#e0e0e0")
+    cbar.ax.tick_params(colors="#e0e0e0")
+
+    n_crypto = len(crypto_assets)
+    ax.axhline(y=n_crypto - 0.5, color="#e0e0e0", linewidth=1.5, linestyle="--")
+    ax.axvline(x=n_crypto - 0.5, color="#e0e0e0", linewidth=1.5, linestyle="--")
+
+    ax.set_title("Daily Return Correlation Matrix")
+    plt.tight_layout()
+    save_fig(fig, "eda_correlation_heatmap.png")
+
+
 def chart_model_comparison():
     models = ["XGBoost\n(29 features)", "LSTM\n(engineered)", "LSTM\n(raw OHLCV)"]
     accuracies = [52.81, 51.30, 50.09]
@@ -256,6 +391,51 @@ def chart_confidence_distribution():
     save_fig(fig, "confidence_distribution_btc_1h.png")
 
 
+def chart_backtest_equity_curve():
+    from backtesting.walk_forward import run_walk_forward
+    from backtesting.strategy import simulate_trades
+
+    predictions_df, _ = run_walk_forward(
+        asset="BTC",
+        interval="1h",
+        train_months=6,
+        test_months=1,
+        step_months=1,
+        return_data=True,
+        asset_class="crypto",
+    )
+
+    trades_df, equity_df = simulate_trades(
+        predictions_df,
+        confidence_threshold=0.52,
+        stop_loss_pct=0.02,
+        take_profit_pct=0.04,
+        max_hold_bars=24,
+        initial_capital=10000,
+    )
+
+    if equity_df.empty:
+        raise RuntimeError("Equity curve is empty - no trades were simulated")
+
+    fig, axes = plt.subplots(2, 1, figsize=(14, 8), gridspec_kw={"height_ratios": [3, 1]})
+
+    ax1 = axes[0]
+    ax1.plot(equity_df["date"], equity_df["equity"], color="#26a69a", linewidth=1.2)
+    ax1.axhline(y=10000, color="#ffc107", linestyle="--", linewidth=1, label="Initial Capital ($10,000)")
+    ax1.set_ylabel("Equity (USD)")
+    ax1.set_title("Walk-Forward Backtest Equity Curve - BTC 1h")
+    ax1.legend(loc="upper left")
+
+    ax2 = axes[1]
+    ax2.fill_between(equity_df["date"], equity_df["drawdown_pct"], 0, color="#ef5350", alpha=0.5)
+    ax2.set_ylabel("Drawdown (%)")
+    ax2.set_xlabel("Date")
+    ax2.set_title("Drawdown")
+
+    plt.tight_layout()
+    save_fig(fig, "backtest_equity_curve.png")
+
+
 if __name__ == "__main__":
     print("Generating thesis figures...")
     print(f"Output directory: {OUTPUT_DIR}")
@@ -263,11 +443,15 @@ if __name__ == "__main__":
 
     charts = [
         ("Data volume by asset", chart_data_volume),
+        ("EDA: Price trends (BTC + AAPL)", chart_eda_price_trend),
+        ("EDA: Return distributions (BTC + AAPL)", chart_eda_return_distribution),
+        ("EDA: Correlation heatmap", chart_eda_correlation_heatmap),
         ("XGBoost vs LSTM comparison", chart_model_comparison),
         ("Ceiling experiments", chart_ceiling_experiments),
         ("Per-asset accuracy (all 45 models)", chart_per_asset_accuracy),
         ("Feature importance (BTC 1h)", chart_feature_importance),
         ("Confidence distribution (BTC 1h)", chart_confidence_distribution),
+        ("Backtest equity curve (BTC 1h)", chart_backtest_equity_curve),
     ]
 
     for name, func in charts:
