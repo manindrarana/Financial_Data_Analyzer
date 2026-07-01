@@ -52,6 +52,7 @@ class BybitClient:
         """Map kline interval to open interest interval supported by Bybit API"""
         mapping = {
             "60": "1h",
+            "240": "4h",
             "D": "1d",
         }
         return mapping.get(kline_interval)
