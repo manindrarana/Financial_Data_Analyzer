@@ -12,6 +12,7 @@ def simulate_trades(
     take_profit_pct=0.04,
     max_hold_bars=24,
     initial_capital=10000,
+    transaction_cost_pct=0.001,
 ):
     df = predictions_df.copy()
     df = df.sort_values("date").reset_index(drop=True)
@@ -58,8 +59,11 @@ def simulate_trades(
                 exit_reason = "max_hold"
 
             if exit_price is not None:
-                pnl = exit_price - entry_price
-                pnl_pct = (exit_price / entry_price - 1) * 100
+                entry_cost = entry_price * transaction_cost_pct
+                exit_cost = exit_price * transaction_cost_pct
+                total_cost = entry_cost + exit_cost
+                pnl = exit_price - entry_price - total_cost
+                pnl_pct = (pnl / entry_price) * 100
                 cash += pnl
 
                 trades.append({
@@ -73,6 +77,7 @@ def simulate_trades(
                     "bars_held": bars_held,
                     "confidence": float(df.loc[entry_idx, "confidence"]),
                     "fold_id": int(df.loc[entry_idx, "fold_id"]) if "fold_id" in df.columns else None,
+                    "total_cost": round(total_cost, 6),
                 })
 
                 in_position = False
