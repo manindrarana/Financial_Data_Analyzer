@@ -2,10 +2,10 @@
   "asset": "ETH",
   "interval": "1h",
   "asset_class": "crypto",
-  "train_end_date": "2025-06-12T18:00:00",
-  "train_rows": 37020,
-  "test_rows": 9256,
-  "test_accuracy": 0.5221477960242005,
+  "train_end_date": "2025-06-13T12:00:00",
+  "train_rows": 37038,
+  "test_rows": 9260,
+  "test_accuracy": 0.5205183585313174,
   "features": [
     "rsi_14",
     "roc_10",
@@ -40,13 +40,13 @@
   ],
   "best_params": {
     "learning_rate": 0.01,
-    "max_depth": 3,
+    "max_depth": 5,
     "n_estimators": 200,
     "subsample": 1.0,
     "eval_metric": "logloss",
     "random_state": 42
   },
-  "best_cv_score": 0.5430181641258515,
-  "trained_at": "2026-07-03T10:52:11.519083",
+  "best_cv_score": 0.5452261306532664,
+  "trained_at": "2026-07-04T08:59:12.022381",
   "mlflow_run_id": null
 }
