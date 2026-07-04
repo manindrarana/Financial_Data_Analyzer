@@ -559,6 +559,13 @@ def render_backtest():
                             ],
                             width=1,
                         ),
+                        dbc.Col(
+                            [
+                                html.Label("Txn Cost %", className="text-muted small mb-1"),
+                                dbc.Input(id="bt-txn-cost", type="number", min=0, max=1, step=0.01, value=0.10, style={"color": "#000"}),
+                            ],
+                            width=2,
+                        ),
                     ],
                     className="mb-3 align-items-end",
                 ),
