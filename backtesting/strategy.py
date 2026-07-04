@@ -107,8 +107,11 @@ def simulate_trades(
 
     if in_position:
         exit_price = df.loc[len(df) - 1, "close"]
-        pnl = exit_price - entry_price
-        pnl_pct = (exit_price / entry_price - 1) * 100
+        entry_cost = entry_price * transaction_cost_pct
+        exit_cost = exit_price * transaction_cost_pct
+        total_cost = entry_cost + exit_cost
+        pnl = exit_price - entry_price - total_cost
+        pnl_pct = (pnl / entry_price) * 100
         cash += pnl
 
         trades.append({
@@ -122,6 +125,7 @@ def simulate_trades(
             "bars_held": bars_held,
             "confidence": float(df.loc[entry_idx, "confidence"]),
             "fold_id": int(df.loc[entry_idx, "fold_id"]) if "fold_id" in df.columns else None,
+            "total_cost": round(total_cost, 6),
         })
 
         equity.append({
@@ -148,6 +152,7 @@ def run_strategy(
     initial_capital=10000,
     return_data=False,
     predictions_df=None,
+    transaction_cost_pct=0.001,
 ):
     if predictions_df is not None:
         predictions = predictions_df
