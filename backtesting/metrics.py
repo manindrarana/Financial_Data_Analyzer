@@ -47,6 +47,7 @@ def compute_metrics(trades_df, equity_df, initial_capital=10000, interval=None):
         return {
             "total_return_pct": 0.0,
             "total_pnl": 0.0,
+            "total_cost": 0.0,
             "sharpe_ratio": 0.0,
             "max_drawdown_pct": 0.0,
             "win_rate": 0.0,
@@ -65,6 +66,7 @@ def compute_metrics(trades_df, equity_df, initial_capital=10000, interval=None):
 
     total_pnl = trades_df["pnl"].sum()
     total_return_pct = (total_pnl / initial_capital) * 100
+    total_cost = trades_df["total_cost"].sum() if "total_cost" in trades_df.columns else 0.0
 
     gross_profit = trades_df[trades_df["pnl"] > 0]["pnl"].sum()
     gross_loss = abs(trades_df[trades_df["pnl"] <= 0]["pnl"].sum())
@@ -118,6 +120,7 @@ def compute_metrics(trades_df, equity_df, initial_capital=10000, interval=None):
     return {
         "total_return_pct": round(total_return_pct, 2),
         "total_pnl": round(total_pnl, 2),
+        "total_cost": round(total_cost, 2),
         "sharpe_ratio": round(sharpe_ratio, 2),
         "max_drawdown_pct": round(max_drawdown_pct, 2),
         "win_rate": round(win_rate * 100, 1),
@@ -162,6 +165,7 @@ def run_metrics(
 
     print(f"   Total Return:     {metrics['total_return_pct']:+.2f}%")
     print(f"   Total PnL:        ${metrics['total_pnl']:+,.2f}")
+    print(f"   Total Cost:       ${metrics['total_cost']:,.2f}")
     print(f"   Sharpe Ratio:     {metrics['sharpe_ratio']:.2f}")
     print(f"   Max Drawdown:     {metrics['max_drawdown_pct']:.2f}%")
     print(f"   Win Rate:         {metrics['win_rate']:.1f}%")
