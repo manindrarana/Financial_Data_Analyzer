@@ -559,6 +559,13 @@ def render_backtest():
                             ],
                             width=1,
                         ),
+                        dbc.Col(
+                            [
+                                html.Label("Txn Cost %", className="text-muted small mb-1"),
+                                dbc.Input(id="bt-txn-cost", type="number", min=0, max=1, step=0.01, value=0.10, style={"color": "#000"}),
+                            ],
+                            width=2,
+                        ),
                     ],
                     className="mb-3 align-items-end",
                 ),
@@ -600,6 +607,10 @@ def _build_backtest_results(metrics, equity_df, trades_df):
             dbc.Col(dbc.Card(dbc.CardBody([
                 html.H5(str(metrics.get("total_trades", 0)), className="card-title text-info"),
                 html.P("Total Trades", className="card-text text-muted small"),
+            ]), color="dark", outline=True), width=2),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(f"${metrics.get('total_cost', 0):,.2f}", className="card-title text-warning"),
+                html.P("Total Cost", className="card-text text-muted small"),
             ]), color="dark", outline=True), width=2),
         ],
         className="mb-3",
@@ -713,6 +724,7 @@ def _build_backtest_results(metrics, equity_df, trades_df):
     dash.State("bt-train-months", "value"),
     dash.State("bt-test-months", "value"),
     dash.State("bt-step-months", "value"),
+    dash.State("bt-txn-cost", "value"),
     background=True,
     running=[(dash.Output("bt-run-btn", "disabled"), True, False)],
     progress=[dash.Output("bt-progress-bar", "children")],
@@ -720,7 +732,8 @@ def _build_backtest_results(metrics, equity_df, trades_df):
 )
 def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, interval,
                            date_start, date_end, confidence, stop_loss, take_profit,
-                           max_hold, capital, train_months, test_months, step_months):
+                           max_hold, capital, train_months, test_months, step_months,
+                           txn_cost):
     """Background callback: runs the full walk-forward → strategy → metrics pipeline."""
     if not n_clicks or not asset:
         raise dash.exceptions.PreventUpdate
@@ -772,6 +785,7 @@ def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, i
             max_hold_bars=int(max_hold),
             initial_capital=float(capital),
             return_data=True,
+            transaction_cost_pct=float(txn_cost) / 100 if txn_cost else 0.0,
         )
 
         set_progress(dbc.Alert("Computing metrics...", color="info"))

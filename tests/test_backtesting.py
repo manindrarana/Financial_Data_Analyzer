@@ -118,3 +118,87 @@ class TestAnnualizationFactors:
 
     def test_weekly_factor(self):
         assert ANNUALIZATION_FACTORS["1wk"] == 52
+
+
+class TestTransactionCosts:
+    def test_take_profit_cost_deducted(self):
+        df = pd.DataFrame([
+            {"date": datetime(2024, 1, 1, 10, 0), "close": 100.0, "prediction": 1, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 11, 0), "close": 105.0, "prediction": 0, "confidence": 0.5},
+        ])
+        trades, _ = simulate_trades(
+            df, confidence_threshold=0.52, take_profit_pct=0.04,
+            transaction_cost_pct=0.001,
+        )
+        assert len(trades) == 1
+        assert trades.iloc[0]["exit_reason"] == "take_profit"
+        assert trades.iloc[0]["exit_price"] == 104.0
+        entry_cost = 100.0 * 0.001
+        exit_cost = 104.0 * 0.001
+        expected_cost = round(entry_cost + exit_cost, 6)
+        expected_pnl = round(104.0 - 100.0 - expected_cost, 4)
+        assert trades.iloc[0]["total_cost"] == expected_cost
+        assert trades.iloc[0]["pnl"] == expected_pnl
+        assert trades.iloc[0]["pnl"] < 4.0
+
+    def test_stop_loss_cost_deducted(self):
+        df = pd.DataFrame([
+            {"date": datetime(2024, 1, 1, 10, 0), "close": 100.0, "prediction": 1, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 11, 0), "close": 97.0, "prediction": 0, "confidence": 0.5},
+        ])
+        trades, _ = simulate_trades(
+            df, confidence_threshold=0.52, stop_loss_pct=0.02,
+            transaction_cost_pct=0.001,
+        )
+        assert len(trades) == 1
+        assert trades.iloc[0]["exit_reason"] == "stop_loss"
+        assert trades.iloc[0]["exit_price"] == 98.0
+        entry_cost = 100.0 * 0.001
+        exit_cost = 98.0 * 0.001
+        expected_cost = round(entry_cost + exit_cost, 6)
+        expected_pnl = round(98.0 - 100.0 - expected_cost, 4)
+        assert trades.iloc[0]["total_cost"] == expected_cost
+        assert trades.iloc[0]["pnl"] == expected_pnl
+        assert trades.iloc[0]["pnl"] < -2.0
+
+    def test_zero_cost_matches_raw_pnl(self):
+        df = pd.DataFrame([
+            {"date": datetime(2024, 1, 1, 10, 0), "close": 100.0, "prediction": 1, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 11, 0), "close": 105.0, "prediction": 0, "confidence": 0.5},
+        ])
+        trades, _ = simulate_trades(
+            df, confidence_threshold=0.52, take_profit_pct=0.04,
+            transaction_cost_pct=0.0,
+        )
+        assert len(trades) == 1
+        assert trades.iloc[0]["pnl"] == 4.0
+        assert trades.iloc[0]["total_cost"] == 0.0
+
+    def test_total_cost_in_metrics(self):
+        df = pd.DataFrame([
+            {"date": datetime(2024, 1, 1, 10, 0), "close": 100.0, "prediction": 1, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 11, 0), "close": 105.0, "prediction": 0, "confidence": 0.5},
+        ])
+        trades, equity = simulate_trades(
+            df, confidence_threshold=0.52, take_profit_pct=0.04,
+            transaction_cost_pct=0.001,
+        )
+        metrics = compute_metrics(trades, equity, interval="1h")
+        assert "total_cost" in metrics
+        assert metrics["total_cost"] == round(trades["total_cost"].sum(), 2)
+
+    def test_higher_cost_reduces_pnl(self):
+        df = pd.DataFrame([
+            {"date": datetime(2024, 1, 1, 10, 0), "close": 100.0, "prediction": 1, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 11, 0), "close": 105.0, "prediction": 0, "confidence": 0.5},
+        ])
+        trades_low, _ = simulate_trades(
+            df, confidence_threshold=0.52, take_profit_pct=0.04,
+            transaction_cost_pct=0.001,
+        )
+        trades_high, _ = simulate_trades(
+            df, confidence_threshold=0.52, take_profit_pct=0.04,
+            transaction_cost_pct=0.005,
+        )
+        assert trades_high.iloc[0]["pnl"] < trades_low.iloc[0]["pnl"]
+        assert trades_high.iloc[0]["total_cost"] > trades_low.iloc[0]["total_cost"]

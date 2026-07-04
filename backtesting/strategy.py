@@ -12,6 +12,7 @@ def simulate_trades(
     take_profit_pct=0.04,
     max_hold_bars=24,
     initial_capital=10000,
+    transaction_cost_pct=0.001,
 ):
     df = predictions_df.copy()
     df = df.sort_values("date").reset_index(drop=True)
@@ -58,8 +59,11 @@ def simulate_trades(
                 exit_reason = "max_hold"
 
             if exit_price is not None:
-                pnl = exit_price - entry_price
-                pnl_pct = (exit_price / entry_price - 1) * 100
+                entry_cost = entry_price * transaction_cost_pct
+                exit_cost = exit_price * transaction_cost_pct
+                total_cost = entry_cost + exit_cost
+                pnl = exit_price - entry_price - total_cost
+                pnl_pct = (pnl / entry_price) * 100
                 cash += pnl
 
                 trades.append({
@@ -73,6 +77,7 @@ def simulate_trades(
                     "bars_held": bars_held,
                     "confidence": float(df.loc[entry_idx, "confidence"]),
                     "fold_id": int(df.loc[entry_idx, "fold_id"]) if "fold_id" in df.columns else None,
+                    "total_cost": round(total_cost, 6),
                 })
 
                 in_position = False
@@ -102,8 +107,11 @@ def simulate_trades(
 
     if in_position:
         exit_price = df.loc[len(df) - 1, "close"]
-        pnl = exit_price - entry_price
-        pnl_pct = (exit_price / entry_price - 1) * 100
+        entry_cost = entry_price * transaction_cost_pct
+        exit_cost = exit_price * transaction_cost_pct
+        total_cost = entry_cost + exit_cost
+        pnl = exit_price - entry_price - total_cost
+        pnl_pct = (pnl / entry_price) * 100
         cash += pnl
 
         trades.append({
@@ -117,6 +125,7 @@ def simulate_trades(
             "bars_held": bars_held,
             "confidence": float(df.loc[entry_idx, "confidence"]),
             "fold_id": int(df.loc[entry_idx, "fold_id"]) if "fold_id" in df.columns else None,
+            "total_cost": round(total_cost, 6),
         })
 
         equity.append({
@@ -143,6 +152,7 @@ def run_strategy(
     initial_capital=10000,
     return_data=False,
     predictions_df=None,
+    transaction_cost_pct=0.001,
 ):
     if predictions_df is not None:
         predictions = predictions_df
@@ -164,6 +174,7 @@ def run_strategy(
     print(f"   Stop loss: {stop_loss_pct*100:.0f}%")
     print(f"   Take profit: {take_profit_pct*100:.0f}%")
     print(f"   Max hold: {max_hold_bars} bars")
+    print(f"   Transaction cost: {transaction_cost_pct*100:.2f}% per side")
     print(f"   Initial capital: ${initial_capital:,.0f}\n")
 
     trades_df, equity_df = simulate_trades(
@@ -173,6 +184,7 @@ def run_strategy(
         take_profit_pct,
         max_hold_bars,
         initial_capital,
+        transaction_cost_pct,
     )
 
     if return_data:
