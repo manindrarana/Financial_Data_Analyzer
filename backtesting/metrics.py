@@ -117,6 +117,18 @@ def compute_metrics(trades_df, equity_df, initial_capital=10000, interval=None):
     else:
         fold_metrics = []
 
+    direction_breakdown = []
+    if "direction" in trades_df.columns:
+        for dirn in sorted(trades_df["direction"].dropna().unique()):
+            dir_trades = trades_df[trades_df["direction"] == dirn]
+            dir_wins = int((dir_trades["pnl"] > 0).sum())
+            direction_breakdown.append({
+                "direction": dirn,
+                "trades": len(dir_trades),
+                "pnl": round(dir_trades["pnl"].sum(), 2),
+                "win_rate": round(dir_wins / len(dir_trades) * 100, 1) if len(dir_trades) > 0 else 0.0,
+            })
+
     return {
         "total_return_pct": round(total_return_pct, 2),
         "total_pnl": round(total_pnl, 2),
@@ -132,6 +144,7 @@ def compute_metrics(trades_df, equity_df, initial_capital=10000, interval=None):
         "losing_trades": losing_trades,
         "exit_reasons": exit_reasons,
         "fold_breakdown": fold_metrics,
+        "direction_breakdown": direction_breakdown,
     }   
     
 def run_metrics(
@@ -185,6 +198,12 @@ def run_metrics(
         for fm in metrics["fold_breakdown"]:
             print(f"     Fold {fm['fold_id']}: {fm['trades']} trades, "
                   f"PnL ${fm['pnl']:+,.2f}, Win {fm['win_rate']:.1f}%")
+
+    if metrics.get("direction_breakdown"):
+        print(f"\n   Direction breakdown:")
+        for dm in metrics["direction_breakdown"]:
+            print(f"     {dm['direction']}: {dm['trades']} trades, "
+                  f"PnL ${dm['pnl']:+,.2f}, Win {dm['win_rate']:.1f}%")
 
     if return_data:
         return metrics

@@ -202,3 +202,131 @@ class TestTransactionCosts:
         )
         assert trades_high.iloc[0]["pnl"] < trades_low.iloc[0]["pnl"]
         assert trades_high.iloc[0]["total_cost"] > trades_low.iloc[0]["total_cost"]
+
+
+class TestShortSelling:
+    def test_short_enters_on_down_prediction(self):
+        df = pd.DataFrame([
+            {"date": datetime(2024, 1, 1, 10, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 11, 0), "close": 105.0, "prediction": 1, "confidence": 0.5},
+        ])
+        trades, _ = simulate_trades(
+            df, confidence_threshold=0.52, allow_short=True,
+            stop_loss_pct=0.02, take_profit_pct=0.04,
+        )
+        assert len(trades) == 1
+        assert trades.iloc[0]["direction"] == "short"
+
+    def test_no_short_when_disabled(self):
+        df = pd.DataFrame([
+            {"date": datetime(2024, 1, 1, 10, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 11, 0), "close": 95.0, "prediction": 1, "confidence": 0.5},
+        ])
+        trades, _ = simulate_trades(
+            df, confidence_threshold=0.52, allow_short=False,
+        )
+        assert trades.empty
+
+    def test_short_take_profit_when_price_drops(self):
+        df = pd.DataFrame([
+            {"date": datetime(2024, 1, 1, 10, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 11, 0), "close": 94.0, "prediction": 1, "confidence": 0.5},
+        ])
+        trades, _ = simulate_trades(
+            df, confidence_threshold=0.52, allow_short=True,
+            take_profit_pct=0.04, transaction_cost_pct=0.0,
+        )
+        assert len(trades) == 1
+        assert trades.iloc[0]["exit_reason"] == "take_profit"
+        assert trades.iloc[0]["exit_price"] == 96.0
+        assert trades.iloc[0]["pnl"] == 4.0
+
+    def test_short_stop_loss_when_price_rises(self):
+        df = pd.DataFrame([
+            {"date": datetime(2024, 1, 1, 10, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 11, 0), "close": 103.0, "prediction": 1, "confidence": 0.5},
+        ])
+        trades, _ = simulate_trades(
+            df, confidence_threshold=0.52, allow_short=True,
+            stop_loss_pct=0.02, transaction_cost_pct=0.0,
+        )
+        assert len(trades) == 1
+        assert trades.iloc[0]["exit_reason"] == "stop_loss"
+        assert trades.iloc[0]["exit_price"] == 102.0
+        assert trades.iloc[0]["pnl"] == -2.0
+
+    def test_short_pnl_inverted(self):
+        df = pd.DataFrame([
+            {"date": datetime(2024, 1, 1, 10, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 11, 0), "close": 90.0, "prediction": 1, "confidence": 0.5},
+        ])
+        trades, _ = simulate_trades(
+            df, confidence_threshold=0.52, allow_short=True,
+            take_profit_pct=0.10, transaction_cost_pct=0.0,
+        )
+        assert len(trades) == 1
+        assert trades.iloc[0]["pnl"] == 10.0
+
+    def test_short_cost_deducted(self):
+        df = pd.DataFrame([
+            {"date": datetime(2024, 1, 1, 10, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 11, 0), "close": 94.0, "prediction": 1, "confidence": 0.5},
+        ])
+        trades, _ = simulate_trades(
+            df, confidence_threshold=0.52, allow_short=True,
+            take_profit_pct=0.04, transaction_cost_pct=0.001,
+        )
+        assert len(trades) == 1
+        entry_cost = 100.0 * 0.001
+        exit_cost = 96.0 * 0.001
+        expected_cost = round(entry_cost + exit_cost, 6)
+        expected_pnl = round(100.0 - 96.0 - expected_cost, 4)
+        assert trades.iloc[0]["total_cost"] == expected_cost
+        assert trades.iloc[0]["pnl"] == expected_pnl
+
+    def test_direction_column_present(self):
+        df = pd.DataFrame([
+            {"date": datetime(2024, 1, 1, 10, 0), "close": 100.0, "prediction": 1, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 11, 0), "close": 105.0, "prediction": 0, "confidence": 0.5},
+        ])
+        trades, _ = simulate_trades(
+            df, confidence_threshold=0.52, allow_short=True,
+            take_profit_pct=0.04,
+        )
+        assert len(trades) == 1
+        assert trades.iloc[0]["direction"] == "long"
+
+    def test_both_long_and_short_trades(self):
+        df = pd.DataFrame([
+            {"date": datetime(2024, 1, 1, 10, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 11, 0), "close": 95.0, "prediction": 0, "confidence": 0.50},
+            {"date": datetime(2024, 1, 1, 12, 0), "close": 100.0, "prediction": 1, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 13, 0), "close": 105.0, "prediction": 0, "confidence": 0.50},
+        ])
+        trades, _ = simulate_trades(
+            df, confidence_threshold=0.52, allow_short=True,
+            take_profit_pct=0.04, stop_loss_pct=0.05,
+            transaction_cost_pct=0.0,
+        )
+        assert len(trades) == 2
+        assert trades.iloc[0]["direction"] == "short"
+        assert trades.iloc[1]["direction"] == "long"
+
+    def test_direction_breakdown_in_metrics(self):
+        df = pd.DataFrame([
+            {"date": datetime(2024, 1, 1, 10, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 11, 0), "close": 95.0, "prediction": 0, "confidence": 0.50},
+            {"date": datetime(2024, 1, 1, 12, 0), "close": 100.0, "prediction": 1, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 13, 0), "close": 105.0, "prediction": 0, "confidence": 0.50},
+        ])
+        trades, equity = simulate_trades(
+            df, confidence_threshold=0.52, allow_short=True,
+            take_profit_pct=0.04, stop_loss_pct=0.05,
+            transaction_cost_pct=0.0,
+        )
+        metrics = compute_metrics(trades, equity, interval="1h")
+        assert "direction_breakdown" in metrics
+        assert len(metrics["direction_breakdown"]) == 2
+        directions = [d["direction"] for d in metrics["direction_breakdown"]]
+        assert "long" in directions
+        assert "short" in directions

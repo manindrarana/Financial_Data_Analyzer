@@ -566,6 +566,19 @@ def render_backtest():
                             ],
                             width=2,
                         ),
+                        dbc.Col(
+                            [
+                                html.Label("Allow Short", className="text-muted small mb-1"),
+                                dbc.Checklist(
+                                    id="bt-allow-short",
+                                    options=[{"label": " Enable short selling", "value": True}],
+                                    value=[],
+                                    inline=True,
+                                    style={"color": "#adb5bd", "fontSize": "12px", "paddingTop": "10px"},
+                                ),
+                            ],
+                            width=2,
+                        ),
                     ],
                     className="mb-3 align-items-end",
                 ),
@@ -697,6 +710,27 @@ def _build_backtest_results(metrics, equity_df, trades_df):
             className="mt-2",
         )
 
+    direction_breakdown = metrics.get("direction_breakdown", [])
+    direction_table = None
+    if direction_breakdown:
+        dir_rows = []
+        for dm in direction_breakdown:
+            pnl_color = "#26a69a" if dm["pnl"] >= 0 else "#ef5350"
+            dir_label = "Long" if dm["direction"] == "long" else "Short"
+            dir_rows.append(html.Tr([
+                html.Td(dir_label, className="text-center"),
+                html.Td(str(dm["trades"]), className="text-center"),
+                html.Td(f"${dm['pnl']:+,.2f}", style={"color": pnl_color}),
+                html.Td(f"{dm['win_rate']:.1f}%", className="text-center"),
+            ]))
+        direction_table = dbc.Table(
+            [html.Thead(html.Tr([
+                html.Th("Direction"), html.Th("Trades"), html.Th("PnL"), html.Th("Win %"),
+            ]))] + [html.Tbody(dir_rows)],
+            bordered=True, hover=True, size="sm", striped=True,
+            className="mt-2",
+        )
+
     return html.Div([
         metric_cards,
         exit_html,
@@ -704,6 +738,8 @@ def _build_backtest_results(metrics, equity_df, trades_df):
         dbc.Row(dbc.Col(dcc.Graph(figure=fig_trades, config={"displayModeBar": True, "responsive": True}), width=12)),
         html.H6("Per-Fold Breakdown", className="text-light mt-3") if fold_table else None,
         fold_table,
+        html.H6("Direction Breakdown", className="text-light mt-3") if direction_table else None,
+        direction_table,
     ])
 
 
@@ -725,6 +761,7 @@ def _build_backtest_results(metrics, equity_df, trades_df):
     dash.State("bt-test-months", "value"),
     dash.State("bt-step-months", "value"),
     dash.State("bt-txn-cost", "value"),
+    dash.State("bt-allow-short", "value"),
     background=True,
     running=[(dash.Output("bt-run-btn", "disabled"), True, False)],
     progress=[dash.Output("bt-progress-bar", "children")],
@@ -733,7 +770,7 @@ def _build_backtest_results(metrics, equity_df, trades_df):
 def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, interval,
                            date_start, date_end, confidence, stop_loss, take_profit,
                            max_hold, capital, train_months, test_months, step_months,
-                           txn_cost):
+                           txn_cost, allow_short):
     """Background callback: runs the full walk-forward → strategy → metrics pipeline."""
     if not n_clicks or not asset:
         raise dash.exceptions.PreventUpdate
@@ -786,6 +823,7 @@ def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, i
             initial_capital=float(capital),
             return_data=True,
             transaction_cost_pct=float(txn_cost) / 100 if txn_cost else 0.0,
+            allow_short=bool(allow_short),
         )
 
         set_progress(dbc.Alert("Computing metrics...", color="info"))
