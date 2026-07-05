@@ -13,6 +13,7 @@ def simulate_trades(
     max_hold_bars=24,
     initial_capital=10000,
     transaction_cost_pct=0.001,
+    allow_short=False,
 ):
     df = predictions_df.copy()
     df = df.sort_values("date").reset_index(drop=True)
@@ -35,6 +36,7 @@ def simulate_trades(
     entry_price = None
     stop_price = None
     target_price = None
+    direction = None
     bars_held = 0
 
     for i in range(len(df)):
@@ -48,13 +50,22 @@ def simulate_trades(
             exit_price = None
             exit_reason = None
 
-            if current_price <= stop_price:
-                exit_price = stop_price
-                exit_reason = "stop_loss"
-            elif current_price >= target_price:
-                exit_price = target_price
-                exit_reason = "take_profit"
-            elif bars_held >= max_hold_bars:
+            if direction == "long":
+                if current_price <= stop_price:
+                    exit_price = stop_price
+                    exit_reason = "stop_loss"
+                elif current_price >= target_price:
+                    exit_price = target_price
+                    exit_reason = "take_profit"
+            else:
+                if current_price >= stop_price:
+                    exit_price = stop_price
+                    exit_reason = "stop_loss"
+                elif current_price <= target_price:
+                    exit_price = target_price
+                    exit_reason = "take_profit"
+
+            if exit_price is None and bars_held >= max_hold_bars:
                 exit_price = current_price
                 exit_reason = "max_hold"
 
@@ -62,7 +73,12 @@ def simulate_trades(
                 entry_cost = entry_price * transaction_cost_pct
                 exit_cost = exit_price * transaction_cost_pct
                 total_cost = entry_cost + exit_cost
-                pnl = exit_price - entry_price - total_cost
+
+                if direction == "long":
+                    pnl = exit_price - entry_price - total_cost
+                else:
+                    pnl = entry_price - exit_price - total_cost
+
                 pnl_pct = (pnl / entry_price) * 100
                 cash += pnl
 
@@ -71,6 +87,7 @@ def simulate_trades(
                     "exit_time": current_date,
                     "entry_price": entry_price,
                     "exit_price": exit_price,
+                    "direction": direction,
                     "pnl": round(pnl, 4),
                     "pnl_pct": round(pnl_pct, 2),
                     "exit_reason": exit_reason,
@@ -85,15 +102,26 @@ def simulate_trades(
                 entry_price = None
                 stop_price = None
                 target_price = None
+                direction = None
                 bars_held = 0
 
-        if not in_position and pred == 1 and conf >= confidence_threshold:
-            entry_idx = i
-            entry_price = current_price
-            stop_price = entry_price * (1 - stop_loss_pct)
-            target_price = entry_price * (1 + take_profit_pct)
-            bars_held = 0
-            in_position = True
+        if not in_position and conf >= confidence_threshold:
+            if pred == 1:
+                entry_idx = i
+                entry_price = current_price
+                stop_price = entry_price * (1 - stop_loss_pct)
+                target_price = entry_price * (1 + take_profit_pct)
+                direction = "long"
+                bars_held = 0
+                in_position = True
+            elif allow_short and pred == 0:
+                entry_idx = i
+                entry_price = current_price
+                stop_price = entry_price * (1 + stop_loss_pct)
+                target_price = entry_price * (1 - take_profit_pct)
+                direction = "short"
+                bars_held = 0
+                in_position = True
 
         current_equity = cash
         if current_equity > equity_peak:
@@ -110,7 +138,12 @@ def simulate_trades(
         entry_cost = entry_price * transaction_cost_pct
         exit_cost = exit_price * transaction_cost_pct
         total_cost = entry_cost + exit_cost
-        pnl = exit_price - entry_price - total_cost
+
+        if direction == "long":
+            pnl = exit_price - entry_price - total_cost
+        else:
+            pnl = entry_price - exit_price - total_cost
+
         pnl_pct = (pnl / entry_price) * 100
         cash += pnl
 
@@ -119,6 +152,7 @@ def simulate_trades(
             "exit_time": df.loc[len(df) - 1, "date"],
             "entry_price": entry_price,
             "exit_price": exit_price,
+            "direction": direction,
             "pnl": round(pnl, 4),
             "pnl_pct": round(pnl_pct, 2),
             "exit_reason": "force_close",
