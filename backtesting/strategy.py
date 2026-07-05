@@ -187,6 +187,7 @@ def run_strategy(
     return_data=False,
     predictions_df=None,
     transaction_cost_pct=0.001,
+    allow_short=False,
 ):
     if predictions_df is not None:
         predictions = predictions_df
