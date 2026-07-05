@@ -566,6 +566,19 @@ def render_backtest():
                             ],
                             width=2,
                         ),
+                        dbc.Col(
+                            [
+                                html.Label("Allow Short", className="text-muted small mb-1"),
+                                dbc.Checklist(
+                                    id="bt-allow-short",
+                                    options=[{"label": " Enable short selling", "value": True}],
+                                    value=[],
+                                    inline=True,
+                                    style={"color": "#adb5bd", "fontSize": "12px", "paddingTop": "10px"},
+                                ),
+                            ],
+                            width=2,
+                        ),
                     ],
                     className="mb-3 align-items-end",
                 ),
