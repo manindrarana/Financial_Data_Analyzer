@@ -144,6 +144,7 @@ def compute_metrics(trades_df, equity_df, initial_capital=10000, interval=None):
         "losing_trades": losing_trades,
         "exit_reasons": exit_reasons,
         "fold_breakdown": fold_metrics,
+        "direction_breakdown": direction_breakdown,
     }   
     
 def run_metrics(
