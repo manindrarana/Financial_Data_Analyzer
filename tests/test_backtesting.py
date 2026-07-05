@@ -299,9 +299,9 @@ class TestShortSelling:
     def test_both_long_and_short_trades(self):
         df = pd.DataFrame([
             {"date": datetime(2024, 1, 1, 10, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
-            {"date": datetime(2024, 1, 1, 11, 0), "close": 95.0, "prediction": 1, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 11, 0), "close": 95.0, "prediction": 0, "confidence": 0.50},
             {"date": datetime(2024, 1, 1, 12, 0), "close": 100.0, "prediction": 1, "confidence": 0.6},
-            {"date": datetime(2024, 1, 1, 13, 0), "close": 105.0, "prediction": 0, "confidence": 0.5},
+            {"date": datetime(2024, 1, 1, 13, 0), "close": 105.0, "prediction": 0, "confidence": 0.50},
         ])
         trades, _ = simulate_trades(
             df, confidence_threshold=0.52, allow_short=True,
@@ -315,9 +315,9 @@ class TestShortSelling:
     def test_direction_breakdown_in_metrics(self):
         df = pd.DataFrame([
             {"date": datetime(2024, 1, 1, 10, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
-            {"date": datetime(2024, 1, 1, 11, 0), "close": 95.0, "prediction": 1, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 11, 0), "close": 95.0, "prediction": 0, "confidence": 0.50},
             {"date": datetime(2024, 1, 1, 12, 0), "close": 100.0, "prediction": 1, "confidence": 0.6},
-            {"date": datetime(2024, 1, 1, 13, 0), "close": 105.0, "prediction": 0, "confidence": 0.5},
+            {"date": datetime(2024, 1, 1, 13, 0), "close": 105.0, "prediction": 0, "confidence": 0.50},
         ])
         trades, equity = simulate_trades(
             df, confidence_threshold=0.52, allow_short=True,
