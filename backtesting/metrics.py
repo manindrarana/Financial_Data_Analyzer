@@ -199,6 +199,12 @@ def run_metrics(
             print(f"     Fold {fm['fold_id']}: {fm['trades']} trades, "
                   f"PnL ${fm['pnl']:+,.2f}, Win {fm['win_rate']:.1f}%")
 
+    if metrics.get("direction_breakdown"):
+        print(f"\n   Direction breakdown:")
+        for dm in metrics["direction_breakdown"]:
+            print(f"     {dm['direction']}: {dm['trades']} trades, "
+                  f"PnL ${dm['pnl']:+,.2f}, Win {dm['win_rate']:.1f}%")
+
     if return_data:
         return metrics
 
