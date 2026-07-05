@@ -710,6 +710,27 @@ def _build_backtest_results(metrics, equity_df, trades_df):
             className="mt-2",
         )
 
+    direction_breakdown = metrics.get("direction_breakdown", [])
+    direction_table = None
+    if direction_breakdown:
+        dir_rows = []
+        for dm in direction_breakdown:
+            pnl_color = "#26a69a" if dm["pnl"] >= 0 else "#ef5350"
+            dir_label = "Long" if dm["direction"] == "long" else "Short"
+            dir_rows.append(html.Tr([
+                html.Td(dir_label, className="text-center"),
+                html.Td(str(dm["trades"]), className="text-center"),
+                html.Td(f"${dm['pnl']:+,.2f}", style={"color": pnl_color}),
+                html.Td(f"{dm['win_rate']:.1f}%", className="text-center"),
+            ]))
+        direction_table = dbc.Table(
+            [html.Thead(html.Tr([
+                html.Th("Direction"), html.Th("Trades"), html.Th("PnL"), html.Th("Win %"),
+            ]))] + [html.Tbody(dir_rows)],
+            bordered=True, hover=True, size="sm", striped=True,
+            className="mt-2",
+        )
+
     return html.Div([
         metric_cards,
         exit_html,
@@ -717,6 +738,8 @@ def _build_backtest_results(metrics, equity_df, trades_df):
         dbc.Row(dbc.Col(dcc.Graph(figure=fig_trades, config={"displayModeBar": True, "responsive": True}), width=12)),
         html.H6("Per-Fold Breakdown", className="text-light mt-3") if fold_table else None,
         fold_table,
+        html.H6("Direction Breakdown", className="text-light mt-3") if direction_table else None,
+        direction_table,
     ])
 
 
