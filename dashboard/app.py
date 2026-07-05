@@ -738,6 +738,7 @@ def _build_backtest_results(metrics, equity_df, trades_df):
     dash.State("bt-test-months", "value"),
     dash.State("bt-step-months", "value"),
     dash.State("bt-txn-cost", "value"),
+    dash.State("bt-allow-short", "value"),
     background=True,
     running=[(dash.Output("bt-run-btn", "disabled"), True, False)],
     progress=[dash.Output("bt-progress-bar", "children")],
@@ -746,7 +747,7 @@ def _build_backtest_results(metrics, equity_df, trades_df):
 def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, interval,
                            date_start, date_end, confidence, stop_loss, take_profit,
                            max_hold, capital, train_months, test_months, step_months,
-                           txn_cost):
+                           txn_cost, allow_short):
     """Background callback: runs the full walk-forward → strategy → metrics pipeline."""
     if not n_clicks or not asset:
         raise dash.exceptions.PreventUpdate
@@ -799,6 +800,7 @@ def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, i
             initial_capital=float(capital),
             return_data=True,
             transaction_cost_pct=float(txn_cost) / 100 if txn_cost else 0.0,
+            allow_short=bool(allow_short),
         )
 
         set_progress(dbc.Alert("Computing metrics...", color="info"))
