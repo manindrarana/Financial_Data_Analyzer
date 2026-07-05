@@ -210,6 +210,7 @@ def run_strategy(
     print(f"   Take profit: {take_profit_pct*100:.0f}%")
     print(f"   Max hold: {max_hold_bars} bars")
     print(f"   Transaction cost: {transaction_cost_pct*100:.2f}% per side")
+    print(f"   Allow short: {allow_short}")
     print(f"   Initial capital: ${initial_capital:,.0f}\n")
 
     trades_df, equity_df = simulate_trades(
@@ -220,6 +221,7 @@ def run_strategy(
         max_hold_bars,
         initial_capital,
         transaction_cost_pct,
+        allow_short,
     )
 
     if return_data:
