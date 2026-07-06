@@ -750,6 +750,27 @@ def _build_backtest_results(metrics, equity_df, trades_df):
             className="mt-2",
         )
 
+    asset_breakdown = metrics.get("asset_breakdown", [])
+    asset_table = None
+    if asset_breakdown:
+        asset_rows = []
+        for am in asset_breakdown:
+            pnl_color = "#26a69a" if am["pnl"] >= 0 else "#ef5350"
+            asset_rows.append(html.Tr([
+                html.Td(am["asset"], className="text-center"),
+                html.Td(str(am["trades"]), className="text-center"),
+                html.Td(f"${am['pnl']:+,.2f}", style={"color": pnl_color}),
+                html.Td(f"{am['win_rate']:.1f}%", className="text-center"),
+                html.Td(f"${am['total_cost']:.2f}", className="text-center"),
+            ]))
+        asset_table = dbc.Table(
+            [html.Thead(html.Tr([
+                html.Th("Asset"), html.Th("Trades"), html.Th("PnL"), html.Th("Win %"), html.Th("Cost"),
+            ]))] + [html.Tbody(asset_rows)],
+            bordered=True, hover=True, size="sm", striped=True,
+            className="mt-2",
+        )
+
     return html.Div([
         metric_cards,
         exit_html,
@@ -759,6 +780,8 @@ def _build_backtest_results(metrics, equity_df, trades_df):
         fold_table,
         html.H6("Direction Breakdown", className="text-light mt-3") if direction_table else None,
         direction_table,
+        html.H6("Per-Asset Breakdown", className="text-light mt-3") if asset_table else None,
+        asset_table,
     ])
 
 
