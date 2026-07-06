@@ -249,5 +249,286 @@ def run_strategy(
     return trades_df, equity_df
 
 
+def simulate_portfolio_trades(
+    predictions_dict,
+    confidence_threshold=0.52,
+    stop_loss_pct=0.02,
+    take_profit_pct=0.04,
+    max_hold_bars=24,
+    initial_capital=10000,
+    transaction_cost_pct=0.001,
+    allow_short=False,
+    max_positions=3,
+):
+    if not predictions_dict:
+        return pd.DataFrame(), pd.DataFrame()
+
+    combined_frames = []
+    for asset, df in predictions_dict.items():
+        df = df.copy()
+        df["asset"] = asset
+        combined_frames.append(df)
+
+    merged = pd.concat(combined_frames, ignore_index=True)
+    merged = merged.sort_values("date").reset_index(drop=True)
+
+    if merged.empty:
+        return pd.DataFrame(), pd.DataFrame()
+
+    required_cols = ["date", "close", "prediction", "confidence"]
+    missing = [c for c in required_cols if c not in merged.columns]
+    if missing:
+        raise ValueError(f"Missing required columns: {missing}")
+
+    allocation_per_position = initial_capital / max_positions
+
+    trades = []
+    equity = []
+    cash = initial_capital
+    equity_peak = initial_capital
+    open_positions = {}
+
+    for i in range(len(merged)):
+        current_date = merged.loc[i, "date"]
+        current_price = merged.loc[i, "close"]
+        current_asset = merged.loc[i, "asset"]
+        pred = int(merged.loc[i, "prediction"])
+        conf = float(merged.loc[i, "confidence"])
+
+        if current_asset in open_positions:
+            pos = open_positions[current_asset]
+            pos["bars_held"] += 1
+            exit_price = None
+            exit_reason = None
+
+            if pos["direction"] == "long":
+                if current_price <= pos["stop_price"]:
+                    exit_price = pos["stop_price"]
+                    exit_reason = "stop_loss"
+                elif current_price >= pos["target_price"]:
+                    exit_price = pos["target_price"]
+                    exit_reason = "take_profit"
+            else:
+                if current_price >= pos["stop_price"]:
+                    exit_price = pos["stop_price"]
+                    exit_reason = "stop_loss"
+                elif current_price <= pos["target_price"]:
+                    exit_price = pos["target_price"]
+                    exit_reason = "take_profit"
+
+            if exit_price is None and pos["bars_held"] >= max_hold_bars:
+                exit_price = current_price
+                exit_reason = "max_hold"
+
+            if exit_price is not None:
+                entry_price = pos["entry_price"]
+                position_size = pos["position_size"]
+                entry_cost = position_size * entry_price * transaction_cost_pct
+                exit_cost = position_size * exit_price * transaction_cost_pct
+                total_cost = entry_cost + exit_cost
+
+                if pos["direction"] == "long":
+                    pnl = position_size * (exit_price - entry_price) - total_cost
+                else:
+                    pnl = position_size * (entry_price - exit_price) - total_cost
+
+                pnl_pct = (pnl / pos["allocation"]) * 100
+                cash += pnl
+
+                trades.append({
+                    "asset": current_asset,
+                    "entry_time": pos["entry_date"],
+                    "exit_time": current_date,
+                    "entry_price": entry_price,
+                    "exit_price": exit_price,
+                    "direction": pos["direction"],
+                    "pnl": round(pnl, 4),
+                    "pnl_pct": round(pnl_pct, 2),
+                    "exit_reason": exit_reason,
+                    "bars_held": pos["bars_held"],
+                    "confidence": pos["confidence"],
+                    "fold_id": pos.get("fold_id"),
+                    "total_cost": round(total_cost, 6),
+                    "allocation": round(pos["allocation"], 2),
+                })
+
+                del open_positions[current_asset]
+
+        if current_asset not in open_positions and len(open_positions) < max_positions and conf >= confidence_threshold:
+            if pred == 1:
+                allocation = allocation_per_position
+                position_size = allocation / current_price
+                open_positions[current_asset] = {
+                    "entry_date": current_date,
+                    "entry_price": current_price,
+                    "stop_price": current_price * (1 - stop_loss_pct),
+                    "target_price": current_price * (1 + take_profit_pct),
+                    "direction": "long",
+                    "bars_held": 0,
+                    "confidence": conf,
+                    "fold_id": int(merged.loc[i, "fold_id"]) if "fold_id" in merged.columns else None,
+                    "allocation": allocation,
+                    "position_size": position_size,
+                }
+            elif allow_short and pred == 0:
+                allocation = allocation_per_position
+                position_size = allocation / current_price
+                open_positions[current_asset] = {
+                    "entry_date": current_date,
+                    "entry_price": current_price,
+                    "stop_price": current_price * (1 + stop_loss_pct),
+                    "target_price": current_price * (1 - take_profit_pct),
+                    "direction": "short",
+                    "bars_held": 0,
+                    "confidence": conf,
+                    "fold_id": int(merged.loc[i, "fold_id"]) if "fold_id" in merged.columns else None,
+                    "allocation": allocation,
+                    "position_size": position_size,
+                }
+
+        current_equity = cash
+        if current_equity > equity_peak:
+            equity_peak = current_equity
+
+        equity.append({
+            "date": current_date,
+            "equity": round(current_equity, 2),
+            "drawdown_pct": round((equity_peak - current_equity) / equity_peak * 100, 2),
+        })
+
+    for asset_name, pos in list(open_positions.items()):
+        asset_rows = merged[merged["asset"] == asset_name]
+        if not asset_rows.empty:
+            exit_price = asset_rows.iloc[-1]["close"]
+            exit_date = asset_rows.iloc[-1]["date"]
+        else:
+            exit_price = pos["entry_price"]
+            exit_date = pos["entry_date"]
+
+        entry_price = pos["entry_price"]
+        position_size = pos["position_size"]
+        entry_cost = position_size * entry_price * transaction_cost_pct
+        exit_cost = position_size * exit_price * transaction_cost_pct
+        total_cost = entry_cost + exit_cost
+
+        if pos["direction"] == "long":
+            pnl = position_size * (exit_price - entry_price) - total_cost
+        else:
+            pnl = position_size * (entry_price - exit_price) - total_cost
+
+        pnl_pct = (pnl / pos["allocation"]) * 100
+        cash += pnl
+
+        trades.append({
+            "asset": asset_name,
+            "entry_time": pos["entry_date"],
+            "exit_time": exit_date,
+            "entry_price": entry_price,
+            "exit_price": exit_price,
+            "direction": pos["direction"],
+            "pnl": round(pnl, 4),
+            "pnl_pct": round(pnl_pct, 2),
+            "exit_reason": "force_close",
+            "bars_held": pos["bars_held"],
+            "confidence": pos["confidence"],
+            "fold_id": pos.get("fold_id"),
+            "total_cost": round(total_cost, 6),
+            "allocation": round(pos["allocation"], 2),
+        })
+
+        equity.append({
+            "date": exit_date,
+            "equity": round(cash, 2),
+            "drawdown_pct": round((equity_peak - cash) / equity_peak * 100, 2),
+        })
+
+    trades_df = pd.DataFrame(trades)
+    equity_df = pd.DataFrame(equity)
+
+    if not equity_df.empty:
+        equity_df["date"] = pd.to_datetime(equity_df["date"])
+        equity_df = equity_df.groupby("date").last().reset_index()
+        equity_df = equity_df.sort_values("date").reset_index(drop=True)
+
+    if not trades_df.empty:
+        trades_df["cumulative_pnl"] = trades_df["pnl"].cumsum()
+
+    return trades_df, equity_df
+
+
+def run_portfolio_strategy(
+    predictions_dict=None,
+    confidence_threshold=0.52,
+    stop_loss_pct=0.02,
+    take_profit_pct=0.04,
+    max_hold_bars=24,
+    initial_capital=10000,
+    return_data=False,
+    transaction_cost_pct=0.001,
+    allow_short=False,
+    max_positions=3,
+):
+    if not predictions_dict:
+        raise ValueError("predictions_dict is required for portfolio strategy")
+
+    print(f"\n=== Portfolio Strategy Simulation ===")
+    print(f"   Assets: {list(predictions_dict.keys())}")
+    print(f"   Max positions: {max_positions}")
+    print(f"   Allocation: equal (${initial_capital / max_positions:,.2f} per slot)")
+    print(f"   Confidence threshold: {confidence_threshold}")
+    print(f"   Stop loss: {stop_loss_pct*100:.0f}%")
+    print(f"   Take profit: {take_profit_pct*100:.0f}%")
+    print(f"   Max hold: {max_hold_bars} bars")
+    print(f"   Transaction cost: {transaction_cost_pct*100:.2f}% per side")
+    print(f"   Allow short: {allow_short}")
+    print(f"   Initial capital: ${initial_capital:,.0f}\n")
+
+    trades_df, equity_df = simulate_portfolio_trades(
+        predictions_dict,
+        confidence_threshold,
+        stop_loss_pct,
+        take_profit_pct,
+        max_hold_bars,
+        initial_capital,
+        transaction_cost_pct,
+        allow_short,
+        max_positions,
+    )
+
+    total_pnl = trades_df["pnl"].sum() if not trades_df.empty else 0
+    win_count = (trades_df["pnl"] > 0).sum() if not trades_df.empty else 0
+    total_trades = len(trades_df)
+
+    print(f"   Total trades: {total_trades}")
+    print(f"   Winning trades: {win_count}")
+    print(f"   Win rate: {win_count/total_trades*100:.1f}%" if total_trades > 0 else "   Win rate: N/A")
+    print(f"   Total PnL: ${total_pnl:,.2f}")
+
+    if not trades_df.empty:
+        print(f"\n   Per-asset breakdown:")
+        for asset in trades_df["asset"].unique():
+            asset_trades = trades_df[trades_df["asset"] == asset]
+            asset_pnl = asset_trades["pnl"].sum()
+            asset_wins = (asset_trades["pnl"] > 0).sum()
+            print(f"     {asset}: {len(asset_trades)} trades, "
+                  f"PnL ${asset_pnl:+,.2f}, "
+                  f"Win {asset_wins/len(asset_trades)*100:.1f}%")
+
+    if return_data:
+        return trades_df, equity_df
+
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+    trades_path = os.path.join(OUTPUT_DIR, "portfolio_trades.parquet")
+    trades_df.to_parquet(trades_path)
+    print(f"\n   Trades saved: {trades_path} ({len(trades_df)} trades)")
+
+    equity_path = os.path.join(OUTPUT_DIR, "portfolio_equity.parquet")
+    equity_df.to_parquet(equity_path)
+    print(f"   Equity saved: {equity_path} ({len(equity_df)} rows)")
+
+    return trades_df, equity_df
+
+
 if __name__ == "__main__":
     run_strategy()
