@@ -458,6 +458,17 @@ def render_backtest():
                                     searchable=True,
                                     style={"color": "#000"},
                                 ),
+                                html.Div(
+                                    dcc.Dropdown(
+                                        id="bt-portfolio-assets",
+                                        multi=True,
+                                        placeholder="Select 2+ assets",
+                                        searchable=True,
+                                        style={"color": "#000"},
+                                    ),
+                                    id="bt-portfolio-assets-container",
+                                    style={"display": "none"},
+                                ),
                             ],
                             width=2,
                         ),
