@@ -423,6 +423,7 @@ def render_backtest():
                                     options=[
                                         {"label": "Walk-Forward (retrain/fold)", "value": "walk_forward"},
                                         {"label": "Pre-trained Model", "value": "pretrained"},
+                                        {"label": "Portfolio (multi-asset)", "value": "portfolio"},
                                     ],
                                     value="walk_forward",
                                     labelStyle={"display": "block", "color": "#adb5bd", "fontSize": "12px"},
