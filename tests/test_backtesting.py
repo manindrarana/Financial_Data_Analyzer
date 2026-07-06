@@ -7,7 +7,7 @@ import pytest
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
-from backtesting.strategy import simulate_trades
+from backtesting.strategy import simulate_trades, simulate_portfolio_trades
 from backtesting.metrics import compute_metrics, ANNUALIZATION_FACTORS
 
 
@@ -330,3 +330,146 @@ class TestShortSelling:
         directions = [d["direction"] for d in metrics["direction_breakdown"]]
         assert "long" in directions
         assert "short" in directions
+
+
+class TestPortfolioBacktest:
+    def _make_asset_predictions(self, asset, n=100, seed=42, start_price=100.0):
+        np.random.seed(seed)
+        dates = [datetime(2024, 1, 1) + timedelta(hours=i) for i in range(n)]
+        close = start_price + np.cumsum(np.random.randn(n) * 0.5)
+        close = np.maximum(close, 1.0)
+        pred = np.random.choice([0, 1], size=n, p=[0.4, 0.6])
+        conf = np.where(pred == 1, 0.55 + np.random.rand(n) * 0.2, 0.55 + np.random.rand(n) * 0.15)
+        return pd.DataFrame({
+            "date": dates,
+            "close": close,
+            "prediction": pred,
+            "confidence": conf,
+            "actual_direction": np.random.choice([0, 1], size=n),
+            "fold_id": 1,
+        })
+
+    def test_portfolio_returns_trades_and_equity(self):
+        preds = {
+            "BTC": self._make_asset_predictions("BTC", 100, seed=42),
+            "ETH": self._make_asset_predictions("ETH", 100, seed=99),
+        }
+        trades, equity = simulate_portfolio_trades(preds, confidence_threshold=0.52)
+        assert isinstance(trades, pd.DataFrame)
+        assert isinstance(equity, pd.DataFrame)
+
+    def test_portfolio_trades_have_asset_column(self):
+        preds = {
+            "BTC": self._make_asset_predictions("BTC", 100, seed=42),
+            "ETH": self._make_asset_predictions("ETH", 100, seed=99),
+        }
+        trades, _ = simulate_portfolio_trades(preds, confidence_threshold=0.52)
+        if not trades.empty:
+            assert "asset" in trades.columns
+            assert set(trades["asset"].unique()).issubset({"BTC", "ETH"})
+
+    def test_portfolio_max_positions_respected(self):
+        preds = {
+            "BTC": self._make_asset_predictions("BTC", 50, seed=42),
+            "ETH": self._make_asset_predictions("ETH", 50, seed=99),
+            "SOL": self._make_asset_predictions("SOL", 50, seed=7, start_price=50.0),
+        }
+        trades, _ = simulate_portfolio_trades(
+            preds, confidence_threshold=0.50, max_positions=1,
+        )
+        if not trades.empty:
+            trades_sorted = trades.sort_values("entry_time")
+            for _, row in trades_sorted.iterrows():
+                overlapping = trades_sorted[
+                    (trades_sorted["entry_time"] < row["exit_time"]) &
+                    (trades_sorted["exit_time"] > row["entry_time"])
+                ]
+                assert len(overlapping) <= 1
+
+    def test_portfolio_equal_allocation(self):
+        preds = {
+            "BTC": self._make_asset_predictions("BTC", 100, seed=42),
+            "ETH": self._make_asset_predictions("ETH", 100, seed=99),
+        }
+        trades, _ = simulate_portfolio_trades(
+            preds, confidence_threshold=0.52,
+            initial_capital=10000, max_positions=2,
+        )
+        if not trades.empty:
+            expected_alloc = 10000 / 2
+            for alloc in trades["allocation"]:
+                assert abs(alloc - expected_alloc) < 0.01
+
+    def test_portfolio_pnl_sums_correctly(self):
+        preds = {
+            "BTC": self._make_asset_predictions("BTC", 100, seed=42),
+            "ETH": self._make_asset_predictions("ETH", 100, seed=99),
+        }
+        trades, equity = simulate_portfolio_trades(
+            preds, confidence_threshold=0.52,
+            initial_capital=10000, max_positions=2,
+            transaction_cost_pct=0.0,
+        )
+        if not trades.empty:
+            total_pnl = trades["pnl"].sum()
+            final_equity = equity.iloc[-1]["equity"]
+            initial = 10000.0
+            assert abs((final_equity - initial) - total_pnl) < 1.0
+
+    def test_portfolio_asset_breakdown_in_metrics(self):
+        preds = {
+            "BTC": self._make_asset_predictions("BTC", 100, seed=42),
+            "ETH": self._make_asset_predictions("ETH", 100, seed=99),
+        }
+        trades, equity = simulate_portfolio_trades(preds, confidence_threshold=0.52)
+        metrics = compute_metrics(trades, equity, interval="1h")
+        assert "asset_breakdown" in metrics
+        if not trades.empty:
+            assert len(metrics["asset_breakdown"]) > 0
+            for am in metrics["asset_breakdown"]:
+                assert "asset" in am
+                assert "trades" in am
+                assert "pnl" in am
+                assert "win_rate" in am
+
+    def test_portfolio_empty_dict_returns_empty(self):
+        trades, equity = simulate_portfolio_trades({})
+        assert trades.empty
+        assert equity.empty
+
+    def test_portfolio_single_asset_take_profit(self):
+        df = pd.DataFrame([
+            {"date": datetime(2024, 1, 1, 10, 0), "close": 100.0, "prediction": 1, "confidence": 0.6, "fold_id": 1},
+            {"date": datetime(2024, 1, 1, 11, 0), "close": 105.0, "prediction": 0, "confidence": 0.5, "fold_id": 1},
+        ])
+        preds = {"BTC": df, "ETH": df.copy()}
+        trades, _ = simulate_portfolio_trades(
+            preds, confidence_threshold=0.52,
+            take_profit_pct=0.04, transaction_cost_pct=0.0,
+            max_positions=2,
+        )
+        assert len(trades) == 2
+        assert trades.iloc[0]["exit_reason"] == "take_profit"
+        assert trades.iloc[0]["exit_price"] == 104.0
+        assert trades.iloc[0]["pnl"] == 4.0
+
+    def test_portfolio_two_assets_different_pnl(self):
+        btc_df = pd.DataFrame([
+            {"date": datetime(2024, 1, 1, 10, 0), "close": 100.0, "prediction": 1, "confidence": 0.6, "fold_id": 1},
+            {"date": datetime(2024, 1, 1, 11, 0), "close": 105.0, "prediction": 0, "confidence": 0.5, "fold_id": 1},
+        ])
+        eth_df = pd.DataFrame([
+            {"date": datetime(2024, 1, 1, 10, 0), "close": 200.0, "prediction": 1, "confidence": 0.6, "fold_id": 1},
+            {"date": datetime(2024, 1, 1, 11, 0), "close": 210.0, "prediction": 0, "confidence": 0.5, "fold_id": 1},
+        ])
+        preds = {"BTC": btc_df, "ETH": eth_df}
+        trades, _ = simulate_portfolio_trades(
+            preds, confidence_threshold=0.52,
+            take_profit_pct=0.04, transaction_cost_pct=0.0,
+            max_positions=2,
+        )
+        assert len(trades) == 2
+        btc_trade = trades[trades["asset"] == "BTC"].iloc[0]
+        eth_trade = trades[trades["asset"] == "ETH"].iloc[0]
+        assert btc_trade["pnl"] == 4.0
+        assert eth_trade["pnl"] == 8.0
