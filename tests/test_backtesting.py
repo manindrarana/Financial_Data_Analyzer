@@ -446,12 +446,15 @@ class TestPortfolioBacktest:
         trades, _ = simulate_portfolio_trades(
             preds, confidence_threshold=0.52,
             take_profit_pct=0.04, transaction_cost_pct=0.0,
-            max_positions=2,
+            max_positions=2, initial_capital=10000,
         )
         assert len(trades) == 2
         assert trades.iloc[0]["exit_reason"] == "take_profit"
         assert trades.iloc[0]["exit_price"] == 104.0
-        assert trades.iloc[0]["pnl"] == 4.0
+        expected_alloc = 10000 / 2
+        expected_size = expected_alloc / 100.0
+        expected_pnl = expected_size * (104.0 - 100.0)
+        assert trades.iloc[0]["pnl"] == round(expected_pnl, 4)
 
     def test_portfolio_two_assets_different_pnl(self):
         btc_df = pd.DataFrame([
@@ -466,10 +469,14 @@ class TestPortfolioBacktest:
         trades, _ = simulate_portfolio_trades(
             preds, confidence_threshold=0.52,
             take_profit_pct=0.04, transaction_cost_pct=0.0,
-            max_positions=2,
+            max_positions=2, initial_capital=10000,
         )
         assert len(trades) == 2
         btc_trade = trades[trades["asset"] == "BTC"].iloc[0]
         eth_trade = trades[trades["asset"] == "ETH"].iloc[0]
-        assert btc_trade["pnl"] == 4.0
-        assert eth_trade["pnl"] == 8.0
+        alloc = 10000 / 2
+        btc_size = alloc / 100.0
+        eth_size = alloc / 200.0
+        assert btc_trade["pnl"] == round(btc_size * (104.0 - 100.0), 4)
+        assert eth_trade["pnl"] == round(eth_size * (208.0 - 200.0), 4)
+        assert eth_trade["pnl"] == btc_trade["pnl"]
