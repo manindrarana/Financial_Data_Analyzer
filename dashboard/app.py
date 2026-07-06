@@ -891,6 +891,32 @@ def _update_bt_interval_dropdown(asset_class):
     return [{"label": INTERVAL_LABELS.get(iv, iv), "value": iv} for iv in intervals], default
 
 
+@app.callback(
+    dash.Output("bt-asset-dropdown", "style"),
+    dash.Output("bt-portfolio-assets-container", "style"),
+    dash.Input("bt-mode-radio", "value"),
+)
+def _toggle_portfolio_asset_dropdown(bt_mode):
+    if bt_mode == "portfolio":
+        return {"display": "none"}, {"display": "block"}
+    return {"color": "#000"}, {"display": "none"}
+
+
+@app.callback(
+    dash.Output("bt-portfolio-assets", "options"),
+    dash.Output("bt-portfolio-assets", "value"),
+    dash.Input("bt-class-dropdown", "value"),
+)
+def _update_bt_portfolio_assets(asset_class):
+    if asset_class == "crypto":
+        assets = CRYPTO_ASSETS
+        default = ["BTC", "ETH"] if "BTC" in assets and "ETH" in assets else assets[:2]
+    else:
+        assets = STOCK_ASSETS
+        default = assets[:2]
+    return [{"label": a, "value": a} for a in assets], default
+
+
 def render_indicators():
     """RSI, MACD, Bollinger Bands, and SMA crossover charts with multi-asset dropdowns."""
     try:
