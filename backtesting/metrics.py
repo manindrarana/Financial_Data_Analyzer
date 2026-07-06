@@ -220,6 +220,13 @@ def run_metrics(
             print(f"     {dm['direction']}: {dm['trades']} trades, "
                   f"PnL ${dm['pnl']:+,.2f}, Win {dm['win_rate']:.1f}%")
 
+    if metrics.get("asset_breakdown"):
+        print(f"\n   Per-asset breakdown:")
+        for am in metrics["asset_breakdown"]:
+            print(f"     {am['asset']}: {am['trades']} trades, "
+                  f"PnL ${am['pnl']:+,.2f}, Win {am['win_rate']:.1f}%, "
+                  f"Cost ${am['total_cost']:.2f}")
+
     if return_data:
         return metrics
 
