@@ -591,6 +591,13 @@ def render_backtest():
                             ],
                             width=2,
                         ),
+                        dbc.Col(
+                            [
+                                html.Label("Max Positions", className="text-muted small mb-1"),
+                                dbc.Input(id="bt-max-positions", type="number", min=1, max=10, step=1, value=3, style={"color": "#000"}),
+                            ],
+                            width=2,
+                        ),
                     ],
                     className="mb-3 align-items-end",
                 ),
