@@ -423,6 +423,7 @@ def render_backtest():
                                     options=[
                                         {"label": "Walk-Forward (retrain/fold)", "value": "walk_forward"},
                                         {"label": "Pre-trained Model", "value": "pretrained"},
+                                        {"label": "Portfolio (multi-asset)", "value": "portfolio"},
                                     ],
                                     value="walk_forward",
                                     labelStyle={"display": "block", "color": "#adb5bd", "fontSize": "12px"},
@@ -456,6 +457,17 @@ def render_backtest():
                                     clearable=False,
                                     searchable=True,
                                     style={"color": "#000"},
+                                ),
+                                html.Div(
+                                    dcc.Dropdown(
+                                        id="bt-portfolio-assets",
+                                        multi=True,
+                                        placeholder="Select 2+ assets",
+                                        searchable=True,
+                                        style={"color": "#000"},
+                                    ),
+                                    id="bt-portfolio-assets-container",
+                                    style={"display": "none"},
                                 ),
                             ],
                             width=2,
@@ -576,6 +588,13 @@ def render_backtest():
                                     inline=True,
                                     style={"color": "#adb5bd", "fontSize": "12px", "paddingTop": "10px"},
                                 ),
+                            ],
+                            width=2,
+                        ),
+                        dbc.Col(
+                            [
+                                html.Label("Max Positions", className="text-muted small mb-1"),
+                                dbc.Input(id="bt-max-positions", type="number", min=1, max=10, step=1, value=3, style={"color": "#000"}),
                             ],
                             width=2,
                         ),
@@ -731,6 +750,27 @@ def _build_backtest_results(metrics, equity_df, trades_df):
             className="mt-2",
         )
 
+    asset_breakdown = metrics.get("asset_breakdown", [])
+    asset_table = None
+    if asset_breakdown:
+        asset_rows = []
+        for am in asset_breakdown:
+            pnl_color = "#26a69a" if am["pnl"] >= 0 else "#ef5350"
+            asset_rows.append(html.Tr([
+                html.Td(am["asset"], className="text-center"),
+                html.Td(str(am["trades"]), className="text-center"),
+                html.Td(f"${am['pnl']:+,.2f}", style={"color": pnl_color}),
+                html.Td(f"{am['win_rate']:.1f}%", className="text-center"),
+                html.Td(f"${am['total_cost']:.2f}", className="text-center"),
+            ]))
+        asset_table = dbc.Table(
+            [html.Thead(html.Tr([
+                html.Th("Asset"), html.Th("Trades"), html.Th("PnL"), html.Th("Win %"), html.Th("Cost"),
+            ]))] + [html.Tbody(asset_rows)],
+            bordered=True, hover=True, size="sm", striped=True,
+            className="mt-2",
+        )
+
     return html.Div([
         metric_cards,
         exit_html,
@@ -740,6 +780,8 @@ def _build_backtest_results(metrics, equity_df, trades_df):
         fold_table,
         html.H6("Direction Breakdown", className="text-light mt-3") if direction_table else None,
         direction_table,
+        html.H6("Per-Asset Breakdown", className="text-light mt-3") if asset_table else None,
+        asset_table,
     ])
 
 
@@ -749,6 +791,7 @@ def _build_backtest_results(metrics, equity_df, trades_df):
     dash.State("bt-mode-radio", "value"),
     dash.State("bt-class-dropdown", "value"),
     dash.State("bt-asset-dropdown", "value"),
+    dash.State("bt-portfolio-assets", "value"),
     dash.State("bt-interval-dropdown", "value"),
     dash.State("bt-date-range", "start_date"),
     dash.State("bt-date-range", "end_date"),
@@ -762,69 +805,110 @@ def _build_backtest_results(metrics, equity_df, trades_df):
     dash.State("bt-step-months", "value"),
     dash.State("bt-txn-cost", "value"),
     dash.State("bt-allow-short", "value"),
+    dash.State("bt-max-positions", "value"),
     background=True,
     running=[(dash.Output("bt-run-btn", "disabled"), True, False)],
     progress=[dash.Output("bt-progress-bar", "children")],
     prevent_initial_call=True,
 )
-def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, interval,
-                           date_start, date_end, confidence, stop_loss, take_profit,
+def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, portfolio_assets,
+                           interval, date_start, date_end, confidence, stop_loss, take_profit,
                            max_hold, capital, train_months, test_months, step_months,
-                           txn_cost, allow_short):
+                           txn_cost, allow_short, max_positions):
     """Background callback: runs the full walk-forward → strategy → metrics pipeline."""
-    if not n_clicks or not asset:
+    if not n_clicks:
         raise dash.exceptions.PreventUpdate
 
+    if bt_mode == "portfolio":
+        if not portfolio_assets or len(portfolio_assets) < 2:
+            return dbc.Alert("Portfolio mode requires at least 2 assets selected.", color="warning")
+    else:
+        if not asset:
+            raise dash.exceptions.PreventUpdate
+
     try:
-        if bt_mode == "pretrained":
+        if bt_mode == "portfolio":
+            set_progress(dbc.Alert(f"Running portfolio backtest for {len(portfolio_assets)} assets...", color="info"))
+        elif bt_mode == "pretrained":
             set_progress(dbc.Alert("Loading pre-trained model...", color="info"))
         else:
             set_progress(dbc.Alert("Loading data & training walk-forward model...", color="info"))
 
-        from backtesting.walk_forward import run_walk_forward, run_walk_forward_pretrained
-        from backtesting.strategy import run_strategy
+        from backtesting.walk_forward import run_walk_forward, run_walk_forward_pretrained, run_portfolio_backtest
+        from backtesting.strategy import run_strategy, run_portfolio_strategy
         from backtesting.metrics import run_metrics
 
-        if bt_mode == "pretrained":
-            predictions_df, _summary = run_walk_forward_pretrained(
-                asset=asset,
+        if bt_mode == "portfolio":
+            pred_mode = "pretrained" if False else "walk_forward"
+            predictions_dict, _summaries = run_portfolio_backtest(
+                assets=portfolio_assets,
                 interval=interval,
                 train_months=int(train_months),
                 test_months=int(test_months),
                 step_months=int(step_months),
                 date_start=date_start if date_start else None,
                 date_end=date_end if date_end else None,
-                return_data=True,
+                mode=pred_mode,
                 asset_class=asset_class,
+            )
+
+            set_progress(dbc.Alert("Simulating portfolio trades...", color="info"))
+            trades_df, equity_df = run_portfolio_strategy(
+                predictions_dict=predictions_dict,
+                confidence_threshold=float(confidence),
+                stop_loss_pct=float(stop_loss) / 100,
+                take_profit_pct=float(take_profit) / 100,
+                max_hold_bars=int(max_hold),
+                initial_capital=float(capital),
+                return_data=True,
+                transaction_cost_pct=float(txn_cost) / 100 if txn_cost else 0.0,
+                allow_short=bool(allow_short),
+                max_positions=int(max_positions),
             )
         else:
-            predictions_df, _summary = run_walk_forward(
-                asset=asset,
-                interval=interval,
-                train_months=int(train_months),
-                test_months=int(test_months),
-                step_months=int(step_months),
-                date_start=date_start if date_start else None,
-                date_end=date_end if date_end else None,
+            if bt_mode == "pretrained":
+                predictions_df, _summary = run_walk_forward_pretrained(
+                    asset=asset,
+                    interval=interval,
+                    train_months=int(train_months),
+                    test_months=int(test_months),
+                    step_months=int(step_months),
+                    date_start=date_start if date_start else None,
+                    date_end=date_end if date_end else None,
+                    return_data=True,
+                    asset_class=asset_class,
+                )
+            else:
+                predictions_df, _summary = run_walk_forward(
+                    asset=asset,
+                    interval=interval,
+                    train_months=int(train_months),
+                    test_months=int(test_months),
+                    step_months=int(step_months),
+                    date_start=date_start if date_start else None,
+                    date_end=date_end if date_end else None,
+                    return_data=True,
+                    asset_class=asset_class,
+                )
+
+            if predictions_df.empty:
+                return dbc.Alert("No predictions generated. Check date range and asset.", color="warning")
+
+            set_progress(dbc.Alert("Simulating trades...", color="info"))
+            trades_df, equity_df = run_strategy(
+                predictions_df=predictions_df,
+                confidence_threshold=float(confidence),
+                stop_loss_pct=float(stop_loss) / 100,
+                take_profit_pct=float(take_profit) / 100,
+                max_hold_bars=int(max_hold),
+                initial_capital=float(capital),
                 return_data=True,
-                asset_class=asset_class,
+                transaction_cost_pct=float(txn_cost) / 100 if txn_cost else 0.0,
+                allow_short=bool(allow_short),
             )
 
-        if predictions_df.empty:
-            return dbc.Alert("No predictions generated. Check date range and asset.", color="warning")
-
-        set_progress(dbc.Alert("Simulating trades...", color="info"))
-        trades_df, equity_df = run_strategy(
-            predictions_df=predictions_df,
-            confidence_threshold=float(confidence),
-            stop_loss_pct=float(stop_loss) / 100,
-            take_profit_pct=float(take_profit) / 100,
-            max_hold_bars=int(max_hold),
-            initial_capital=float(capital),
-            return_data=True,
-            transaction_cost_pct=float(txn_cost) / 100 if txn_cost else 0.0,
-            allow_short=bool(allow_short),
-        )
+        if trades_df.empty:
+            return dbc.Alert("No trades executed — try relaxing the confidence threshold or date range.", color="warning")
 
         set_progress(dbc.Alert("Computing metrics...", color="info"))
         metrics = run_metrics(
@@ -870,6 +954,32 @@ def _update_bt_interval_dropdown(asset_class):
         intervals = STOCK_INTERVALS
         default = "1h"
     return [{"label": INTERVAL_LABELS.get(iv, iv), "value": iv} for iv in intervals], default
+
+
+@app.callback(
+    dash.Output("bt-asset-dropdown", "style"),
+    dash.Output("bt-portfolio-assets-container", "style"),
+    dash.Input("bt-mode-radio", "value"),
+)
+def _toggle_portfolio_asset_dropdown(bt_mode):
+    if bt_mode == "portfolio":
+        return {"display": "none"}, {"display": "block"}
+    return {"color": "#000"}, {"display": "none"}
+
+
+@app.callback(
+    dash.Output("bt-portfolio-assets", "options"),
+    dash.Output("bt-portfolio-assets", "value"),
+    dash.Input("bt-class-dropdown", "value"),
+)
+def _update_bt_portfolio_assets(asset_class):
+    if asset_class == "crypto":
+        assets = CRYPTO_ASSETS
+        default = ["BTC", "ETH"] if "BTC" in assets and "ETH" in assets else assets[:2]
+    else:
+        assets = STOCK_ASSETS
+        default = assets[:2]
+    return [{"label": a, "value": a} for a in assets], default
 
 
 def render_indicators():

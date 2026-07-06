@@ -377,5 +377,78 @@ def run_walk_forward_pretrained(
     return combined, fold_summaries
 
 
+def run_portfolio_backtest(
+    assets,
+    interval="1h",
+    train_months=6,
+    test_months=1,
+    step_months=1,
+    date_start=None,
+    date_end=None,
+    mode="walk_forward",
+    asset_class="crypto",
+):
+    if not assets or len(assets) < 2:
+        raise ValueError("Portfolio backtest requires at least 2 assets")
+
+    print(f"\n=== Portfolio Walk-Forward Backtest ===")
+    print(f"   Assets: {assets}")
+    print(f"   Interval: {interval}")
+    print(f"   Mode: {mode}")
+    print(f"   Asset class: {asset_class}\n")
+
+    predictions_dict = {}
+    summaries = {}
+
+    for idx, asset in enumerate(assets, 1):
+        print(f"\n[{idx}/{len(assets)}] Processing {asset}...")
+
+        if mode == "pretrained":
+            preds, summary = run_walk_forward_pretrained(
+                asset=asset,
+                interval=interval,
+                train_months=train_months,
+                test_months=test_months,
+                step_months=step_months,
+                date_start=date_start,
+                date_end=date_end,
+                return_data=True,
+                asset_class=asset_class,
+            )
+        else:
+            preds, summary = run_walk_forward(
+                asset=asset,
+                interval=interval,
+                train_months=train_months,
+                test_months=test_months,
+                step_months=step_months,
+                date_start=date_start,
+                date_end=date_end,
+                return_data=True,
+                asset_class=asset_class,
+            )
+
+        if preds.empty:
+            print(f"   WARNING: No predictions for {asset}, skipping")
+            continue
+
+        predictions_dict[asset] = preds
+        summaries[asset] = summary
+
+    if len(predictions_dict) < 2:
+        raise RuntimeError(
+            f"Only {len(predictions_dict)} asset(s) produced predictions. "
+            f"Need at least 2 for portfolio backtest."
+        )
+
+    print(f"\n=== Portfolio Predictions Complete ===")
+    print(f"   Assets with predictions: {list(predictions_dict.keys())}")
+    for asset, preds in predictions_dict.items():
+        acc = (preds["prediction"] == preds["actual_direction"]).mean()
+        print(f"   {asset}: {len(preds):,} predictions, accuracy {acc:.4f}")
+
+    return predictions_dict, summaries
+
+
 if __name__ == "__main__":
     run_walk_forward()

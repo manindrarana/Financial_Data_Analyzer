@@ -129,6 +129,20 @@ def compute_metrics(trades_df, equity_df, initial_capital=10000, interval=None):
                 "win_rate": round(dir_wins / len(dir_trades) * 100, 1) if len(dir_trades) > 0 else 0.0,
             })
 
+    asset_breakdown = []
+    if "asset" in trades_df.columns:
+        for asset in sorted(trades_df["asset"].dropna().unique()):
+            asset_trades = trades_df[trades_df["asset"] == asset]
+            asset_wins = int((asset_trades["pnl"] > 0).sum())
+            asset_cost = asset_trades["total_cost"].sum() if "total_cost" in asset_trades.columns else 0.0
+            asset_breakdown.append({
+                "asset": asset,
+                "trades": len(asset_trades),
+                "pnl": round(asset_trades["pnl"].sum(), 2),
+                "win_rate": round(asset_wins / len(asset_trades) * 100, 1) if len(asset_trades) > 0 else 0.0,
+                "total_cost": round(asset_cost, 2),
+            })
+
     return {
         "total_return_pct": round(total_return_pct, 2),
         "total_pnl": round(total_pnl, 2),
@@ -145,6 +159,7 @@ def compute_metrics(trades_df, equity_df, initial_capital=10000, interval=None):
         "exit_reasons": exit_reasons,
         "fold_breakdown": fold_metrics,
         "direction_breakdown": direction_breakdown,
+        "asset_breakdown": asset_breakdown,
     }   
     
 def run_metrics(
@@ -204,6 +219,13 @@ def run_metrics(
         for dm in metrics["direction_breakdown"]:
             print(f"     {dm['direction']}: {dm['trades']} trades, "
                   f"PnL ${dm['pnl']:+,.2f}, Win {dm['win_rate']:.1f}%")
+
+    if metrics.get("asset_breakdown"):
+        print(f"\n   Per-asset breakdown:")
+        for am in metrics["asset_breakdown"]:
+            print(f"     {am['asset']}: {am['trades']} trades, "
+                  f"PnL ${am['pnl']:+,.2f}, Win {am['win_rate']:.1f}%, "
+                  f"Cost ${am['total_cost']:.2f}")
 
     if return_data:
         return metrics
