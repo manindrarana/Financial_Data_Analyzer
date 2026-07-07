@@ -52,6 +52,13 @@ def _get_db_con():
     return duckdb.connect(config["paths"]["database"], read_only=True)
 
 def _validate_extract():
+    with open("configs/settings.yml", "r") as f:
+        config = yaml.safe_load(f)
+    db_path = config["paths"]["database"]
+    if not os.path.exists(db_path):
+        logger = get_logger("Validator")
+        logger.info("Skipping extract validation: DuckDB does not exist yet (first run). Data is in MinIO, DB will be created in step2_load.")
+        return
     conn = _get_db_con()
     try:
         yahoo_count = conn.execute("SELECT COUNT(*) FROM yahoo_stocks").fetchone()[0]
