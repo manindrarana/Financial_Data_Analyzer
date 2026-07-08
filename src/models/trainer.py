@@ -2,6 +2,7 @@ import json
 import os
 import shutil
 import sys
+import warnings
 import numpy as np
 import pandas as pd
 import duckdb
@@ -58,13 +59,22 @@ class PipelineModelTrainer:
 
     def _detect_gpu(self):
         try:
-            test = xgb.XGBClassifier(
-                device="cuda", tree_method="hist",
-                n_estimators=1, max_depth=1, eval_metric="logloss",
-            )
-            test.fit(np.array([[1, 2], [3, 4]]), np.array([0, 1]))
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                test = xgb.XGBClassifier(
+                    device="cuda", tree_method="hist",
+                    n_estimators=1, max_depth=1, eval_metric="logloss",
+                )
+                test.fit(np.array([[1, 2], [3, 4]]), np.array([0, 1]))
+                for warning in w:
+                    msg = str(warning.message)
+                    if "not compiled with CUDA" in msg or "No visible GPU" in msg:
+                        self.logger.info("GPU detection: CUDA not available, falling back to CPU")
+                        return False
+            self.logger.info("GPU detection: CUDA available")
             return True
         except Exception:
+            self.logger.info("GPU detection: CUDA not available (exception), falling back to CPU")
             return False
 
     def _build_combos(self):
