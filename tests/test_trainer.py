@@ -143,7 +143,7 @@ class TestDetectGPU:
 
         assert trainer._detect_gpu() is False
 
-    def test_returns_true_when_fit_succeeds(self, monkeypatch):
+    def test_returns_true_when_fit_succeeds_no_warnings(self, monkeypatch):
         _mock_trainer(monkeypatch)
         trainer = PipelineModelTrainer()
 
@@ -152,6 +152,70 @@ class TestDetectGPU:
         monkeypatch.setattr("src.models.trainer.xgb.XGBClassifier", mock_cls)
 
         assert trainer._detect_gpu() is True
+
+    def test_returns_false_when_cuda_not_compiled_warning(self, monkeypatch):
+        import warnings as w_mod
+        original_simplefilter = w_mod.simplefilter
+        original_catch = w_mod.catch_warnings
+
+        _mock_trainer(monkeypatch)
+        trainer = PipelineModelTrainer()
+
+        cuda_warning = UserWarning("XGBoost is not compiled with CUDA support")
+
+        class FakeCatchWarnings:
+            def __init__(self, records):
+                self.records = records
+            def __enter__(self):
+                return self.records
+            def __exit__(self, *args):
+                return False
+
+        fake_records = [cuda_warning]
+
+        def fake_catch_warnings(record=False):
+            return FakeCatchWarnings(fake_records if record else [])
+
+        def fake_simplefilter(*args, **kwargs):
+            pass
+
+        monkeypatch.setattr("src.models.trainer.warnings.catch_warnings", fake_catch_warnings)
+        monkeypatch.setattr("src.models.trainer.warnings.simplefilter", fake_simplefilter)
+
+        mock_cls = MagicMock()
+        mock_cls.return_value.fit.return_value = None
+        monkeypatch.setattr("src.models.trainer.xgb.XGBClassifier", mock_cls)
+
+        assert trainer._detect_gpu() is False
+
+    def test_returns_false_when_no_visible_gpu_warning(self, monkeypatch):
+        _mock_trainer(monkeypatch)
+        trainer = PipelineModelTrainer()
+
+        gpu_warning = UserWarning("No visible GPU is found, setting device to CPU")
+
+        class FakeCatchWarnings:
+            def __init__(self, records):
+                self.records = records
+            def __enter__(self):
+                return self.records
+            def __exit__(self, *args):
+                return False
+
+        def fake_catch_warnings(record=False):
+            return FakeCatchWarnings([gpu_warning] if record else [])
+
+        def fake_simplefilter(*args, **kwargs):
+            pass
+
+        monkeypatch.setattr("src.models.trainer.warnings.catch_warnings", fake_catch_warnings)
+        monkeypatch.setattr("src.models.trainer.warnings.simplefilter", fake_simplefilter)
+
+        mock_cls = MagicMock()
+        mock_cls.return_value.fit.return_value = None
+        monkeypatch.setattr("src.models.trainer.xgb.XGBClassifier", mock_cls)
+
+        assert trainer._detect_gpu() is False
 
 
 class TestRunMode:
