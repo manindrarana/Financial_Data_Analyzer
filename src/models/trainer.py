@@ -14,7 +14,6 @@ from datetime import datetime
 from dotenv import load_dotenv
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
-from joblib import Parallel, delayed
 from src.utils import get_logger
 from src.models.feature_engineering import MODEL_FEATURES, NEEDED_COLS, make_stationary
 
@@ -53,8 +52,8 @@ class PipelineModelTrainer:
 
         self.n_jobs = n_jobs or max(os.cpu_count() - 1, 1)
         self.use_gpu = self._detect_gpu()
-        self._grid_n_jobs = 1
-        mode = "GPU (CUDA)" if self.use_gpu else f"CPU (n_jobs={self.n_jobs})"
+        self._grid_n_jobs = 1 if self.use_gpu else -1
+        mode = "GPU (CUDA)" if self.use_gpu else f"CPU (GridSearchCV n_jobs=-1)"
         self.logger.info(f"Trainer initialized: {mode}")
 
     def _detect_gpu(self):
@@ -325,27 +324,16 @@ class PipelineModelTrainer:
             return
 
         trained = 0
+        mode = "GPU (CUDA)" if self.use_gpu else "CPU (GridSearchCV n_jobs=-1)"
+        self.logger.info(f"Training sequentially on {mode}...")
 
-        if self.use_gpu:
-            self.logger.info("Training on GPU (sequential)...")
-            for i, combo in enumerate(to_train, 1):
-                result = self._train_one(*combo)
-                if result:
-                    trained += 1
-                else:
-                    skipped += 1
-                self.logger.info(f"Progress: {i}/{total}")
-        else:
-            self.logger.info(f"Training on CPU with n_jobs={self.n_jobs}...")
-            results = Parallel(n_jobs=self.n_jobs, prefer="threads")(
-                delayed(self._train_one)(*combo) for combo in to_train
-            )
-            for result in results:
-                if result:
-                    trained += 1
-                else:
-                    skipped += 1
-            self.logger.info(f"Progress: {total}/{total}")
+        for i, combo in enumerate(to_train, 1):
+            result = self._train_one(*combo)
+            if result:
+                trained += 1
+            else:
+                skipped += 1
+            self.logger.info(f"Progress: {i}/{total}")
 
         self.logger.info(f"Step 8 complete: {trained} trained, {up_to_date} up-to-date, {skipped} skipped")
         self.logger.info("*" * 60)
