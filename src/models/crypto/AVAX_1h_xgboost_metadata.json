@@ -4,8 +4,8 @@
   "asset_class": "crypto",
   "train_end_date": "2025-07-23T18:00:00",
   "train_rows": 33580,
-  "test_rows": 8395,
-  "test_accuracy": 0.5128052412150089,
+  "test_rows": 8396,
+  "test_accuracy": 0.5121486422105764,
   "features": [
     "rsi_14",
     "roc_10",
@@ -39,16 +39,14 @@
     "fear_greed"
   ],
   "best_params": {
-    "learning_rate": 0.1,
-    "max_depth": 3,
+    "learning_rate": 0.01,
+    "max_depth": 5,
     "n_estimators": 100,
     "subsample": 1.0,
     "eval_metric": "logloss",
-    "random_state": 42,
-    "device": "cuda",
-    "tree_method": "hist"
+    "random_state": 42
   },
-  "best_cv_score": 0.5276709879302638,
-  "trained_at": "2026-07-08T13:24:24.290846",
+  "best_cv_score": 0.5277603933839965,
+  "trained_at": "2026-07-08T14:44:04.698543",
   "mlflow_run_id": null
 }

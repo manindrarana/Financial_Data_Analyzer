@@ -319,8 +319,7 @@ def build_technical_indicators():
 def train_models():
     logger = get_run_logger()
     logger.info("STEP 8: MODEL TRAINING (Auto-retrain on new data)")
-    n_jobs = int(os.getenv("TRAIN_N_JOBS", "0")) or None
-    trainer = PipelineModelTrainer(n_jobs=n_jobs)
+    trainer = PipelineModelTrainer()
     trainer.run()
     trainer.close()
 

@@ -2,7 +2,6 @@ import json
 import os
 import shutil
 import sys
-import warnings
 import numpy as np
 import pandas as pd
 import duckdb
@@ -29,7 +28,7 @@ STOCK_INTERVAL_MAP = {"1h": "1h", "1d": "1d", "1wk": "1w"}
 
 class PipelineModelTrainer:
 
-    def __init__(self, n_jobs=None):
+    def __init__(self):
         self.logger = get_logger(__name__)
         load_dotenv()
 
@@ -49,32 +48,6 @@ class PipelineModelTrainer:
 
         mlflow_uri = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
         mlflow.set_tracking_uri(mlflow_uri)
-
-        self.n_jobs = n_jobs or max(os.cpu_count() - 1, 1)
-        self.use_gpu = self._detect_gpu()
-        self._grid_n_jobs = 1 if self.use_gpu else -1
-        mode = "GPU (CUDA)" if self.use_gpu else f"CPU (GridSearchCV n_jobs=-1)"
-        self.logger.info(f"Trainer initialized: {mode}")
-
-    def _detect_gpu(self):
-        try:
-            with warnings.catch_warnings(record=True) as w:
-                warnings.simplefilter("always")
-                test = xgb.XGBClassifier(
-                    device="cuda", tree_method="hist",
-                    n_estimators=1, max_depth=1, eval_metric="logloss",
-                )
-                test.fit(np.array([[1, 2], [3, 4]]), np.array([0, 1]))
-                for warning in w:
-                    msg = str(warning.message)
-                    if "not compiled with CUDA" in msg or "No visible GPU" in msg:
-                        self.logger.info("GPU detection: CUDA not available, falling back to CPU")
-                        return False
-            self.logger.info("GPU detection: CUDA available")
-            return True
-        except Exception:
-            self.logger.info("GPU detection: CUDA not available (exception), falling back to CPU")
-            return False
 
     def _build_combos(self):
         combos = []
@@ -220,17 +193,13 @@ class PipelineModelTrainer:
         except Exception as e:
             self.logger.warning(f"  MLflow unavailable: {e} — training without tracking")
 
-        model_params = {
-            "subsample": 1.0, "eval_metric": "logloss", "random_state": 42,
-        }
-        if self.use_gpu:
-            model_params["device"] = "cuda"
-            model_params["tree_method"] = "hist"
-        base_model = xgb.XGBClassifier(**model_params)
+        base_model = xgb.XGBClassifier(
+            subsample=1.0, eval_metric="logloss", random_state=42,
+        )
         tscv = TimeSeriesSplit(n_splits=2)
         grid = GridSearchCV(
             base_model, PARAM_GRID, cv=tscv, scoring="accuracy",
-            n_jobs=self._grid_n_jobs, verbose=0,
+            n_jobs=-1, verbose=0,
         )
         grid.fit(X_train, y_train)
         model = grid.best_estimator_
@@ -250,11 +219,7 @@ class PipelineModelTrainer:
         model.save_model(model_path)
 
         best_params = dict(grid.best_params_)
-        extra_params = {"subsample": 1.0, "eval_metric": "logloss", "random_state": 42}
-        if self.use_gpu:
-            extra_params["device"] = "cuda"
-            extra_params["tree_method"] = "hist"
-        best_params.update(extra_params)
+        best_params.update({"subsample": 1.0, "eval_metric": "logloss", "random_state": 42})
 
         metadata = {
             "asset": asset,
@@ -298,7 +263,7 @@ class PipelineModelTrainer:
         combos = self._build_combos()
         self.logger.info(f"Checking {len(combos)} asset×interval combos...")
 
-        to_train = []
+        trained = 0
         skipped = 0
         up_to_date = 0
 
@@ -313,27 +278,11 @@ class PipelineModelTrainer:
                 continue
 
             self.logger.info(f"[RETRAIN] {asset}/{interval}: {reason}")
-            to_train.append((asset, interval, asset_class, table_name))
-
-        total = len(to_train)
-        self.logger.info(f"{total} to train, {up_to_date} up-to-date, {skipped} skipped")
-
-        if total == 0:
-            self.logger.info("Step 8 complete: nothing to train")
-            self.logger.info("*" * 60)
-            return
-
-        trained = 0
-        mode = "GPU (CUDA)" if self.use_gpu else "CPU (GridSearchCV n_jobs=-1)"
-        self.logger.info(f"Training sequentially on {mode}...")
-
-        for i, combo in enumerate(to_train, 1):
-            result = self._train_one(*combo)
+            result = self._train_one(asset, interval, asset_class, table_name)
             if result:
                 trained += 1
             else:
                 skipped += 1
-            self.logger.info(f"Progress: {i}/{total}")
 
         self.logger.info(f"Step 8 complete: {trained} trained, {up_to_date} up-to-date, {skipped} skipped")
         self.logger.info("*" * 60)

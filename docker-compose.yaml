@@ -43,18 +43,11 @@ services:
       - .env
     environment:
       - PREFECT_API_URL=http://prefect:4200/api
-      - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./database:/app/database
       - .:/app
       - model_store:/app/model_store
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+
     restart: unless-stopped
     depends_on:
       createbuckets:
