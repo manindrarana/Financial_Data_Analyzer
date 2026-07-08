@@ -5,7 +5,7 @@
   "train_end_date": "2025-04-06T22:00:00",
   "train_rows": 43926,
   "test_rows": 10982,
-  "test_accuracy": 0.5236751047168093,
+  "test_accuracy": 0.527681660899654,
   "features": [
     "rsi_14",
     "roc_10",
@@ -39,16 +39,16 @@
     "fear_greed"
   ],
   "best_params": {
-    "learning_rate": 0.05,
+    "learning_rate": 0.01,
     "max_depth": 3,
-    "n_estimators": 100,
+    "n_estimators": 200,
     "subsample": 1.0,
     "eval_metric": "logloss",
     "random_state": 42,
     "device": "cuda",
     "tree_method": "hist"
   },
-  "best_cv_score": 0.54920049200492,
-  "trained_at": "2026-07-08T12:26:10.480181",
+  "best_cv_score": 0.5483121497881646,
+  "trained_at": "2026-07-08T13:13:02.450141",
   "mlflow_run_id": null
 }

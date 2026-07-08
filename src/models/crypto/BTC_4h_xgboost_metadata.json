@@ -49,6 +49,6 @@
     "tree_method": "hist"
   },
   "best_cv_score": 0.5460071843050567,
-  "trained_at": "2026-07-08T12:26:31.243530",
+  "trained_at": "2026-07-08T13:13:32.676868",
   "mlflow_run_id": null
 }
