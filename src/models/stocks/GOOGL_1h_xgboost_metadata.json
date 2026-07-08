@@ -5,7 +5,7 @@
   "train_end_date": "2026-01-30T15:30:00",
   "train_rows": 2985,
   "test_rows": 747,
-  "test_accuracy": 0.5167336010709505,
+  "test_accuracy": 0.5220883534136547,
   "features": [
     "rsi_14",
     "roc_10",
@@ -47,7 +47,7 @@
     "device": "cuda",
     "tree_method": "hist"
   },
-  "best_cv_score": 0.5080402010050251,
-  "trained_at": "2026-07-08T10:24:36.869934",
+  "best_cv_score": 0.5085427135678392,
+  "trained_at": "2026-07-08T12:38:38.533321",
   "mlflow_run_id": null
 }

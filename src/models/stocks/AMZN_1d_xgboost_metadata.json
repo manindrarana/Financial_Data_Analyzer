@@ -5,7 +5,7 @@
   "train_end_date": "2023-10-02T00:00:00",
   "train_rows": 2757,
   "test_rows": 690,
-  "test_accuracy": 0.5072463768115942,
+  "test_accuracy": 0.5246376811594203,
   "features": [
     "rsi_14",
     "roc_10",
@@ -38,16 +38,16 @@
     "volatility_pct"
   ],
   "best_params": {
-    "learning_rate": 0.05,
-    "max_depth": 3,
-    "n_estimators": 200,
+    "learning_rate": 0.01,
+    "max_depth": 5,
+    "n_estimators": 100,
     "subsample": 1.0,
     "eval_metric": "logloss",
     "random_state": 42,
     "device": "cuda",
     "tree_method": "hist"
   },
-  "best_cv_score": 0.5315560391730141,
-  "trained_at": "2026-07-08T10:25:29.823942",
+  "best_cv_score": 0.5331882480957563,
+  "trained_at": "2026-07-08T12:40:23.042429",
   "mlflow_run_id": null
 }

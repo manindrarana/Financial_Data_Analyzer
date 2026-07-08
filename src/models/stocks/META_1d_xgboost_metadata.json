@@ -47,7 +47,7 @@
     "device": "cuda",
     "tree_method": "hist"
   },
-  "best_cv_score": 0.5251959686450168,
-  "trained_at": "2026-07-08T10:26:11.605381",
+  "best_cv_score": 0.522956326987682,
+  "trained_at": "2026-07-08T12:41:47.375407",
   "mlflow_run_id": null
 }

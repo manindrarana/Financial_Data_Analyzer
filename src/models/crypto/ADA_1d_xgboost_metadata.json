@@ -39,7 +39,7 @@
     "fear_greed"
   ],
   "best_params": {
-    "learning_rate": 0.05,
+    "learning_rate": 0.01,
     "max_depth": 5,
     "n_estimators": 200,
     "subsample": 1.0,
@@ -48,7 +48,7 @@
     "device": "cuda",
     "tree_method": "hist"
   },
-  "best_cv_score": 0.5291576673866091,
-  "trained_at": "2026-07-08T10:19:55.900965",
+  "best_cv_score": 0.519438444924406,
+  "trained_at": "2026-07-08T12:30:04.371967",
   "mlflow_run_id": null
 }
