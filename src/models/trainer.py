@@ -241,7 +241,11 @@ class PipelineModelTrainer:
         model.save_model(model_path)
 
         best_params = dict(grid.best_params_)
-        best_params.update({"subsample": 1.0, "eval_metric": "logloss", "random_state": 42})
+        extra_params = {"subsample": 1.0, "eval_metric": "logloss", "random_state": 42}
+        if self.use_gpu:
+            extra_params["device"] = "cuda"
+            extra_params["tree_method"] = "hist"
+        best_params.update(extra_params)
 
         metadata = {
             "asset": asset,
