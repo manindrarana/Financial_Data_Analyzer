@@ -211,13 +211,17 @@ class PipelineModelTrainer:
         except Exception as e:
             self.logger.warning(f"  MLflow unavailable: {e} — training without tracking")
 
-        base_model = xgb.XGBClassifier(
-            subsample=1.0, eval_metric="logloss", random_state=42,
-        )
+        model_params = {
+            "subsample": 1.0, "eval_metric": "logloss", "random_state": 42,
+        }
+        if self.use_gpu:
+            model_params["device"] = "cuda"
+            model_params["tree_method"] = "hist"
+        base_model = xgb.XGBClassifier(**model_params)
         tscv = TimeSeriesSplit(n_splits=2)
         grid = GridSearchCV(
             base_model, PARAM_GRID, cv=tscv, scoring="accuracy",
-            n_jobs=-1, verbose=0,
+            n_jobs=self._grid_n_jobs, verbose=0,
         )
         grid.fit(X_train, y_train)
         model = grid.best_estimator_
