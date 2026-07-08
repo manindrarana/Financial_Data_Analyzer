@@ -219,12 +219,11 @@ class TestDetectGPU:
 
 
 class TestRunMode:
-    def _setup_trainer_with_combos(self, monkeypatch, use_gpu, n_jobs=2):
+    def _setup_trainer_with_combos(self, monkeypatch, use_gpu=False):
         _mock_trainer(monkeypatch)
         trainer = PipelineModelTrainer()
         trainer.use_gpu = use_gpu
-        trainer.n_jobs = n_jobs
-        trainer._grid_n_jobs = 1
+        trainer._grid_n_jobs = 1 if use_gpu else -1
 
         combos = [
             ("BTC", "1h", "crypto", "gold_crypto_features"),
@@ -237,6 +236,19 @@ class TestRunMode:
             lambda asset, interval, asset_class, table: (True, "stale"),
         )
         return trainer
+
+    def test_sequential_trains_in_order(self, monkeypatch):
+        trainer = self._setup_trainer_with_combos(monkeypatch, use_gpu=False)
+
+        call_order = []
+        def mock_train(asset, interval, asset_class, table):
+            call_order.append(asset)
+            return {"asset": asset, "interval": interval, "accuracy": 0.8}
+        monkeypatch.setattr(trainer, "_train_one", mock_train)
+
+        trainer.run()
+
+        assert call_order == ["BTC", "ETH", "SOL"]
 
     def test_gpu_sequential_trains_in_order(self, monkeypatch):
         trainer = self._setup_trainer_with_combos(monkeypatch, use_gpu=True)
@@ -251,22 +263,8 @@ class TestRunMode:
 
         assert call_order == ["BTC", "ETH", "SOL"]
 
-    def test_cpu_parallel_trains_all_combos(self, monkeypatch):
-        trainer = self._setup_trainer_with_combos(monkeypatch, use_gpu=False, n_jobs=2)
-
-        trained_assets = []
-        def mock_train(asset, interval, asset_class, table):
-            trained_assets.append(asset)
-            return {"asset": asset, "interval": interval, "accuracy": 0.8}
-        monkeypatch.setattr(trainer, "_train_one", mock_train)
-
-        trainer.run()
-
-        assert len(trained_assets) == 3
-        assert set(trained_assets) == {"BTC", "ETH", "SOL"}
-
-    def test_gpu_logs_progress_x_of_total(self, monkeypatch):
-        trainer = self._setup_trainer_with_combos(monkeypatch, use_gpu=True)
+    def test_logs_progress_x_of_total(self, monkeypatch):
+        trainer = self._setup_trainer_with_combos(monkeypatch, use_gpu=False)
         monkeypatch.setattr(
             trainer, "_train_one",
             lambda *a: {"asset": a[0]},
@@ -281,26 +279,11 @@ class TestRunMode:
         assert "2/3" in progress[1]
         assert "3/3" in progress[2]
 
-    def test_cpu_logs_final_progress(self, monkeypatch):
-        trainer = self._setup_trainer_with_combos(monkeypatch, use_gpu=False, n_jobs=2)
-        monkeypatch.setattr(
-            trainer, "_train_one",
-            lambda *a: {"asset": a[0]},
-        )
-
-        trainer.run()
-
-        log_msgs = [str(c) for c in trainer.logger.info.call_args_list]
-        progress = [m for m in log_msgs if "Progress:" in m]
-        assert len(progress) == 1
-        assert "3/3" in progress[0]
-
     def test_skips_up_to_date(self, monkeypatch):
         _mock_trainer(monkeypatch)
         trainer = PipelineModelTrainer()
-        trainer.use_gpu = True
-        trainer.n_jobs = 1
-        trainer._grid_n_jobs = 1
+        trainer.use_gpu = False
+        trainer._grid_n_jobs = -1
 
         combos = [("BTC", "1h", "crypto", "gold_crypto_features")]
         monkeypatch.setattr(trainer, "_build_combos", lambda: combos)
@@ -318,7 +301,7 @@ class TestRunMode:
     def test_nothing_to_train_returns_early(self, monkeypatch):
         _mock_trainer(monkeypatch)
         trainer = PipelineModelTrainer()
-        trainer.use_gpu = True
+        trainer.use_gpu = False
 
         combos = [("BTC", "1h", "crypto", "gold_crypto_features")]
         monkeypatch.setattr(trainer, "_build_combos", lambda: combos)
