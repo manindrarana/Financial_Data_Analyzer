@@ -43,9 +43,11 @@
     "n_estimators": 200,
     "subsample": 1.0,
     "eval_metric": "logloss",
-    "random_state": 42
+    "random_state": 42,
+    "device": "cuda",
+    "tree_method": "hist"
   },
   "best_cv_score": 0.5060301507537688,
-  "trained_at": "2026-07-07T09:49:04.803402",
+  "trained_at": "2026-07-08T10:25:19.806500",
   "mlflow_run_id": null
 }
