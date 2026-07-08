@@ -13,6 +13,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
+from joblib import Parallel, delayed
 from src.utils import get_logger
 from src.models.feature_engineering import MODEL_FEATURES, NEEDED_COLS, make_stationary
 
@@ -28,7 +29,7 @@ STOCK_INTERVAL_MAP = {"1h": "1h", "1d": "1d", "1wk": "1w"}
 
 class PipelineModelTrainer:
 
-    def __init__(self):
+    def __init__(self, n_jobs=None):
         self.logger = get_logger(__name__)
         load_dotenv()
 
@@ -48,6 +49,23 @@ class PipelineModelTrainer:
 
         mlflow_uri = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
         mlflow.set_tracking_uri(mlflow_uri)
+
+        self.n_jobs = n_jobs or max(os.cpu_count() - 1, 1)
+        self.use_gpu = self._detect_gpu()
+        self._grid_n_jobs = 1
+        mode = "GPU (CUDA)" if self.use_gpu else f"CPU (n_jobs={self.n_jobs})"
+        self.logger.info(f"Trainer initialized: {mode}")
+
+    def _detect_gpu(self):
+        try:
+            test = xgb.XGBClassifier(
+                device="cuda", tree_method="hist",
+                n_estimators=1, max_depth=1, eval_metric="logloss",
+            )
+            test.fit(np.array([[1, 2], [3, 4]]), np.array([0, 1]))
+            return True
+        except Exception:
+            return False
 
     def _build_combos(self):
         combos = []
