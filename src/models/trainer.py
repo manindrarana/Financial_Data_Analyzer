@@ -289,7 +289,7 @@ class PipelineModelTrainer:
         combos = self._build_combos()
         self.logger.info(f"Checking {len(combos)} asset×interval combos...")
 
-        trained = 0
+        to_train = []
         skipped = 0
         up_to_date = 0
 
@@ -304,11 +304,38 @@ class PipelineModelTrainer:
                 continue
 
             self.logger.info(f"[RETRAIN] {asset}/{interval}: {reason}")
-            result = self._train_one(asset, interval, asset_class, table_name)
-            if result:
-                trained += 1
-            else:
-                skipped += 1
+            to_train.append((asset, interval, asset_class, table_name))
+
+        total = len(to_train)
+        self.logger.info(f"{total} to train, {up_to_date} up-to-date, {skipped} skipped")
+
+        if total == 0:
+            self.logger.info("Step 8 complete: nothing to train")
+            self.logger.info("*" * 60)
+            return
+
+        trained = 0
+
+        if self.use_gpu:
+            self.logger.info("Training on GPU (sequential)...")
+            for i, combo in enumerate(to_train, 1):
+                result = self._train_one(*combo)
+                if result:
+                    trained += 1
+                else:
+                    skipped += 1
+                self.logger.info(f"Progress: {i}/{total}")
+        else:
+            self.logger.info(f"Training on CPU with n_jobs={self.n_jobs}...")
+            results = Parallel(n_jobs=self.n_jobs, prefer="threads")(
+                delayed(self._train_one)(*combo) for combo in to_train
+            )
+            for result in results:
+                if result:
+                    trained += 1
+                else:
+                    skipped += 1
+            self.logger.info(f"Progress: {total}/{total}")
 
         self.logger.info(f"Step 8 complete: {trained} trained, {up_to_date} up-to-date, {skipped} skipped")
         self.logger.info("*" * 60)
