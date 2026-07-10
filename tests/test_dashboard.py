@@ -7,6 +7,7 @@ import pytest
 import os
 import pandas as pd
 from unittest.mock import patch, MagicMock
+
 from dashboard.predictor import _discover_model, _INTERVAL_MINUTES, FEATURE_TABLES
 
 
@@ -187,17 +188,41 @@ class TestFeatureImportance:
         }
         mock_model = MagicMock()
         mock_model.get_booster.return_value = mock_booster
+        mock_model.load_model = MagicMock()
+
+        captured_bars = []
+
+        class FakeBar:
+            def __init__(self, **kwargs):
+                self.x = kwargs.get("x", [])
+                self.y = kwargs.get("y", [])
+                self.orientation = kwargs.get("orientation", "v")
+                captured_bars.append(self)
+
+        class FakeFig:
+            def __init__(self, bar):
+                self.data = (bar,)
+                self.layout = MagicMock()
+            def update_layout(self, **kwargs):
+                self.title_text = kwargs.get("title", "")
+
+        def mock_graph(**kwargs):
+            mock_obj = MagicMock()
+            mock_obj.figure = kwargs.get("figure")
+            return mock_obj
 
         with patch("os.path.exists", return_value=True):
             with patch("xgboost.XGBClassifier", return_value=mock_model):
-                result = dashboard_app.build_feature_importance_chart("crypto", "BTC", "1h")
+                with patch.object(dashboard_app.go, "Bar", FakeBar):
+                    with patch.object(dashboard_app.go, "Figure", FakeFig):
+                        with patch.object(dashboard_app.dcc, "Graph", side_effect=mock_graph):
+                            result = dashboard_app.build_feature_importance_chart("crypto", "BTC", "1h")
 
-        assert hasattr(result, "figure")
-        bar_trace = result.figure.data[0]
-        assert bar_trace.orientation == "h"
-        assert "sma_7_dist" in list(bar_trace.y)
-        assert "rsi_14" in list(bar_trace.y)
-        assert len(bar_trace.y) == 5
+        bar = captured_bars[0]
+        assert bar.orientation == "h"
+        assert "sma_7_dist" in list(bar.y)
+        assert "rsi_14" in list(bar.y)
+        assert len(bar.y) == 5
 
     def test_chart_limits_to_top_15(self):
         from dashboard import app as dashboard_app
@@ -207,15 +232,39 @@ class TestFeatureImportance:
         mock_booster.get_score.return_value = fake_importance
         mock_model = MagicMock()
         mock_model.get_booster.return_value = mock_booster
+        mock_model.load_model = MagicMock()
+
+        captured_bars = []
+
+        class FakeBar:
+            def __init__(self, **kwargs):
+                self.x = kwargs.get("x", [])
+                self.y = kwargs.get("y", [])
+                captured_bars.append(self)
+
+        class FakeFig:
+            def __init__(self, bar):
+                self.data = (bar,)
+                self.layout = MagicMock()
+            def update_layout(self, **kwargs):
+                pass
+
+        def mock_graph(**kwargs):
+            mock_obj = MagicMock()
+            mock_obj.figure = kwargs.get("figure")
+            return mock_obj
 
         with patch("os.path.exists", return_value=True):
             with patch("xgboost.XGBClassifier", return_value=mock_model):
-                result = dashboard_app.build_feature_importance_chart("crypto", "BTC", "1h")
+                with patch.object(dashboard_app.go, "Bar", FakeBar):
+                    with patch.object(dashboard_app.go, "Figure", FakeFig):
+                        with patch.object(dashboard_app.dcc, "Graph", side_effect=mock_graph):
+                            result = dashboard_app.build_feature_importance_chart("crypto", "BTC", "1h")
 
-        bar_trace = result.figure.data[0]
-        assert len(bar_trace.y) == 15
-        assert "feature_0" in list(bar_trace.y)
-        assert "feature_19" not in list(bar_trace.y)
+        bar = captured_bars[0]
+        assert len(bar.y) == 15
+        assert "feature_0" in list(bar.y)
+        assert "feature_19" not in list(bar.y)
 
     def test_title_includes_asset_and_interval(self):
         from dashboard import app as dashboard_app
@@ -224,10 +273,33 @@ class TestFeatureImportance:
         mock_booster.get_score.return_value = {"rsi_14": 10.0}
         mock_model = MagicMock()
         mock_model.get_booster.return_value = mock_booster
+        mock_model.load_model = MagicMock()
+
+        captured_figs = []
+
+        class FakeBar:
+            def __init__(self, **kwargs):
+                self.x = kwargs.get("x", [])
+                self.y = kwargs.get("y", [])
+
+        class FakeFig:
+            def __init__(self, bar):
+                self.data = (bar,)
+                self.layout = MagicMock()
+            def update_layout(self, **kwargs):
+                captured_figs.append(kwargs.get("title", ""))
+
+        def mock_graph(**kwargs):
+            mock_obj = MagicMock()
+            mock_obj.figure = kwargs.get("figure")
+            return mock_obj
 
         with patch("os.path.exists", return_value=True):
             with patch("xgboost.XGBClassifier", return_value=mock_model):
-                result = dashboard_app.build_feature_importance_chart("stocks", "AAPL", "1d")
+                with patch.object(dashboard_app.go, "Bar", FakeBar):
+                    with patch.object(dashboard_app.go, "Figure", FakeFig):
+                        with patch.object(dashboard_app.dcc, "Graph", side_effect=mock_graph):
+                            result = dashboard_app.build_feature_importance_chart("stocks", "AAPL", "1d")
 
-        assert "AAPL" in result.figure.layout.title.text
-        assert "1d" in result.figure.layout.title.text
+        assert "AAPL" in captured_figs[0]
+        assert "1d" in captured_figs[0]
