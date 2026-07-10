@@ -157,7 +157,7 @@ app.layout = dbc.Container(
                 dbc.Tab(label=" Technical Indicators", tab_id="tab-indicators"),
                 dbc.Tab(label=" Data Explorer", tab_id="tab-explorer"),
                 dbc.Tab(label=" Model Health", tab_id="tab-model-health"),
-                dbc.Tab(label=" Feature Importance", tab_id="tab-feature-importance"),
+                dbc.Tab(label=" Model Insights", tab_id="tab-model-insights"),
             ],
         ),
         html.Hr(),
