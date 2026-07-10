@@ -7,6 +7,7 @@ import pytest
 import os
 import pandas as pd
 from unittest.mock import patch, MagicMock
+
 from dashboard.predictor import _discover_model, _INTERVAL_MINUTES, FEATURE_TABLES
 
 
@@ -162,3 +163,143 @@ class TestPredictionCards:
         xgboost_row = comparison_tables[0].loc[comparison_tables[0]["Model / Rule"] == "XGBoost"].iloc[0]
         assert xgboost_row["Correct"] == 1
         assert xgboost_row["Rows Tested"] == 2
+
+
+class TestFeatureImportance:
+    def test_missing_model_shows_warning(self):
+        from dashboard import app as dashboard_app
+
+        with patch("os.path.exists", return_value=False):
+            result = dashboard_app.build_feature_importance_chart("crypto", "BTC", "1h")
+
+        text = _collect_text(result)
+        assert any("No trained model" in t for t in text)
+
+    def test_chart_shows_top_features(self):
+        from dashboard import app as dashboard_app
+
+        mock_booster = MagicMock()
+        mock_booster.get_score.return_value = {
+            "sma_7_dist": 15.2,
+            "rsi_14": 12.1,
+            "volume_ratio": 8.5,
+            "returns_1p": 5.3,
+            "macd": 3.1,
+        }
+        mock_model = MagicMock()
+        mock_model.get_booster.return_value = mock_booster
+        mock_model.load_model = MagicMock()
+
+        captured_bars = []
+
+        class FakeBar:
+            def __init__(self, **kwargs):
+                self.x = kwargs.get("x", [])
+                self.y = kwargs.get("y", [])
+                self.orientation = kwargs.get("orientation", "v")
+                captured_bars.append(self)
+
+        class FakeFig:
+            def __init__(self, bar):
+                self.data = (bar,)
+                self.layout = MagicMock()
+            def update_layout(self, **kwargs):
+                self.title_text = kwargs.get("title", "")
+
+        def mock_graph(**kwargs):
+            mock_obj = MagicMock()
+            mock_obj.figure = kwargs.get("figure")
+            return mock_obj
+
+        with patch("os.path.exists", return_value=True):
+            with patch("xgboost.XGBClassifier", return_value=mock_model):
+                with patch.object(dashboard_app.go, "Bar", FakeBar):
+                    with patch.object(dashboard_app.go, "Figure", FakeFig):
+                        with patch.object(dashboard_app.dcc, "Graph", side_effect=mock_graph):
+                            result = dashboard_app.build_feature_importance_chart("crypto", "BTC", "1h")
+
+        bar = captured_bars[0]
+        assert bar.orientation == "h"
+        assert "sma_7_dist" in list(bar.y)
+        assert "rsi_14" in list(bar.y)
+        assert len(bar.y) == 5
+
+    def test_chart_limits_to_top_15(self):
+        from dashboard import app as dashboard_app
+
+        fake_importance = {f"feature_{i}": float(100 - i) for i in range(20)}
+        mock_booster = MagicMock()
+        mock_booster.get_score.return_value = fake_importance
+        mock_model = MagicMock()
+        mock_model.get_booster.return_value = mock_booster
+        mock_model.load_model = MagicMock()
+
+        captured_bars = []
+
+        class FakeBar:
+            def __init__(self, **kwargs):
+                self.x = kwargs.get("x", [])
+                self.y = kwargs.get("y", [])
+                captured_bars.append(self)
+
+        class FakeFig:
+            def __init__(self, bar):
+                self.data = (bar,)
+                self.layout = MagicMock()
+            def update_layout(self, **kwargs):
+                pass
+
+        def mock_graph(**kwargs):
+            mock_obj = MagicMock()
+            mock_obj.figure = kwargs.get("figure")
+            return mock_obj
+
+        with patch("os.path.exists", return_value=True):
+            with patch("xgboost.XGBClassifier", return_value=mock_model):
+                with patch.object(dashboard_app.go, "Bar", FakeBar):
+                    with patch.object(dashboard_app.go, "Figure", FakeFig):
+                        with patch.object(dashboard_app.dcc, "Graph", side_effect=mock_graph):
+                            result = dashboard_app.build_feature_importance_chart("crypto", "BTC", "1h")
+
+        bar = captured_bars[0]
+        assert len(bar.y) == 15
+        assert "feature_0" in list(bar.y)
+        assert "feature_19" not in list(bar.y)
+
+    def test_title_includes_asset_and_interval(self):
+        from dashboard import app as dashboard_app
+
+        mock_booster = MagicMock()
+        mock_booster.get_score.return_value = {"rsi_14": 10.0}
+        mock_model = MagicMock()
+        mock_model.get_booster.return_value = mock_booster
+        mock_model.load_model = MagicMock()
+
+        captured_figs = []
+
+        class FakeBar:
+            def __init__(self, **kwargs):
+                self.x = kwargs.get("x", [])
+                self.y = kwargs.get("y", [])
+
+        class FakeFig:
+            def __init__(self, bar):
+                self.data = (bar,)
+                self.layout = MagicMock()
+            def update_layout(self, **kwargs):
+                captured_figs.append(kwargs.get("title", ""))
+
+        def mock_graph(**kwargs):
+            mock_obj = MagicMock()
+            mock_obj.figure = kwargs.get("figure")
+            return mock_obj
+
+        with patch("os.path.exists", return_value=True):
+            with patch("xgboost.XGBClassifier", return_value=mock_model):
+                with patch.object(dashboard_app.go, "Bar", FakeBar):
+                    with patch.object(dashboard_app.go, "Figure", FakeFig):
+                        with patch.object(dashboard_app.dcc, "Graph", side_effect=mock_graph):
+                            result = dashboard_app.build_feature_importance_chart("stocks", "AAPL", "1d")
+
+        assert "AAPL" in captured_figs[0]
+        assert "1d" in captured_figs[0]
