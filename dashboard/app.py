@@ -2754,5 +2754,115 @@ def update_stock_freshness(_n):
     except Exception:
         return dbc.Badge("Stocks: unavailable", color="secondary", className="px-3 py-2 fs-6")
 
+
+@app.callback(
+    dash.Output("fi-asset-dropdown", "options"),
+    dash.Output("fi-asset-dropdown", "value"),
+    dash.Input("fi-class-dropdown", "value"),
+)
+def update_fi_asset_dropdown(asset_class):
+    if asset_class == "crypto":
+        assets = CRYPTO_ASSETS
+        default = "BTC" if "BTC" in assets else (assets[0] if assets else None)
+    else:
+        assets = STOCK_ASSETS
+        default = assets[0] if assets else None
+    options = [{"label": a, "value": a} for a in assets]
+    return options, default
+
+
+@app.callback(
+    dash.Output("fi-interval-dropdown", "options"),
+    dash.Output("fi-interval-dropdown", "value"),
+    dash.Input("fi-class-dropdown", "value"),
+)
+def update_fi_interval_dropdown(asset_class):
+    if asset_class == "crypto":
+        intervals = CRYPTO_INTERVALS
+        default = "1h"
+    else:
+        intervals = STOCK_INTERVALS
+        default = "1h"
+    options = [{"label": INTERVAL_LABELS.get(iv, iv), "value": iv} for iv in intervals]
+    return options, default
+
+
+@app.callback(
+    dash.Output("fi-chart-container", "children"),
+    dash.Input("fi-class-dropdown", "value"),
+    dash.Input("fi-asset-dropdown", "value"),
+    dash.Input("fi-interval-dropdown", "value"),
+)
+def build_feature_importance_chart(asset_class, asset_symbol, interval):
+    import json
+    import xgboost as xgb
+
+    if not asset_symbol or not interval:
+        return dbc.Alert("Select an asset and interval.", color="info")
+
+    subdir = "crypto" if asset_class == "crypto" else "stocks"
+    model_path = os.path.join("src", "models", subdir, f"{asset_symbol}_{interval}_xgboost_model.json")
+    meta_path = os.path.join("src", "models", subdir, f"{asset_symbol}_{interval}_xgboost_metadata.json")
+
+    if not os.path.exists(model_path):
+        return dbc.Alert(
+            f"No trained model found for {asset_symbol} @ {interval}. Run the pipeline first.",
+            color="warning",
+        )
+
+    try:
+        model = xgb.XGBClassifier()
+        model.load_model(model_path)
+        booster = model.get_booster()
+
+        importance = booster.get_score(importance_type="gain")
+        if not importance:
+            importance = booster.get_score(fmap="", importance_type="gain")
+
+        if not importance:
+            if os.path.exists(meta_path):
+                with open(meta_path) as f:
+                    meta = json.load(f)
+                features = meta.get("features", [])
+                scores = model.feature_importances_
+                importance = {feat: score for feat, score in zip(features, scores) if score > 0}
+            else:
+                importance = {}
+
+        if not importance:
+            return dbc.Alert(
+                f"No feature importance data available for {asset_symbol} @ {interval}.",
+                color="warning",
+            )
+
+        sorted_items = sorted(importance.items(), key=lambda x: x[1], reverse=True)[:15]
+        feat_names = [x[0] for x in sorted_items]
+        feat_values = [x[1] for x in sorted_items]
+
+        fig = go.Figure(go.Bar(
+            x=feat_values,
+            y=feat_names,
+            orientation="h",
+            marker_color="#3498db",
+            text=[f"{v:.2f}" for v in feat_values],
+            textposition="outside",
+        ))
+        fig.update_layout(
+            template="plotly_dark",
+            title=f"Top 15 Feature Importance (Gain) - {asset_symbol} {interval}",
+            xaxis_title="Feature Importance (Gain)",
+            yaxis=dict(autorange="reversed"),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            height=500,
+            margin=dict(l=160, r=40, t=60, b=40),
+        )
+
+        return dcc.Graph(figure=fig, config={"displayModeBar": False})
+
+    except Exception as e:
+        return dbc.Alert(f"Error loading feature importance: {e}", color="danger")
+
+
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=8050)
