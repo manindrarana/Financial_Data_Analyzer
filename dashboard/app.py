@@ -1456,6 +1456,48 @@ def render_model_health():
         table,
     ])
 
+def render_feature_importance():
+    """Interactive feature importance chart for any of the 45 trained models."""
+    return html.Div([
+        html.H3("Feature Importance", className="text-light mb-3"),
+        dbc.Row([
+            dbc.Col([
+                html.Label("Asset Class", className="text-muted small mb-1"),
+                dcc.Dropdown(
+                    id="fi-class-dropdown",
+                    options=[
+                        {"label": "Crypto", "value": "crypto"},
+                        {"label": "Stocks", "value": "stocks"},
+                    ],
+                    value="crypto",
+                    clearable=False,
+                    style={"color": "#000"},
+                ),
+            ], width=3),
+            dbc.Col([
+                html.Label("Asset", className="text-muted small mb-1"),
+                dcc.Dropdown(
+                    id="fi-asset-dropdown",
+                    clearable=False,
+                    style={"color": "#000"},
+                ),
+            ], width=3),
+            dbc.Col([
+                html.Label("Interval", className="text-muted small mb-1"),
+                dcc.Dropdown(
+                    id="fi-interval-dropdown",
+                    clearable=False,
+                    style={"color": "#000"},
+                ),
+            ], width=3),
+        ], className="mb-3"),
+        dcc.Loading(
+            id="fi-loading",
+            type="circle",
+            children=html.Div(id="fi-chart-container"),
+        ),
+    ])
+
 PRICE_RANGE_MAP = {
     "1d": 1, "3d": 3, "7d": 7, "30d": 30,
     "90d": 90, "180d": 180, "365d": 365,
