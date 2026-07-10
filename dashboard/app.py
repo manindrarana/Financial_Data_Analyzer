@@ -294,6 +294,8 @@ def render_tab(active_tab: str):
         return render_explorer()
     elif active_tab == "tab-model-health":
         return render_model_health()
+    elif active_tab == "tab-feature-importance":
+        return render_feature_importance()
     return html.P("Select a tab.", className="text-muted")
 
 
