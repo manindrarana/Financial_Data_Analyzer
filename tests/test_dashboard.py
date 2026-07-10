@@ -162,3 +162,72 @@ class TestPredictionCards:
         xgboost_row = comparison_tables[0].loc[comparison_tables[0]["Model / Rule"] == "XGBoost"].iloc[0]
         assert xgboost_row["Correct"] == 1
         assert xgboost_row["Rows Tested"] == 2
+
+
+class TestFeatureImportance:
+    def test_missing_model_shows_warning(self):
+        from dashboard import app as dashboard_app
+
+        with patch("os.path.exists", return_value=False):
+            result = dashboard_app.build_feature_importance_chart("crypto", "BTC", "1h")
+
+        text = _collect_text(result)
+        assert any("No trained model" in t for t in text)
+
+    def test_chart_shows_top_features(self):
+        from dashboard import app as dashboard_app
+
+        mock_booster = MagicMock()
+        mock_booster.get_score.return_value = {
+            "sma_7_dist": 15.2,
+            "rsi_14": 12.1,
+            "volume_ratio": 8.5,
+            "returns_1p": 5.3,
+            "macd": 3.1,
+        }
+        mock_model = MagicMock()
+        mock_model.get_booster.return_value = mock_booster
+
+        with patch("os.path.exists", return_value=True):
+            with patch("xgboost.XGBClassifier", return_value=mock_model):
+                result = dashboard_app.build_feature_importance_chart("crypto", "BTC", "1h")
+
+        assert hasattr(result, "figure")
+        bar_trace = result.figure.data[0]
+        assert bar_trace.orientation == "h"
+        assert "sma_7_dist" in list(bar_trace.y)
+        assert "rsi_14" in list(bar_trace.y)
+        assert len(bar_trace.y) == 5
+
+    def test_chart_limits_to_top_15(self):
+        from dashboard import app as dashboard_app
+
+        fake_importance = {f"feature_{i}": float(100 - i) for i in range(20)}
+        mock_booster = MagicMock()
+        mock_booster.get_score.return_value = fake_importance
+        mock_model = MagicMock()
+        mock_model.get_booster.return_value = mock_booster
+
+        with patch("os.path.exists", return_value=True):
+            with patch("xgboost.XGBClassifier", return_value=mock_model):
+                result = dashboard_app.build_feature_importance_chart("crypto", "BTC", "1h")
+
+        bar_trace = result.figure.data[0]
+        assert len(bar_trace.y) == 15
+        assert "feature_0" in list(bar_trace.y)
+        assert "feature_19" not in list(bar_trace.y)
+
+    def test_title_includes_asset_and_interval(self):
+        from dashboard import app as dashboard_app
+
+        mock_booster = MagicMock()
+        mock_booster.get_score.return_value = {"rsi_14": 10.0}
+        mock_model = MagicMock()
+        mock_model.get_booster.return_value = mock_booster
+
+        with patch("os.path.exists", return_value=True):
+            with patch("xgboost.XGBClassifier", return_value=mock_model):
+                result = dashboard_app.build_feature_importance_chart("stocks", "AAPL", "1d")
+
+        assert "AAPL" in result.figure.layout.title.text
+        assert "1d" in result.figure.layout.title.text
