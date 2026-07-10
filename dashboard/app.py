@@ -294,8 +294,8 @@ def render_tab(active_tab: str):
         return render_explorer()
     elif active_tab == "tab-model-health":
         return render_model_health()
-    elif active_tab == "tab-feature-importance":
-        return render_feature_importance()
+    elif active_tab == "tab-model-insights":
+        return render_model_insights()
     return html.P("Select a tab.", className="text-muted")
 
 
@@ -1456,8 +1456,8 @@ def render_model_health():
         table,
     ])
 
-def render_feature_importance():
-    """Interactive feature importance chart for any of the 45 trained models."""
+def render_model_insights():
+    """Interactive model insights — feature importance, accuracy chart, confusion matrix."""
     return html.Div([
         html.H3("Feature Importance", className="text-light mb-3"),
         dbc.Row([
