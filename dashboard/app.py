@@ -1070,7 +1070,6 @@ def render_explorer():
     TABLE_OPTIONS = [
         {"label": "Crypto Analytics (gold_crypto_analytics)", "value": "gold_crypto_analytics"},
         {"label": "Crypto Features (gold_crypto_features)", "value": "gold_crypto_features"},
-        {"label": "Crypto Predictions (gold_crypto_predictions)", "value": "gold_crypto_predictions"},
         {"label": "Stock Analytics (gold_stock_analytics)", "value": "gold_stock_analytics"},
         {"label": "Stock Features (gold_stock_features)", "value": "gold_stock_features"},
     ]
