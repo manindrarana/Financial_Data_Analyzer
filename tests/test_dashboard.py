@@ -383,3 +383,28 @@ class TestAccuracyChart:
 
         text = _collect_text(result)
         assert any("No accuracy data" in t for t in text)
+
+    def test_bars_sorted_by_accuracy_ascending(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "get_model_health", return_value=self._fake_models()):
+            result = dashboard_app.build_accuracy_chart()
+
+        fig = result.figure
+        crypto_y = list(fig.data[0].y)
+        assert crypto_y == sorted(crypto_y)
+        stock_y = list(fig.data[1].y)
+        assert stock_y == sorted(stock_y)
+
+    def test_avg_lines_present(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "get_model_health", return_value=self._fake_models()):
+            result = dashboard_app.build_accuracy_chart()
+
+        fig = result.figure
+        y_values = [shape.y0 for shape in fig.layout.shapes]
+        crypto_avg = round((52.1 + 49.8) / 2, 1)
+        stock_avg = round((53.5 + 51.1) / 2, 1)
+        assert crypto_avg in y_values
+        assert stock_avg in y_values
