@@ -1506,8 +1506,8 @@ def build_accuracy_chart():
     """Bar chart of test accuracy for all models, grouped by asset class."""
     models = get_model_health()
 
-    crypto_labels, crypto_acc = [], []
-    stock_labels, stock_acc = [], []
+    crypto_labels, crypto_acc, crypto_train, crypto_test = [], [], [], []
+    stock_labels, stock_acc, stock_train, stock_test = [], [], [], []
 
     for m in models:
         acc = m.get("test_accuracy")
@@ -1515,32 +1515,46 @@ def build_accuracy_chart():
             continue
         label = f"{m['asset']} {m['interval']}"
         pct = round(acc * 100, 1)
+        train_rows = m.get("train_rows")
+        test_rows = m.get("test_rows")
         if m["asset_class"] == "crypto":
             crypto_labels.append(label)
             crypto_acc.append(pct)
+            crypto_train.append(train_rows if train_rows is not None else "N/A")
+            crypto_test.append(test_rows if test_rows is not None else "N/A")
         else:
             stock_labels.append(label)
             stock_acc.append(pct)
+            stock_train.append(train_rows if train_rows is not None else "N/A")
+            stock_test.append(test_rows if test_rows is not None else "N/A")
 
-    crypto_pairs = sorted(zip(crypto_labels, crypto_acc), key=lambda p: p[1])
-    crypto_labels = [p[0] for p in crypto_pairs]
-    crypto_acc = [p[1] for p in crypto_pairs]
+    crypto_data = sorted(zip(crypto_labels, crypto_acc, crypto_train, crypto_test), key=lambda p: p[1])
+    crypto_labels = [p[0] for p in crypto_data]
+    crypto_acc = [p[1] for p in crypto_data]
+    crypto_train = [p[2] for p in crypto_data]
+    crypto_test = [p[3] for p in crypto_data]
 
-    stock_pairs = sorted(zip(stock_labels, stock_acc), key=lambda p: p[1])
-    stock_labels = [p[0] for p in stock_pairs]
-    stock_acc = [p[1] for p in stock_pairs]
+    stock_data = sorted(zip(stock_labels, stock_acc, stock_train, stock_test), key=lambda p: p[1])
+    stock_labels = [p[0] for p in stock_data]
+    stock_acc = [p[1] for p in stock_data]
+    stock_train = [p[2] for p in stock_data]
+    stock_test = [p[3] for p in stock_data]
 
     if not crypto_labels and not stock_labels:
         return dbc.Alert("No accuracy data available. Train models first.", color="info")
 
     fig = go.Figure()
 
+    crypto_hover = "<b>%{x}</b><br>Accuracy: %{y:.1f}%<br>Train Rows: %{customdata[0]}<br>Test Rows: %{customdata[1]}<extra>Crypto</extra>"
+    stock_hover = "<b>%{x}</b><br>Accuracy: %{y:.1f}%<br>Train Rows: %{customdata[0]}<br>Test Rows: %{customdata[1]}<extra>Stocks</extra>"
+
     fig.add_trace(go.Bar(
         x=crypto_labels,
         y=crypto_acc,
         name="Crypto",
         marker_color="#f7931a",
-        hovertemplate="<b>%{x}</b><br>Accuracy: %{y:.1f}%<extra>Crypto</extra>",
+        customdata=list(zip(crypto_train, crypto_test)),
+        hovertemplate=crypto_hover,
     ))
 
     fig.add_trace(go.Bar(
@@ -1548,7 +1562,8 @@ def build_accuracy_chart():
         y=stock_acc,
         name="Stocks",
         marker_color="#3498db",
-        hovertemplate="<b>%{x}</b><br>Accuracy: %{y:.1f}%<extra>Stocks</extra>",
+        customdata=list(zip(stock_train, stock_test)),
+        hovertemplate=stock_hover,
     ))
 
     fig.add_hline(
