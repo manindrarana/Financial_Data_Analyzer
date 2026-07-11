@@ -303,3 +303,113 @@ class TestFeatureImportance:
 
         assert "AAPL" in captured_figs[0]
         assert "1d" in captured_figs[0]
+
+
+class TestAccuracyChart:
+    def _fake_models(self):
+        return [
+            {"asset": "BTC", "interval": "1h", "asset_class": "crypto", "test_accuracy": 0.521, "train_rows": 1680, "test_rows": 420, "status": "healthy"},
+            {"asset": "ETH", "interval": "4h", "asset_class": "crypto", "test_accuracy": 0.498, "train_rows": 2100, "test_rows": 525, "status": "healthy"},
+            {"asset": "SOL", "interval": "1d", "asset_class": "crypto", "test_accuracy": None, "status": "stale"},
+            {"asset": "AAPL", "interval": "1h", "asset_class": "stocks", "test_accuracy": 0.535, "train_rows": 1200, "test_rows": 300, "status": "healthy"},
+            {"asset": "TSLA", "interval": "1d", "asset_class": "stocks", "test_accuracy": 0.511, "train_rows": 900, "test_rows": 225, "status": "healthy"},
+        ]
+
+    def test_all_models_with_accuracy_appear_as_bars(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "get_model_health", return_value=self._fake_models()):
+            result = dashboard_app.build_accuracy_chart()
+
+        fig = result.figure
+        crypto_bars = len(fig.data[0].x)
+        stock_bars = len(fig.data[1].x)
+        assert crypto_bars == 2
+        assert stock_bars == 2
+        assert crypto_bars + stock_bars == 4
+
+    def test_bars_colored_by_asset_class(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "get_model_health", return_value=self._fake_models()):
+            result = dashboard_app.build_accuracy_chart()
+
+        fig = result.figure
+        assert fig.data[0].marker.color == "#f7931a"
+        assert fig.data[1].marker.color == "#3498db"
+
+    def test_crypto_and_stock_traces_separate(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "get_model_health", return_value=self._fake_models()):
+            result = dashboard_app.build_accuracy_chart()
+
+        fig = result.figure
+        assert fig.data[0].name == "Crypto"
+        assert fig.data[1].name == "Stocks"
+        assert "BTC 1h" in list(fig.data[0].x)
+        assert "AAPL 1h" in list(fig.data[1].x)
+
+    def test_baseline_and_ceiling_lines_visible(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "get_model_health", return_value=self._fake_models()):
+            result = dashboard_app.build_accuracy_chart()
+
+        fig = result.figure
+        y_values = [shape.y0 for shape in fig.layout.shapes]
+        assert 50 in y_values
+        assert 52.6 in y_values
+
+    def test_hover_template_shows_values(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "get_model_health", return_value=self._fake_models()):
+            result = dashboard_app.build_accuracy_chart()
+
+        fig = result.figure
+        assert "Accuracy: %{y:.1f}%" in fig.data[0].hovertemplate
+        assert "Train Rows: %{customdata[0]}" in fig.data[0].hovertemplate
+        assert "Test Rows: %{customdata[1]}" in fig.data[0].hovertemplate
+        assert "Accuracy: %{y:.1f}%" in fig.data[1].hovertemplate
+        assert "Train Rows: %{customdata[0]}" in fig.data[1].hovertemplate
+        assert "Test Rows: %{customdata[1]}" in fig.data[1].hovertemplate
+
+    def test_customdata_has_train_and_test_rows(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "get_model_health", return_value=self._fake_models()):
+            result = dashboard_app.build_accuracy_chart()
+
+        fig = result.figure
+        crypto_cd = list(fig.data[0].customdata)
+        assert [1680, 420] in crypto_cd
+        assert [2100, 525] in crypto_cd
+        stock_cd = list(fig.data[1].customdata)
+        assert [1200, 300] in stock_cd
+        assert [900, 225] in stock_cd
+
+    def test_no_accuracy_data_shows_alert(self):
+        from dashboard import app as dashboard_app
+
+        fake_models = [
+            {"asset": "BTC", "interval": "1h", "asset_class": "crypto", "test_accuracy": None, "status": "stale"},
+            {"asset": "AAPL", "interval": "1h", "asset_class": "stocks", "test_accuracy": None, "status": "stale"},
+        ]
+        with patch.object(dashboard_app, "get_model_health", return_value=fake_models):
+            result = dashboard_app.build_accuracy_chart()
+
+        text = _collect_text(result)
+        assert any("No accuracy data" in t for t in text)
+
+    def test_bars_sorted_by_accuracy_ascending(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "get_model_health", return_value=self._fake_models()):
+            result = dashboard_app.build_accuracy_chart()
+
+        fig = result.figure
+        crypto_y = list(fig.data[0].y)
+        assert crypto_y == sorted(crypto_y)
+        stock_y = list(fig.data[1].y)
+        assert stock_y == sorted(stock_y)

@@ -1496,7 +1496,109 @@ def render_model_insights():
             type="circle",
             children=html.Div(id="fi-chart-container"),
         ),
+        html.Hr(className="my-4"),
+        html.H3("Per-Asset Accuracy", className="text-light mb-3"),
+        build_accuracy_chart(),
     ])
+
+
+def build_accuracy_chart():
+    """Bar chart of test accuracy for all models, grouped by asset class."""
+    models = get_model_health()
+
+    crypto_labels, crypto_acc, crypto_train, crypto_test = [], [], [], []
+    stock_labels, stock_acc, stock_train, stock_test = [], [], [], []
+
+    for m in models:
+        acc = m.get("test_accuracy")
+        if acc is None:
+            continue
+        label = f"{m['asset']} {m['interval']}"
+        pct = round(acc * 100, 1)
+        train_rows = m.get("train_rows")
+        test_rows = m.get("test_rows")
+        if m["asset_class"] == "crypto":
+            crypto_labels.append(label)
+            crypto_acc.append(pct)
+            crypto_train.append(train_rows if train_rows is not None else "N/A")
+            crypto_test.append(test_rows if test_rows is not None else "N/A")
+        else:
+            stock_labels.append(label)
+            stock_acc.append(pct)
+            stock_train.append(train_rows if train_rows is not None else "N/A")
+            stock_test.append(test_rows if test_rows is not None else "N/A")
+
+    crypto_data = sorted(zip(crypto_labels, crypto_acc, crypto_train, crypto_test), key=lambda p: p[1])
+    crypto_labels = [p[0] for p in crypto_data]
+    crypto_acc = [p[1] for p in crypto_data]
+    crypto_train = [p[2] for p in crypto_data]
+    crypto_test = [p[3] for p in crypto_data]
+
+    stock_data = sorted(zip(stock_labels, stock_acc, stock_train, stock_test), key=lambda p: p[1])
+    stock_labels = [p[0] for p in stock_data]
+    stock_acc = [p[1] for p in stock_data]
+    stock_train = [p[2] for p in stock_data]
+    stock_test = [p[3] for p in stock_data]
+
+    if not crypto_labels and not stock_labels:
+        return dbc.Alert("No accuracy data available. Train models first.", color="info")
+
+    fig = go.Figure()
+
+    crypto_hover = "<b>%{x}</b><br>Accuracy: %{y:.1f}%<br>Train Rows: %{customdata[0]}<br>Test Rows: %{customdata[1]}<extra>Crypto</extra>"
+    stock_hover = "<b>%{x}</b><br>Accuracy: %{y:.1f}%<br>Train Rows: %{customdata[0]}<br>Test Rows: %{customdata[1]}<extra>Stocks</extra>"
+
+    fig.add_trace(go.Bar(
+        x=crypto_labels,
+        y=crypto_acc,
+        name="Crypto",
+        marker_color="#f7931a",
+        customdata=list(zip(crypto_train, crypto_test)),
+        hovertemplate=crypto_hover,
+    ))
+
+    fig.add_trace(go.Bar(
+        x=stock_labels,
+        y=stock_acc,
+        name="Stocks",
+        marker_color="#3498db",
+        customdata=list(zip(stock_train, stock_test)),
+        hovertemplate=stock_hover,
+    ))
+
+    fig.add_hline(
+        y=50,
+        line_dash="dash",
+        line_color="gray",
+        annotation_text="Random Baseline (50%)",
+        annotation_position="top left",
+        annotation_font_color="gray",
+    )
+    fig.add_hline(
+        y=52.6,
+        line_dash="dash",
+        line_color="#e74c3c",
+        annotation_text="Ceiling (52.6%)",
+        annotation_position="top left",
+        annotation_font_color="#e74c3c",
+    )
+
+    fig.update_layout(
+        template="plotly_dark",
+        title="Per-Asset Model Accuracy (All 45 Models)",
+        xaxis_title="Asset + Interval",
+        yaxis_title="Accuracy (%)",
+        yaxis=dict(range=[40, 65]),
+        barmode="group",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=600,
+        margin=dict(l=40, r=40, t=60, b=120),
+        xaxis_tickangle=-45,
+        legend=dict(x=0.01, y=0.99),
+    )
+
+    return dcc.Graph(figure=fig, config={"displayModeBar": False})
 
 PRICE_RANGE_MAP = {
     "1d": 1, "3d": 3, "7d": 7, "30d": 30,
@@ -1507,6 +1609,9 @@ MAX_CANDLES_DISPLAY = 2000
 
 CRYPTO_INTERVALS = ["1h", "4h", "1d", "W", "M"]
 STOCK_INTERVALS  = ["1h", "1d", "1wk", "1mo"]
+
+PRED_CRYPTO_INTERVALS = ["1h", "4h", "1d", "W"]
+PRED_STOCK_INTERVALS  = ["1h", "1d", "1wk"]
 
 INTERVAL_LABELS = {
     "1h": "1 Hour",
@@ -2065,10 +2170,10 @@ def update_pred_asset_dropdown(asset_class):
 def update_pred_interval_dropdown(asset_class):
     """When asset class changes, update the predictions interval dropdown."""
     if asset_class == "crypto":
-        intervals = CRYPTO_INTERVALS
+        intervals = PRED_CRYPTO_INTERVALS
         default = "1h"
     else:
-        intervals = STOCK_INTERVALS
+        intervals = PRED_STOCK_INTERVALS
         default = "1h"
     options = [{"label": INTERVAL_LABELS.get(iv, iv), "value": iv} for iv in intervals]
     return options, default
@@ -2778,10 +2883,10 @@ def update_fi_asset_dropdown(asset_class):
 )
 def update_fi_interval_dropdown(asset_class):
     if asset_class == "crypto":
-        intervals = CRYPTO_INTERVALS
+        intervals = PRED_CRYPTO_INTERVALS
         default = "1h"
     else:
-        intervals = STOCK_INTERVALS
+        intervals = PRED_STOCK_INTERVALS
         default = "1h"
     options = [{"label": INTERVAL_LABELS.get(iv, iv), "value": iv} for iv in intervals]
     return options, default
