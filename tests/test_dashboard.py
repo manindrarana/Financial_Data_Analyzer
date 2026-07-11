@@ -308,11 +308,11 @@ class TestFeatureImportance:
 class TestAccuracyChart:
     def _fake_models(self):
         return [
-            {"asset": "BTC", "interval": "1h", "asset_class": "crypto", "test_accuracy": 0.521, "status": "healthy"},
-            {"asset": "ETH", "interval": "4h", "asset_class": "crypto", "test_accuracy": 0.498, "status": "healthy"},
+            {"asset": "BTC", "interval": "1h", "asset_class": "crypto", "test_accuracy": 0.521, "train_rows": 1680, "test_rows": 420, "status": "healthy"},
+            {"asset": "ETH", "interval": "4h", "asset_class": "crypto", "test_accuracy": 0.498, "train_rows": 2100, "test_rows": 525, "status": "healthy"},
             {"asset": "SOL", "interval": "1d", "asset_class": "crypto", "test_accuracy": None, "status": "stale"},
-            {"asset": "AAPL", "interval": "1h", "asset_class": "stocks", "test_accuracy": 0.535, "status": "healthy"},
-            {"asset": "TSLA", "interval": "1d", "asset_class": "stocks", "test_accuracy": 0.511, "status": "healthy"},
+            {"asset": "AAPL", "interval": "1h", "asset_class": "stocks", "test_accuracy": 0.535, "train_rows": 1200, "test_rows": 300, "status": "healthy"},
+            {"asset": "TSLA", "interval": "1d", "asset_class": "stocks", "test_accuracy": 0.511, "train_rows": 900, "test_rows": 225, "status": "healthy"},
         ]
 
     def test_all_models_with_accuracy_appear_as_bars(self):
