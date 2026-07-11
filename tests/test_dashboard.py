@@ -369,7 +369,25 @@ class TestAccuracyChart:
 
         fig = result.figure
         assert "Accuracy: %{y:.1f}%" in fig.data[0].hovertemplate
+        assert "Train Rows: %{customdata[0]}" in fig.data[0].hovertemplate
+        assert "Test Rows: %{customdata[1]}" in fig.data[0].hovertemplate
         assert "Accuracy: %{y:.1f}%" in fig.data[1].hovertemplate
+        assert "Train Rows: %{customdata[0]}" in fig.data[1].hovertemplate
+        assert "Test Rows: %{customdata[1]}" in fig.data[1].hovertemplate
+
+    def test_customdata_has_train_and_test_rows(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "get_model_health", return_value=self._fake_models()):
+            result = dashboard_app.build_accuracy_chart()
+
+        fig = result.figure
+        crypto_cd = list(fig.data[0].customdata)
+        assert [1680, 420] in crypto_cd
+        assert [2100, 525] in crypto_cd
+        stock_cd = list(fig.data[1].customdata)
+        assert [1200, 300] in stock_cd
+        assert [900, 225] in stock_cd
 
     def test_no_accuracy_data_shows_alert(self):
         from dashboard import app as dashboard_app
