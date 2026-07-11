@@ -1564,7 +1564,7 @@ def build_accuracy_chart():
         line_dash="dash",
         line_color="#e74c3c",
         annotation_text="Ceiling (52.6%)",
-        annotation_position="top right",
+        annotation_position="top left",
         annotation_font_color="#e74c3c",
     )
 
