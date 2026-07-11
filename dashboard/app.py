@@ -1522,6 +1522,14 @@ def build_accuracy_chart():
             stock_labels.append(label)
             stock_acc.append(pct)
 
+    crypto_pairs = sorted(zip(crypto_labels, crypto_acc), key=lambda p: p[1])
+    crypto_labels = [p[0] for p in crypto_pairs]
+    crypto_acc = [p[1] for p in crypto_pairs]
+
+    stock_pairs = sorted(zip(stock_labels, stock_acc), key=lambda p: p[1])
+    stock_labels = [p[0] for p in stock_pairs]
+    stock_acc = [p[1] for p in stock_pairs]
+
     if not crypto_labels and not stock_labels:
         return dbc.Alert("No accuracy data available. Train models first.", color="info")
 
@@ -1559,6 +1567,28 @@ def build_accuracy_chart():
         annotation_position="top right",
         annotation_font_color="#e74c3c",
     )
+
+    if crypto_acc:
+        crypto_avg = round(sum(crypto_acc) / len(crypto_acc), 1)
+        fig.add_hline(
+            y=crypto_avg,
+            line_dash="dot",
+            line_color="#f7931a",
+            annotation_text=f"Crypto Avg ({crypto_avg}%)",
+            annotation_position="bottom left",
+            annotation_font_color="#f7931a",
+        )
+
+    if stock_acc:
+        stock_avg = round(sum(stock_acc) / len(stock_acc), 1)
+        fig.add_hline(
+            y=stock_avg,
+            line_dash="dot",
+            line_color="#3498db",
+            annotation_text=f"Stocks Avg ({stock_avg}%)",
+            annotation_position="bottom right",
+            annotation_font_color="#3498db",
+        )
 
     fig.update_layout(
         template="plotly_dark",
