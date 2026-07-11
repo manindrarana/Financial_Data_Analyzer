@@ -1568,28 +1568,6 @@ def build_accuracy_chart():
         annotation_font_color="#e74c3c",
     )
 
-    if crypto_acc:
-        crypto_avg = round(sum(crypto_acc) / len(crypto_acc), 1)
-        fig.add_hline(
-            y=crypto_avg,
-            line_dash="dot",
-            line_color="#f7931a",
-            annotation_text=f"Crypto Avg ({crypto_avg}%)",
-            annotation_position="bottom left",
-            annotation_font_color="#f7931a",
-        )
-
-    if stock_acc:
-        stock_avg = round(sum(stock_acc) / len(stock_acc), 1)
-        fig.add_hline(
-            y=stock_avg,
-            line_dash="dot",
-            line_color="#3498db",
-            annotation_text=f"Stocks Avg ({stock_avg}%)",
-            annotation_position="bottom right",
-            annotation_font_color="#3498db",
-        )
-
     fig.update_layout(
         template="plotly_dark",
         title="Per-Asset Model Accuracy (All 45 Models)",
