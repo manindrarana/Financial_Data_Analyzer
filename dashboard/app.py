@@ -1610,6 +1610,9 @@ MAX_CANDLES_DISPLAY = 2000
 CRYPTO_INTERVALS = ["1h", "4h", "1d", "W", "M"]
 STOCK_INTERVALS  = ["1h", "1d", "1wk", "1mo"]
 
+PRED_CRYPTO_INTERVALS = ["1h", "4h", "1d", "W"]
+PRED_STOCK_INTERVALS  = ["1h", "1d", "1wk"]
+
 INTERVAL_LABELS = {
     "1h": "1 Hour",
     "4h": "4 Hours",
@@ -2167,10 +2170,10 @@ def update_pred_asset_dropdown(asset_class):
 def update_pred_interval_dropdown(asset_class):
     """When asset class changes, update the predictions interval dropdown."""
     if asset_class == "crypto":
-        intervals = CRYPTO_INTERVALS
+        intervals = PRED_CRYPTO_INTERVALS
         default = "1h"
     else:
-        intervals = STOCK_INTERVALS
+        intervals = PRED_STOCK_INTERVALS
         default = "1h"
     options = [{"label": INTERVAL_LABELS.get(iv, iv), "value": iv} for iv in intervals]
     return options, default
@@ -2880,10 +2883,10 @@ def update_fi_asset_dropdown(asset_class):
 )
 def update_fi_interval_dropdown(asset_class):
     if asset_class == "crypto":
-        intervals = CRYPTO_INTERVALS
+        intervals = PRED_CRYPTO_INTERVALS
         default = "1h"
     else:
-        intervals = STOCK_INTERVALS
+        intervals = PRED_STOCK_INTERVALS
         default = "1h"
     options = [{"label": INTERVAL_LABELS.get(iv, iv), "value": iv} for iv in intervals]
     return options, default
