@@ -1499,6 +1499,44 @@ def render_model_insights():
         html.Hr(className="my-4"),
         html.H3("Per-Asset Accuracy", className="text-light mb-3"),
         build_accuracy_chart(),
+        html.Hr(className="my-4"),
+        html.H3("Confusion Matrix", className="text-light mb-3"),
+        dbc.Row([
+            dbc.Col([
+                html.Label("Asset Class", className="text-muted small mb-1"),
+                dcc.Dropdown(
+                    id="cm-class-dropdown",
+                    options=[
+                        {"label": "Crypto", "value": "crypto"},
+                        {"label": "Stocks", "value": "stocks"},
+                    ],
+                    value="crypto",
+                    clearable=False,
+                    style={"color": "#000"},
+                ),
+            ], width=3),
+            dbc.Col([
+                html.Label("Asset", className="text-muted small mb-1"),
+                dcc.Dropdown(
+                    id="cm-asset-dropdown",
+                    clearable=False,
+                    style={"color": "#000"},
+                ),
+            ], width=3),
+            dbc.Col([
+                html.Label("Interval", className="text-muted small mb-1"),
+                dcc.Dropdown(
+                    id="cm-interval-dropdown",
+                    clearable=False,
+                    style={"color": "#000"},
+                ),
+            ], width=3),
+        ], className="mb-3"),
+        dcc.Loading(
+            id="cm-loading",
+            type="circle",
+            children=html.Div(id="cm-chart-container"),
+        ),
     ])
 
 
