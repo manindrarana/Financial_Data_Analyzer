@@ -3082,8 +3082,8 @@ def build_confusion_matrix(asset_class, asset_symbol, interval):
     fn_pct = fn / total * 100
 
     text = [
-        [f"TN\n{tn} ({tn_pct:.1f}%)", f"FP\n{fp} ({fp_pct:.1f}%)"],
-        [f"FN\n{fn} ({fn_pct:.1f}%)", f"TP\n{tp} ({tp_pct:.1f}%)"],
+        [f"TN: Correct Down\n{tn} ({tn_pct:.1f}%)", f"FP: False Up\n{fp} ({fp_pct:.1f}%)"],
+        [f"FN: Missed Up\n{fn} ({fn_pct:.1f}%)", f"TP: Correct Up\n{tp} ({tp_pct:.1f}%)"],
     ]
 
     z = [[1, 0], [0, 1]]
@@ -3094,7 +3094,7 @@ def build_confusion_matrix(asset_class, asset_symbol, interval):
         y=["Actual Down", "Actual Up"],
         text=text,
         texttemplate="%{text}",
-        textfont={"size": 16, "color": "white"},
+        textfont={"size": 15, "color": "white"},
         colorscale=[[0, "#c0392b"], [1, "#27ae60"]],
         showscale=False,
         zmin=0,
@@ -3105,13 +3105,13 @@ def build_confusion_matrix(asset_class, asset_symbol, interval):
 
     fig.update_layout(
         template="plotly_dark",
-        title=f"Confusion Matrix - {asset_symbol} {interval} (OOS, n={total}, accuracy={accuracy:.1f}%)",
+        title=f"{asset_symbol} {interval} Confusion Matrix (Rows = actual, columns = predicted, OOS, n={total}, accuracy={accuracy:.1f}%)",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         height=400,
         margin=dict(l=80, r=40, t=60, b=40),
         xaxis=dict(title="Predicted"),
-        yaxis=dict(title="Actual"),
+        yaxis=dict(title="Actual", autorange="reversed"),
     )
 
     return dcc.Graph(figure=fig, config={"displayModeBar": False})
