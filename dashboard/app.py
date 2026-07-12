@@ -3007,5 +3007,115 @@ def build_feature_importance_chart(asset_class, asset_symbol, interval):
         return dbc.Alert(f"Error loading feature importance: {e}", color="danger")
 
 
+@app.callback(
+    dash.Output("cm-asset-dropdown", "options"),
+    dash.Output("cm-asset-dropdown", "value"),
+    dash.Input("cm-class-dropdown", "value"),
+)
+def update_cm_asset_dropdown(asset_class):
+    if asset_class == "crypto":
+        assets = CRYPTO_ASSETS
+        default = "BTC" if "BTC" in assets else (assets[0] if assets else None)
+    else:
+        assets = STOCK_ASSETS
+        default = assets[0] if assets else None
+    options = [{"label": a, "value": a} for a in assets]
+    return options, default
+
+
+@app.callback(
+    dash.Output("cm-interval-dropdown", "options"),
+    dash.Output("cm-interval-dropdown", "value"),
+    dash.Input("cm-class-dropdown", "value"),
+)
+def update_cm_interval_dropdown(asset_class):
+    if asset_class == "crypto":
+        intervals = PRED_CRYPTO_INTERVALS
+        default = "1h"
+    else:
+        intervals = PRED_STOCK_INTERVALS
+        default = "1h"
+    options = [{"label": INTERVAL_LABELS.get(iv, iv), "value": iv} for iv in intervals]
+    return options, default
+
+
+@app.callback(
+    dash.Output("cm-chart-container", "children"),
+    dash.Input("cm-class-dropdown", "value"),
+    dash.Input("cm-asset-dropdown", "value"),
+    dash.Input("cm-interval-dropdown", "value"),
+)
+def build_confusion_matrix(asset_class, asset_symbol, interval):
+    if not asset_symbol or not interval:
+        return dbc.Alert("Select an asset and interval.", color="info")
+
+    try:
+        df = run_prediction(asset_symbol, interval, asset_class)
+    except FileNotFoundError:
+        return dbc.Alert(
+            f"No trained model for {asset_symbol} @ {interval}. Train one first.",
+            color="warning",
+        )
+
+    if df is None or df.empty:
+        return dbc.Alert(
+            f"No prediction data for {asset_symbol} @ {interval}.",
+            color="warning",
+        )
+
+    oos = df[df["is_oos"]] if "is_oos" in df.columns else df
+    if oos.empty:
+        oos = df
+
+    tp = int(((oos["prediction"] == 1) & (oos["actual_direction"] == 1)).sum())
+    fp = int(((oos["prediction"] == 1) & (oos["actual_direction"] == 0)).sum())
+    tn = int(((oos["prediction"] == 0) & (oos["actual_direction"] == 0)).sum())
+    fn = int(((oos["prediction"] == 0) & (oos["actual_direction"] == 1)).sum())
+
+    total = tp + fp + tn + fn
+    if total == 0:
+        return dbc.Alert("No valid predictions to compute confusion matrix.", color="warning")
+
+    tp_pct = tp / total * 100
+    fp_pct = fp / total * 100
+    tn_pct = tn / total * 100
+    fn_pct = fn / total * 100
+
+    text = [
+        [f"TN\n{tn} ({tn_pct:.1f}%)", f"FP\n{fp} ({fp_pct:.1f}%)"],
+        [f"FN\n{fn} ({fn_pct:.1f}%)", f"TP\n{tp} ({tp_pct:.1f}%)"],
+    ]
+
+    z = [[1, 0], [0, 1]]
+
+    fig = go.Figure(go.Heatmap(
+        z=z,
+        x=["Predicted Down", "Predicted Up"],
+        y=["Actual Down", "Actual Up"],
+        text=text,
+        texttemplate="%{text}",
+        textfont={"size": 16, "color": "white"},
+        colorscale=[[0, "#c0392b"], [1, "#27ae60"]],
+        showscale=False,
+        zmin=0,
+        zmax=1,
+    ))
+
+    accuracy = (tp + tn) / total * 100
+
+    fig.update_layout(
+        template="plotly_dark",
+        title=f"Confusion Matrix - {asset_symbol} {interval} (OOS, n={total}, accuracy={accuracy:.1f}%)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=400,
+        margin=dict(l=80, r=40, t=60, b=40),
+        xaxis=dict(title="Predicted"),
+        yaxis=dict(title="Actual"),
+    )
+
+    return dcc.Graph(figure=fig, config={"displayModeBar": False})
+
+
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=8050)
