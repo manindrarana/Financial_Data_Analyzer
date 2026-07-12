@@ -1607,10 +1607,10 @@ def build_accuracy_chart():
     fig.add_hline(
         y=50,
         line_dash="dash",
-        line_color="gray",
+        line_color="white",
         annotation_text="Random Baseline (50%)",
         annotation_position="top left",
-        annotation_font_color="gray",
+        annotation_font_color="white",
     )
     fig.add_hline(
         y=52.6,
