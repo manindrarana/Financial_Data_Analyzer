@@ -1459,7 +1459,11 @@ def render_model_health():
 def render_model_insights():
     """Interactive model insights — feature importance, accuracy chart, confusion matrix."""
     return html.Div([
-        html.H3("Feature Importance", className="text-light mb-3"),
+        html.H3("Feature Importance", className="text-light mb-2"),
+        html.P(
+            "Shows which features the selected model uses most for its predictions.",
+            className="text-muted small mb-3",
+        ),
         dbc.Row([
             dbc.Col([
                 html.Label("Asset Class", className="text-muted small mb-1"),
@@ -1497,7 +1501,53 @@ def render_model_insights():
             children=html.Div(id="fi-chart-container"),
         ),
         html.Hr(className="my-4"),
-        html.H3("Per-Asset Accuracy", className="text-light mb-3"),
+        html.H3("Confusion Matrix", className="text-light mb-2"),
+        html.P(
+            "Shows where the selected model predicts Up or Down correctly and where it makes mistakes.",
+            className="text-muted small mb-3",
+        ),
+        dbc.Row([
+            dbc.Col([
+                html.Label("Asset Class", className="text-muted small mb-1"),
+                dcc.Dropdown(
+                    id="cm-class-dropdown",
+                    options=[
+                        {"label": "Crypto", "value": "crypto"},
+                        {"label": "Stocks", "value": "stocks"},
+                    ],
+                    value="crypto",
+                    clearable=False,
+                    style={"color": "#000"},
+                ),
+            ], width=3),
+            dbc.Col([
+                html.Label("Asset", className="text-muted small mb-1"),
+                dcc.Dropdown(
+                    id="cm-asset-dropdown",
+                    clearable=False,
+                    style={"color": "#000"},
+                ),
+            ], width=3),
+            dbc.Col([
+                html.Label("Interval", className="text-muted small mb-1"),
+                dcc.Dropdown(
+                    id="cm-interval-dropdown",
+                    clearable=False,
+                    style={"color": "#000"},
+                ),
+            ], width=3),
+        ], className="mb-3"),
+        dcc.Loading(
+            id="cm-loading",
+            type="circle",
+            children=html.Div(id="cm-chart-container"),
+        ),
+        html.Hr(className="my-4"),
+        html.H3("Per-Asset Accuracy", className="text-light mb-2"),
+        html.P(
+            "Compares test accuracy across all trained asset and interval models.",
+            className="text-muted small mb-3",
+        ),
         build_accuracy_chart(),
     ])
 
@@ -1569,10 +1619,10 @@ def build_accuracy_chart():
     fig.add_hline(
         y=50,
         line_dash="dash",
-        line_color="gray",
+        line_color="white",
         annotation_text="Random Baseline (50%)",
         annotation_position="top left",
-        annotation_font_color="gray",
+        annotation_font_color="white",
     )
     fig.add_hline(
         y=52.6,
@@ -2967,6 +3017,116 @@ def build_feature_importance_chart(asset_class, asset_symbol, interval):
 
     except Exception as e:
         return dbc.Alert(f"Error loading feature importance: {e}", color="danger")
+
+
+@app.callback(
+    dash.Output("cm-asset-dropdown", "options"),
+    dash.Output("cm-asset-dropdown", "value"),
+    dash.Input("cm-class-dropdown", "value"),
+)
+def update_cm_asset_dropdown(asset_class):
+    if asset_class == "crypto":
+        assets = CRYPTO_ASSETS
+        default = "BTC" if "BTC" in assets else (assets[0] if assets else None)
+    else:
+        assets = STOCK_ASSETS
+        default = assets[0] if assets else None
+    options = [{"label": a, "value": a} for a in assets]
+    return options, default
+
+
+@app.callback(
+    dash.Output("cm-interval-dropdown", "options"),
+    dash.Output("cm-interval-dropdown", "value"),
+    dash.Input("cm-class-dropdown", "value"),
+)
+def update_cm_interval_dropdown(asset_class):
+    if asset_class == "crypto":
+        intervals = PRED_CRYPTO_INTERVALS
+        default = "1h"
+    else:
+        intervals = PRED_STOCK_INTERVALS
+        default = "1h"
+    options = [{"label": INTERVAL_LABELS.get(iv, iv), "value": iv} for iv in intervals]
+    return options, default
+
+
+@app.callback(
+    dash.Output("cm-chart-container", "children"),
+    dash.Input("cm-class-dropdown", "value"),
+    dash.Input("cm-asset-dropdown", "value"),
+    dash.Input("cm-interval-dropdown", "value"),
+)
+def build_confusion_matrix(asset_class, asset_symbol, interval):
+    if not asset_symbol or not interval:
+        return dbc.Alert("Select an asset and interval.", color="info")
+
+    try:
+        df = run_prediction(asset_symbol, interval, asset_class)
+    except FileNotFoundError:
+        return dbc.Alert(
+            f"No trained model for {asset_symbol} @ {interval}. Train one first.",
+            color="warning",
+        )
+
+    if df is None or df.empty:
+        return dbc.Alert(
+            f"No prediction data for {asset_symbol} @ {interval}.",
+            color="warning",
+        )
+
+    oos = df[df["is_oos"]] if "is_oos" in df.columns else df
+    if oos.empty:
+        oos = df
+
+    tp = int(((oos["prediction"] == 1) & (oos["actual_direction"] == 1)).sum())
+    fp = int(((oos["prediction"] == 1) & (oos["actual_direction"] == 0)).sum())
+    tn = int(((oos["prediction"] == 0) & (oos["actual_direction"] == 0)).sum())
+    fn = int(((oos["prediction"] == 0) & (oos["actual_direction"] == 1)).sum())
+
+    total = tp + fp + tn + fn
+    if total == 0:
+        return dbc.Alert("No valid predictions to compute confusion matrix.", color="warning")
+
+    tp_pct = tp / total * 100
+    fp_pct = fp / total * 100
+    tn_pct = tn / total * 100
+    fn_pct = fn / total * 100
+
+    text = [
+        [f"TN: Correct Down\n{tn} ({tn_pct:.1f}%)", f"FP: False Up\n{fp} ({fp_pct:.1f}%)"],
+        [f"FN: Missed Up\n{fn} ({fn_pct:.1f}%)", f"TP: Correct Up\n{tp} ({tp_pct:.1f}%)"],
+    ]
+
+    z = [[1, 0], [0, 1]]
+
+    fig = go.Figure(go.Heatmap(
+        z=z,
+        x=["Predicted Down", "Predicted Up"],
+        y=["Actual Down", "Actual Up"],
+        text=text,
+        texttemplate="%{text}",
+        textfont={"size": 15, "color": "white"},
+        colorscale=[[0, "#c0392b"], [1, "#27ae60"]],
+        showscale=False,
+        zmin=0,
+        zmax=1,
+    ))
+
+    accuracy = (tp + tn) / total * 100
+
+    fig.update_layout(
+        template="plotly_dark",
+        title=f"{asset_symbol} {interval} Confusion Matrix (Rows = actual, columns = predicted, OOS, n={total}, accuracy={accuracy:.1f}%)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=400,
+        margin=dict(l=80, r=40, t=60, b=40),
+        xaxis=dict(title="Predicted"),
+        yaxis=dict(title="Actual", autorange="reversed"),
+    )
+
+    return dcc.Graph(figure=fig, config={"displayModeBar": False})
 
 
 if __name__ == "__main__":

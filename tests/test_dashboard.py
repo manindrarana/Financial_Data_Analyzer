@@ -413,3 +413,107 @@ class TestAccuracyChart:
         assert crypto_y == sorted(crypto_y)
         stock_y = list(fig.data[1].y)
         assert stock_y == sorted(stock_y)
+
+
+class TestConfusionMatrix:
+    def _fake_predictions(self):
+        return pd.DataFrame({
+            "date": pd.date_range("2024-01-01", periods=10, freq="1h"),
+            "close": [100, 101, 102, 101, 103, 104, 103, 105, 106, 105],
+            "prediction": [1, 1, 1, 0, 1, 1, 0, 1, 0, 1],
+            "confidence": [0.6, 0.7, 0.55, 0.65, 0.6, 0.7, 0.55, 0.65, 0.6, 0.7],
+            "actual_direction": [1, 1, 0, 0, 1, 1, 0, 1, 1, 0],
+            "is_oos": [True] * 10,
+        })
+
+    def test_correct_counts_tp_fp_tn_fn(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
+            result = dashboard_app.build_confusion_matrix("crypto", "BTC", "1h")
+
+        fig = result.figure
+        text = fig.data[0].text
+        assert "TN" in text[0][0] and "2 (20.0%)" in text[0][0]
+        assert "FP" in text[0][1] and "2 (20.0%)" in text[0][1]
+        assert "FN" in text[1][0] and "1 (10.0%)" in text[1][0]
+        assert "TP" in text[1][1] and "5 (50.0%)" in text[1][1]
+
+    def test_correct_cells_green_wrong_cells_red(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
+            result = dashboard_app.build_confusion_matrix("crypto", "BTC", "1h")
+
+        fig = result.figure
+        z = fig.data[0].z
+        assert z[0][0] == 1
+        assert z[0][1] == 0
+        assert z[1][0] == 0
+        assert z[1][1] == 1
+
+    def test_no_model_shows_warning(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", side_effect=FileNotFoundError):
+            result = dashboard_app.build_confusion_matrix("crypto", "BTC", "1h")
+
+        text = _collect_text(result)
+        assert any("No trained model" in t for t in text)
+
+    def test_no_data_shows_warning(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", return_value=None):
+            result = dashboard_app.build_confusion_matrix("crypto", "BTC", "1h")
+
+        text = _collect_text(result)
+        assert any("No prediction data" in t for t in text)
+
+    def test_title_includes_asset_interval_and_accuracy(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
+            result = dashboard_app.build_confusion_matrix("crypto", "BTC", "1h")
+
+        fig = result.figure
+        title = fig.layout.title.text
+        assert "BTC" in title
+        assert "1h" in title
+        assert "70.0%" in title
+
+    def test_total_count_in_title(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
+            result = dashboard_app.build_confusion_matrix("crypto", "BTC", "1h")
+
+        fig = result.figure
+        assert "n=10" in fig.layout.title.text
+
+    def test_only_oos_data_used(self):
+        from dashboard import app as dashboard_app
+
+        df = self._fake_predictions()
+        df["is_oos"] = [True] * 5 + [False] * 5
+        with patch.object(dashboard_app, "run_prediction", return_value=df):
+            result = dashboard_app.build_confusion_matrix("crypto", "BTC", "1h")
+
+        fig = result.figure
+        text = fig.data[0].text
+        assert "1 (20.0%)" in text[0][0]
+        assert "1 (20.0%)" in text[0][1]
+        assert "0 (0.0%)" in text[1][0]
+        assert "3 (60.0%)" in text[1][1]
+        assert "n=5" in fig.layout.title.text
+
+    def test_works_for_stocks(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
+            result = dashboard_app.build_confusion_matrix("stocks", "AAPL", "1h")
+
+        fig = result.figure
+        title = fig.layout.title.text
+        assert "AAPL" in title
+        assert "1h" in title
