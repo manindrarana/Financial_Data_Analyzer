@@ -1459,7 +1459,11 @@ def render_model_health():
 def render_model_insights():
     """Interactive model insights — feature importance, accuracy chart, confusion matrix."""
     return html.Div([
-        html.H3("Feature Importance", className="text-light mb-3"),
+        html.H3("Feature Importance", className="text-light mb-2"),
+        html.P(
+            "Shows which features the selected model uses most for its predictions.",
+            className="text-muted small mb-3",
+        ),
         dbc.Row([
             dbc.Col([
                 html.Label("Asset Class", className="text-muted small mb-1"),
@@ -1497,10 +1501,11 @@ def render_model_insights():
             children=html.Div(id="fi-chart-container"),
         ),
         html.Hr(className="my-4"),
-        html.H3("Per-Asset Accuracy", className="text-light mb-3"),
-        build_accuracy_chart(),
-        html.Hr(className="my-4"),
-        html.H3("Confusion Matrix", className="text-light mb-3"),
+        html.H3("Confusion Matrix", className="text-light mb-2"),
+        html.P(
+            "Shows where the selected model predicts Up or Down correctly and where it makes mistakes.",
+            className="text-muted small mb-3",
+        ),
         dbc.Row([
             dbc.Col([
                 html.Label("Asset Class", className="text-muted small mb-1"),
@@ -1537,6 +1542,13 @@ def render_model_insights():
             type="circle",
             children=html.Div(id="cm-chart-container"),
         ),
+        html.Hr(className="my-4"),
+        html.H3("Per-Asset Accuracy", className="text-light mb-2"),
+        html.P(
+            "Compares test accuracy across all trained asset and interval models.",
+            className="text-muted small mb-3",
+        ),
+        build_accuracy_chart(),
     ])
 
 
