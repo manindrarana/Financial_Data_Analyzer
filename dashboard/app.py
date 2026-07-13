@@ -1093,7 +1093,11 @@ def render_explorer():
         {"label": "Stock Features (gold_stock_features)", "value": "gold_stock_features"},
     ]
     return html.Div([
-        html.H3("Data Explorer", className="text-light mb-3"),
+        html.H3("Data Explorer", className="text-light mb-2"),
+        html.P(
+            "Browse the gold-layer analytics and feature tables used for model training and analysis. Pick a table from the dropdown to inspect the raw data.",
+            className="text-muted small mb-3",
+        ),
         dbc.Row([
             dbc.Col(
                 dcc.Dropdown(
