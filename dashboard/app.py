@@ -188,7 +188,11 @@ app.layout = dbc.Container(
         html.Div(
             id="price-chart-area",
             children=[
-                html.H3("Price Dashboard", className="text-light mb-3"),
+                html.H3("Price Dashboard", className="text-light mb-2"),
+                html.P(
+                    "Interactive candlestick charts with volume and moving averages for any asset and timeframe. Use the dropdowns to switch between assets, intervals, and date ranges.",
+                    className="text-muted small mb-3",
+                ),
                 dbc.Row(
                     [
                         dbc.Col(
