@@ -28,14 +28,14 @@ The project uses a **Medallion Data Lake Architecture** with three layers stored
    Cleaned and validated data stored as Parquet files. Duplicates removed, schemas enforced, timestamps normalized.
 
 3. **Gold Layer** (`s3://analytics-data/`)  
-   Separate analytics tables for crypto and stocks (`gold_crypto_analytics`, `gold_stock_analytics`) with calculated features including moving averages, RSI, MACD, Bollinger Bands, VWAP, and technical indicators. Also includes feature tables and prediction tables. Ready for dashboards and ML.
+   Separate analytics tables for crypto and stocks (`gold_crypto_analytics`, `gold_stock_analytics`) with calculated features including moving averages, RSI, MACD, Bollinger Bands, VWAP, and technical indicators. Also includes feature tables used for ML training. Ready for dashboards and ML.
 
 ### Services
 
 - **MinIO**: S3-compatible object storage (Ports: 9000 for API, 9001 for web console)
 - **Prefect**: Flow orchestration with task-level retries and checkpoint/resume recovery (Port: 4200)
 - **Python Pipeline**: Automated ELT orchestration using Prefect (executes on startup + scheduled hourly)
-- **Plotly Dash**: Interactive dashboard with 6 tabs — Price, Predictions, Backtest, Indicators, Data Explorer, Model Health (Port: 8050)
+- **Plotly Dash**: Interactive dashboard with 8 tabs — Overview, Price Dashboard, Predictions, Backtest, Technical Indicators, Data Explorer, Model Health, Model Insights (Port: 8050)
 - **Apache Superset**: Interactive BI dashboard for data visualization (Port: 8088)
 - **MLflow**: ML experiment tracking (Port: 5000)
 - **DuckDB**: In-process analytical database for SQL transformations
