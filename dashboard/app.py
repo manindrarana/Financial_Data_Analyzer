@@ -1007,7 +1007,11 @@ def render_indicators():
         return dbc.Row(
             dbc.Col(
                 [
-                    html.H3("Technical Indicators", className="text-light mb-3"),
+                    html.H3("Technical Indicators", className="text-light mb-2"),
+                    html.P(
+                        "Plots RSI, MACD, Bollinger Bands, and SMA crossovers to help analyze price trends and momentum. These are the same indicators used as features by the ML models.",
+                        className="text-muted small mb-3",
+                    ),
                     dbc.Row(
                         [
                             dbc.Col(
