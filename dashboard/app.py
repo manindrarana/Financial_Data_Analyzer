@@ -423,7 +423,11 @@ def render_backtest():
     return dbc.Row(
         dbc.Col(
             [
-                html.H3("Walk-Forward Backtest", className="text-light mb-3"),
+                html.H3("Walk-Forward Backtest", className="text-light mb-2"),
+                html.P(
+                    "Simulates trading strategies on historical data using walk-forward validation, which retrains the model on each fold to mimic real-world conditions. Shows the equity curve, trade metrics, and per-fold breakdown.",
+                    className="text-muted small mb-3",
+                ),
                 dbc.Row(
                     [
                         dbc.Col(
