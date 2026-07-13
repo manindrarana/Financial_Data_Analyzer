@@ -1374,7 +1374,11 @@ def render_model_health():
 
     if not models:
         return html.Div([
-            html.H3("Model Health", className="text-light mb-3"),
+            html.H3("Model Health", className="text-light mb-2"),
+            html.P(
+                "Tracks the status of every trained model — accuracy, training date, and whether the model file and metadata exist.",
+                className="text-muted small mb-3",
+            ),
             summary_cards,
             dbc.Alert("No models found. Run the training pipeline first.", color="info"),
         ])
