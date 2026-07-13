@@ -1301,7 +1301,11 @@ def render_overview():
     )
 
     return html.Div([
-        html.H3("Dashboard Overview", className="text-light mb-3"),
+        html.H3("Dashboard Overview", className="text-light mb-2"),
+        html.P(
+            "Summary of all tracked assets, data freshness, and model health across the system. A starting point to see what data is available and how the models are doing.",
+            className="text-muted small mb-3",
+        ),
         freshness_row,
         html.H5("Top Assets by Latest Price", className="text-light mb-2"),
         top5_row,
