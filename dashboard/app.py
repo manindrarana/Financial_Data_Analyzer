@@ -332,7 +332,11 @@ def render_predictions():
         return dbc.Row(
             dbc.Col(
                 [
-                    html.H3("XGBoost Direction Predictions", className="text-light mb-3"),
+                    html.H3("XGBoost Direction Predictions", className="text-light mb-2"),
+                    html.P(
+                        "Machine learning predictions for next-day price direction (up or down) using XGBoost models. Shows out-of-sample accuracy and compares against simple baselines like always predicting up.",
+                        className="text-muted small mb-3",
+                    ),
                     dbc.Row(
                         [
                             dbc.Col(
