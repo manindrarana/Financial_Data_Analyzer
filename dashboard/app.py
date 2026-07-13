@@ -188,7 +188,11 @@ app.layout = dbc.Container(
         html.Div(
             id="price-chart-area",
             children=[
-                html.H3("Price Dashboard", className="text-light mb-3"),
+                html.H3("Price Dashboard", className="text-light mb-2"),
+                html.P(
+                    "Interactive candlestick charts with volume and moving averages for any asset and timeframe. Use the dropdowns to switch between assets, intervals, and date ranges.",
+                    className="text-muted small mb-3",
+                ),
                 dbc.Row(
                     [
                         dbc.Col(
@@ -328,7 +332,11 @@ def render_predictions():
         return dbc.Row(
             dbc.Col(
                 [
-                    html.H3("XGBoost Direction Predictions", className="text-light mb-3"),
+                    html.H3("XGBoost Direction Predictions", className="text-light mb-2"),
+                    html.P(
+                        "Machine learning predictions for next-day price direction (up or down) using XGBoost models. Shows out-of-sample accuracy and compares against simple baselines like always predicting up.",
+                        className="text-muted small mb-3",
+                    ),
                     dbc.Row(
                         [
                             dbc.Col(
@@ -415,7 +423,11 @@ def render_backtest():
     return dbc.Row(
         dbc.Col(
             [
-                html.H3("Walk-Forward Backtest", className="text-light mb-3"),
+                html.H3("Walk-Forward Backtest", className="text-light mb-2"),
+                html.P(
+                    "Simulates trading strategies on historical data using walk-forward validation, which retrains the model on each fold to mimic real-world conditions. Shows the equity curve, trade metrics, and per-fold breakdown.",
+                    className="text-muted small mb-3",
+                ),
                 dbc.Row(
                     [
                         dbc.Col(
@@ -995,7 +1007,11 @@ def render_indicators():
         return dbc.Row(
             dbc.Col(
                 [
-                    html.H3("Technical Indicators", className="text-light mb-3"),
+                    html.H3("Technical Indicators", className="text-light mb-2"),
+                    html.P(
+                        "Plots RSI, MACD, Bollinger Bands, and SMA crossovers to help analyze price trends and momentum. These are the same indicators used as features by the ML models.",
+                        className="text-muted small mb-3",
+                    ),
                     dbc.Row(
                         [
                             dbc.Col(
@@ -1077,7 +1093,11 @@ def render_explorer():
         {"label": "Stock Features (gold_stock_features)", "value": "gold_stock_features"},
     ]
     return html.Div([
-        html.H3("Data Explorer", className="text-light mb-3"),
+        html.H3("Data Explorer", className="text-light mb-2"),
+        html.P(
+            "Browse the gold-layer analytics and feature tables used for model training and analysis. Pick a table from the dropdown to inspect the raw data.",
+            className="text-muted small mb-3",
+        ),
         dbc.Row([
             dbc.Col(
                 dcc.Dropdown(
@@ -1301,7 +1321,11 @@ def render_overview():
     )
 
     return html.Div([
-        html.H3("Dashboard Overview", className="text-light mb-3"),
+        html.H3("Dashboard Overview", className="text-light mb-2"),
+        html.P(
+            "Summary of all tracked assets, data freshness, and model health across the system. A starting point to see what data is available and how the models are doing.",
+            className="text-muted small mb-3",
+        ),
         freshness_row,
         html.H5("Top Assets by Latest Price", className="text-light mb-2"),
         top5_row,
@@ -1350,7 +1374,11 @@ def render_model_health():
 
     if not models:
         return html.Div([
-            html.H3("Model Health", className="text-light mb-3"),
+            html.H3("Model Health", className="text-light mb-2"),
+            html.P(
+                "Tracks the status of every trained model — accuracy, training date, and whether the model file and metadata exist.",
+                className="text-muted small mb-3",
+            ),
             summary_cards,
             dbc.Alert("No models found. Run the training pipeline first.", color="info"),
         ])
@@ -1451,7 +1479,11 @@ def render_model_health():
     )
 
     return html.Div([
-        html.H3("Model Health", className="text-light mb-3"),
+        html.H3("Model Health", className="text-light mb-2"),
+        html.P(
+            "Tracks the status of every trained model — accuracy, training date, and whether the model file and metadata exist.",
+            className="text-muted small mb-3",
+        ),
         summary_cards,
         table,
     ])
