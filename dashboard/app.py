@@ -1136,9 +1136,37 @@ def render_explorer():
     ])
 
 @app.callback(
+    dash.Output("explorer-asset-selector", "options"),
+    dash.Output("explorer-interval-selector", "options"),
+    dash.Output("explorer-asset-selector", "value"),
+    dash.Output("explorer-interval-selector", "value"),
+    dash.Input("explorer-table-selector", "value"),
+)
+def update_explorer_filter_options(table_name):
+    conn = duckdb.connect(DB_PATH, read_only=True)
+    try:
+        assets = conn.execute(
+            f"SELECT DISTINCT asset_symbol FROM {table_name} ORDER BY asset_symbol"
+        ).fetchall()
+    except Exception:
+        assets = []
+    try:
+        intervals = conn.execute(
+            f"SELECT DISTINCT interval FROM {table_name} ORDER BY interval"
+        ).fetchall()
+    except Exception:
+        intervals = []
+    conn.close()
+    asset_options = [{"label": a[0], "value": a[0]} for a in assets]
+    interval_options = [{"label": i[0], "value": i[0]} for i in intervals]
+    return asset_options, interval_options, None, None
+
+@app.callback(
     dash.Output("explorer-table-container", "children"),
     dash.Output("explorer-row-count", "children"),
     dash.Input("explorer-table-selector", "value"),
+    dash.Input("explorer-asset-selector", "value"),
+    dash.Input("explorer-interval-selector", "value"),
 )
 def update_explorer_table(table_name):
     """Query the selected gold table and render a sortable DataTable."""
