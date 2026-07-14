@@ -1108,9 +1108,29 @@ def render_explorer():
                     className="mb-3",
                     style={"color": "#000"},
                 ),
-                width=6,
+                width=3,
             ),
-            dbc.Col(html.Div(id="explorer-row-count", className="text-muted mt-2"), width=6),
+            dbc.Col(
+                dcc.Dropdown(
+                    id="explorer-asset-selector",
+                    placeholder="All Assets",
+                    clearable=True,
+                    className="mb-3",
+                    style={"color": "#000"},
+                ),
+                width=3,
+            ),
+            dbc.Col(
+                dcc.Dropdown(
+                    id="explorer-interval-selector",
+                    placeholder="All Intervals",
+                    clearable=True,
+                    className="mb-3",
+                    style={"color": "#000"},
+                ),
+                width=3,
+            ),
+            dbc.Col(html.Div(id="explorer-row-count", className="text-muted mt-2"), width=3),
         ]),
         dbc.Row(dbc.Col(html.Div(id="explorer-table-container"), width=12)),
     ])
