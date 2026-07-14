@@ -517,3 +517,160 @@ class TestConfusionMatrix:
         title = fig.layout.title.text
         assert "AAPL" in title
         assert "1h" in title
+
+
+class TestExplorerFilterOptions:
+    def _mock_result(self, rows):
+        mock = MagicMock()
+        mock.fetchall.return_value = rows
+        return mock
+
+    def test_returns_distinct_assets_sorted(self):
+        from dashboard import app as dashboard_app
+
+        mock_conn = MagicMock()
+        mock_conn.execute.side_effect = [
+            self._mock_result([("ETH",), ("BTC",), ("SOL",)]),
+            self._mock_result([("1d",), ("1h",), ("4h",)]),
+        ]
+        with patch("dashboard.app.duckdb.connect", return_value=mock_conn):
+            assets, intervals, asset_val, interval_val = (
+                dashboard_app.update_explorer_filter_options("gold_crypto_analytics")
+            )
+
+        asset_labels = [a["label"] for a in assets]
+        assert asset_labels == ["ETH", "BTC", "SOL"]
+        assert asset_val is None
+        assert interval_val is None
+
+    def test_returns_distinct_intervals(self):
+        from dashboard import app as dashboard_app
+
+        mock_conn = MagicMock()
+        mock_conn.execute.side_effect = [
+            self._mock_result([("BTC",)]),
+            self._mock_result([("1d",), ("1h",), ("4h",)]),
+        ]
+        with patch("dashboard.app.duckdb.connect", return_value=mock_conn):
+            _, intervals, _, _ = (
+                dashboard_app.update_explorer_filter_options("gold_crypto_analytics")
+            )
+
+        interval_labels = [i["label"] for i in intervals]
+        assert interval_labels == ["1d", "1h", "4h"]
+
+    def test_returns_empty_options_on_db_error(self):
+        from dashboard import app as dashboard_app
+
+        mock_conn = MagicMock()
+        mock_conn.execute.side_effect = Exception("table not found")
+        with patch("dashboard.app.duckdb.connect", return_value=mock_conn):
+            assets, intervals, asset_val, interval_val = (
+                dashboard_app.update_explorer_filter_options("bad_table")
+            )
+
+        assert assets == []
+        assert intervals == []
+        assert asset_val is None
+        assert interval_val is None
+
+
+class TestExplorerTableQuery:
+    def _fake_df(self):
+        return pd.DataFrame({
+            "asset_symbol": ["BTC", "ETH"],
+            "interval": ["1h", "1h"],
+            "date": pd.to_datetime(["2026-01-01 10:00", "2026-01-01 11:00"]),
+            "close": [100.0, 200.0],
+        })
+
+    def test_no_filters_returns_all_rows(self):
+        from dashboard import app as dashboard_app
+
+        mock_conn = MagicMock()
+        mock_conn.execute.return_value.df.return_value = self._fake_df()
+        captured = []
+
+        def capture_query(query, *args, **kwargs):
+            captured.append(query)
+            return mock_conn.execute.return_value
+
+        mock_conn.execute.side_effect = capture_query
+        with patch("dashboard.app.duckdb.connect", return_value=mock_conn):
+            table, row_text = dashboard_app.update_explorer_table(
+                "gold_crypto_analytics", None, None
+            )
+
+        assert "WHERE" not in captured[0]
+        assert "Showing 2 rows" in row_text
+
+    def test_asset_filter_adds_where_clause(self):
+        from dashboard import app as dashboard_app
+
+        mock_conn = MagicMock()
+        mock_conn.execute.return_value.df.return_value = self._fake_df()
+        captured = []
+
+        def capture_query(query, *args, **kwargs):
+            captured.append(query)
+            return mock_conn.execute.return_value
+
+        mock_conn.execute.side_effect = capture_query
+        with patch("dashboard.app.duckdb.connect", return_value=mock_conn):
+            dashboard_app.update_explorer_table(
+                "gold_crypto_analytics", "BTC", None
+            )
+
+        assert "WHERE asset_symbol = 'BTC'" in captured[0]
+        assert "interval" not in captured[0].split("ORDER BY")[0]
+
+    def test_interval_filter_adds_where_clause(self):
+        from dashboard import app as dashboard_app
+
+        mock_conn = MagicMock()
+        mock_conn.execute.return_value.df.return_value = self._fake_df()
+        captured = []
+
+        def capture_query(query, *args, **kwargs):
+            captured.append(query)
+            return mock_conn.execute.return_value
+
+        mock_conn.execute.side_effect = capture_query
+        with patch("dashboard.app.duckdb.connect", return_value=mock_conn):
+            dashboard_app.update_explorer_table(
+                "gold_crypto_analytics", None, "1h"
+            )
+
+        assert "WHERE interval = '1h'" in captured[0]
+
+    def test_both_filters_combined_with_and(self):
+        from dashboard import app as dashboard_app
+
+        mock_conn = MagicMock()
+        mock_conn.execute.return_value.df.return_value = self._fake_df()
+        captured = []
+
+        def capture_query(query, *args, **kwargs):
+            captured.append(query)
+            return mock_conn.execute.return_value
+
+        mock_conn.execute.side_effect = capture_query
+        with patch("dashboard.app.duckdb.connect", return_value=mock_conn):
+            dashboard_app.update_explorer_table(
+                "gold_crypto_analytics", "BTC", "1h"
+            )
+
+        assert "WHERE asset_symbol = 'BTC' AND interval = '1h'" in captured[0]
+
+    def test_empty_table_shows_warning(self):
+        from dashboard import app as dashboard_app
+
+        mock_conn = MagicMock()
+        mock_conn.execute.return_value.df.return_value = pd.DataFrame()
+        with patch("dashboard.app.duckdb.connect", return_value=mock_conn):
+            table, row_text = dashboard_app.update_explorer_table(
+                "gold_crypto_analytics", None, None
+            )
+
+        text = _collect_text(table)
+        assert any("is empty" in t for t in text)
