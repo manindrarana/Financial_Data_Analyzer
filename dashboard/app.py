@@ -1168,11 +1168,20 @@ def update_explorer_filter_options(table_name):
     dash.Input("explorer-asset-selector", "value"),
     dash.Input("explorer-interval-selector", "value"),
 )
-def update_explorer_table(table_name):
+def update_explorer_table(table_name, selected_asset, selected_interval):
     """Query the selected gold table and render a sortable DataTable."""
     try:
         conn = duckdb.connect(DB_PATH, read_only=True)
-        df = conn.execute(f"SELECT * FROM {table_name} ORDER BY date DESC LIMIT 5000").df()
+        query = f"SELECT * FROM {table_name}"
+        conditions = []
+        if selected_asset:
+            conditions.append(f"asset_symbol = '{selected_asset}'")
+        if selected_interval:
+            conditions.append(f"interval = '{selected_interval}'")
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+        query += " ORDER BY date DESC LIMIT 5000"
+        df = conn.execute(query).df()
         conn.close()
         if df.empty:
             return dbc.Alert(f"Table '{table_name}' is empty. Run the pipeline first.", color="warning"), ""
