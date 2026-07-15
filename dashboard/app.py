@@ -432,7 +432,7 @@ def render_backtest():
                     [
                         dbc.Col(
                             [
-                                html.Label("Backtest Mode", className="text-muted small mb-1"),
+                                html.Label("Backtest Mode", className="text-muted small mb-1", title="Walk-Forward retrains the model on each fold to simulate real conditions. Pre-trained uses an existing saved model. Portfolio tests multiple assets together."),
                                 dcc.RadioItems(
                                     id="bt-mode-radio",
                                     options=[
@@ -532,70 +532,70 @@ def render_backtest():
                     [
                         dbc.Col(
                             [
-                                html.Label("Confidence", className="text-muted small mb-1"),
+                                html.Label("Confidence", className="text-muted small mb-1", title="Minimum model prediction probability to enter a trade. Higher means fewer but safer trades."),
                                 dbc.Input(id="bt-confidence", type="number", min=0.5, max=0.95, step=0.01, value=0.52, style={"color": "#000"}),
                             ],
                             width=2,
                         ),
                         dbc.Col(
                             [
-                                html.Label("Stop Loss %", className="text-muted small mb-1"),
+                                html.Label("Stop Loss %", className="text-muted small mb-1", title="If price drops this percentage from entry, the position is automatically closed to limit losses."),
                                 dbc.Input(id="bt-stop-loss", type="number", min=0.5, max=10, step=0.5, value=2.0, style={"color": "#000"}),
                             ],
                             width=2,
                         ),
                         dbc.Col(
                             [
-                                html.Label("Take Profit %", className="text-muted small mb-1"),
+                                html.Label("Take Profit %", className="text-muted small mb-1", title="If price rises this percentage from entry, the position is automatically closed to lock in gains."),
                                 dbc.Input(id="bt-take-profit", type="number", min=1, max=20, step=0.5, value=4.0, style={"color": "#000"}),
                             ],
                             width=2,
                         ),
                         dbc.Col(
                             [
-                                html.Label("Max Hold Bars", className="text-muted small mb-1"),
+                                html.Label("Max Hold Bars", className="text-muted small mb-1", title="Maximum number of candles to hold a position before closing it, regardless of profit or loss."),
                                 dbc.Input(id="bt-max-hold", type="number", min=4, max=200, step=1, value=24, style={"color": "#000"}),
                             ],
                             width=2,
                         ),
                         dbc.Col(
                             [
-                                html.Label("Initial Capital", className="text-muted small mb-1"),
+                                html.Label("Initial Capital", className="text-muted small mb-1", title="Starting balance for the simulated portfolio."),
                                 dbc.Input(id="bt-capital", type="number", min=1000, max=1000000, step=1000, value=10000, style={"color": "#000"}),
                             ],
                             width=2,
                         ),
                         dbc.Col(
                             [
-                                html.Label("Train Months", className="text-muted small mb-1"),
+                                html.Label("Train Months", className="text-muted small mb-1", title="Number of months of historical data used to train the model in each walk-forward fold."),
                                 dbc.Input(id="bt-train-months", type="number", min=3, max=24, step=1, value=6, style={"color": "#000"}),
                             ],
                             width=1,
                         ),
                         dbc.Col(
                             [
-                                html.Label("Test Months", className="text-muted small mb-1"),
+                                html.Label("Test Months", className="text-muted small mb-1", title="Number of months of data the trained model predicts on before the next fold retrains."),
                                 dbc.Input(id="bt-test-months", type="number", min=1, max=6, step=1, value=1, style={"color": "#000"}),
                             ],
                             width=1,
                         ),
                         dbc.Col(
                             [
-                                html.Label("Step Months", className="text-muted small mb-1"),
+                                html.Label("Step Months", className="text-muted small mb-1", title="How far forward the window shifts after each fold. Smaller means more folds and more retraining."),
                                 dbc.Input(id="bt-step-months", type="number", min=1, max=6, step=1, value=1, style={"color": "#000"}),
                             ],
                             width=1,
                         ),
                         dbc.Col(
                             [
-                                html.Label("Txn Cost %", className="text-muted small mb-1"),
+                                html.Label("Txn Cost %", className="text-muted small mb-1", title="Simulated fee percentage charged per trade. Models real exchange or broker fees."),
                                 dbc.Input(id="bt-txn-cost", type="number", min=0, max=1, step=0.01, value=0.10, style={"color": "#000"}),
                             ],
                             width=2,
                         ),
                         dbc.Col(
                             [
-                                html.Label("Allow Short", className="text-muted small mb-1"),
+                                html.Label("Allow Short", className="text-muted small mb-1", title="When enabled, the strategy can sell assets it does not own, profiting from price drops."),
                                 dbc.Checklist(
                                     id="bt-allow-short",
                                     options=[{"label": " Enable short selling", "value": True}],
@@ -608,7 +608,7 @@ def render_backtest():
                         ),
                         dbc.Col(
                             [
-                                html.Label("Max Positions", className="text-muted small mb-1"),
+                                html.Label("Max Positions", className="text-muted small mb-1", title="Maximum number of open positions at the same time in portfolio mode."),
                                 dbc.Input(id="bt-max-positions", type="number", min=1, max=10, step=1, value=3, style={"color": "#000"}),
                             ],
                             width=2,
