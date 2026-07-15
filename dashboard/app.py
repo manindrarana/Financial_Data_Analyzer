@@ -964,10 +964,10 @@ def _update_bt_asset_dropdown(asset_class):
 )
 def _update_bt_interval_dropdown(asset_class, bt_mode):
     if asset_class == "crypto":
-        intervals = PRED_CRYPTO_INTERVALS if bt_mode == "pretrained" else CRYPTO_INTERVALS
+        intervals = PRED_CRYPTO_INTERVALS if bt_mode in ("pretrained", "portfolio") else CRYPTO_INTERVALS
         default = "1h"
     else:
-        intervals = PRED_STOCK_INTERVALS if bt_mode == "pretrained" else STOCK_INTERVALS
+        intervals = PRED_STOCK_INTERVALS if bt_mode in ("pretrained", "portfolio") else STOCK_INTERVALS
         default = "1h"
     return [{"label": INTERVAL_LABELS.get(iv, iv), "value": iv} for iv in intervals], default
 
