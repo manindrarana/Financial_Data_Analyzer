@@ -1252,7 +1252,7 @@ def render_overview():
         )
         SELECT asset_symbol, close, date
         FROM latest WHERE rn = 1
-        ORDER BY date DESC
+        ORDER BY close DESC
         LIMIT 5
     """).df()
 
@@ -1264,7 +1264,7 @@ def render_overview():
         )
         SELECT asset_symbol, close, date
         FROM latest WHERE rn = 1
-        ORDER BY date DESC
+        ORDER BY close DESC
         LIMIT 5
     """).df()
 
