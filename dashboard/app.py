@@ -1725,7 +1725,7 @@ def build_accuracy_chart():
 
     fig.update_layout(
         template="plotly_dark",
-        title="Per-Asset Model Accuracy (All 45 Models)",
+        title=f"Per-Asset Model Accuracy (All {len(crypto_labels) + len(stock_labels)} Models)",
         xaxis_title="Asset + Interval",
         yaxis_title="Accuracy (%)",
         yaxis=dict(range=[40, 65]),
