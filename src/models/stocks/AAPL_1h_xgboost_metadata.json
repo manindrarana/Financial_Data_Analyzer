@@ -2,10 +2,10 @@
   "asset": "AAPL",
   "interval": "1h",
   "asset_class": "stocks",
-  "train_end_date": "2026-02-06T14:30:00",
-  "train_rows": 3019,
-  "test_rows": 755,
-  "test_accuracy": 0.5245033112582781,
+  "train_end_date": "2026-02-06T19:30:00",
+  "train_rows": 3024,
+  "test_rows": 757,
+  "test_accuracy": 0.5257595772787318,
   "features": [
     "rsi_14",
     "roc_10",
@@ -39,13 +39,13 @@
   ],
   "best_params": {
     "learning_rate": 0.1,
-    "max_depth": 5,
-    "n_estimators": 100,
+    "max_depth": 3,
+    "n_estimators": 200,
     "subsample": 1.0,
     "eval_metric": "logloss",
     "random_state": 42
   },
-  "best_cv_score": 0.5238568588469185,
-  "trained_at": "2026-07-15T13:25:19.724655",
+  "best_cv_score": 0.5223214285714286,
+  "trained_at": "2026-07-16T09:37:02.697628",
   "mlflow_run_id": null
 }
