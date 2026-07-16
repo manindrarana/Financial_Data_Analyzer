@@ -23,7 +23,16 @@ class MLProfiler:
         """profiler and its configuration."""
         self.conn = get_db_connection()
         self.logger = logger
-        self.ml_table = "gold_ml_features"
+        self.gold_tables = ["gold_crypto_features", "gold_stock_features"]
+
+    def _gold_union(self):
+        return (
+            "SELECT asset_symbol, asset_class, exchange, interval, date, close, log_returns "
+            "FROM gold_crypto_features "
+            "UNION ALL "
+            "SELECT asset_symbol, asset_class, exchange, interval, date, close, log_returns "
+            "FROM gold_stock_features"
+        )
 
     def get_summary(self):
         """Fetches summary of ML-Ready features."""
@@ -31,13 +40,13 @@ class MLProfiler:
             return pd.DataFrame()
             
         query = f"""
-            SELECT 
-                asset_symbol, 
-                interval, 
+            SELECT
+                asset_symbol,
+                interval,
                 COUNT(*) as row_count,
                 MIN(date) as start_date,
                 MAX(date) as end_date
-            FROM {self.ml_table}
+            FROM ({self._gold_union()})
             GROUP BY asset_symbol, interval
         """
         return self.conn.execute(query).df()
@@ -45,22 +54,23 @@ class MLProfiler:
     def check_nulls(self):
         """analyze percentage of missing values (NaNs) across all feature columns."""
         self.logger.info("  Step 4: Scanning for Missing (NaN) values...")
-        
-        sample = self.conn.execute(f"SELECT * FROM {self.ml_table} LIMIT 1").df()
-        feature_cols = [c for c in sample.columns if c not in ['asset_symbol', 'interval', 'date', 'asset_class', 'exchange']]
-        
-        null_sqls = [f"COUNT(CASE WHEN {c} IS NULL THEN 1 END) as {c}_nulls" for c in feature_cols]
-        total_query = f"SELECT COUNT(*) as total_rows, {', '.join(null_sqls)} FROM {self.ml_table}"
-        
-        null_counts = self.conn.execute(total_query).df()
-        total_rows = null_counts['total_rows'].iloc[0]
-        
+
         results = []
-        for c in feature_cols:
-            n_count = null_counts[f"{c}_nulls"].iloc[0]
-            if n_count > 0:
-                results.append({"Feature": c, "Null_Count": n_count, "Null_%": f"{(n_count/total_rows)*100:.2f}%"})
-                
+        for table in self.gold_tables:
+            sample = self.conn.execute(f"SELECT * FROM {table} LIMIT 1").df()
+            feature_cols = [c for c in sample.columns if c not in ['asset_symbol', 'interval', 'date', 'asset_class', 'exchange']]
+
+            null_sqls = [f"COUNT(CASE WHEN {c} IS NULL THEN 1 END) as {c}_nulls" for c in feature_cols]
+            total_query = f"SELECT COUNT(*) as total_rows, {', '.join(null_sqls)} FROM {table}"
+
+            null_counts = self.conn.execute(total_query).df()
+            total_rows = null_counts['total_rows'].iloc[0]
+
+            for c in feature_cols:
+                n_count = null_counts[f"{c}_nulls"].iloc[0]
+                if n_count > 0:
+                    results.append({"Table": table, "Feature": c, "Null_Count": n_count, "Null_%": f"{(n_count/total_rows)*100:.2f}%"})
+
         return pd.DataFrame(results)
 
     def check_timeline_consistency(self):
@@ -158,12 +168,12 @@ class MLProfiler:
         
         query = f"""
             WITH price_changes AS (
-                SELECT 
+                SELECT
                     asset_symbol,
                     interval,
                     close,
                     LAG(close) OVER (PARTITION BY asset_symbol, interval ORDER BY date) as prev_close
-                FROM {self.ml_table}
+                FROM ({self._gold_union()})
             )
             SELECT 
                 asset_symbol,
@@ -187,18 +197,18 @@ class MLProfiler:
         
         query = f"""
             WITH stats AS (
-                SELECT 
+                SELECT
                     asset_symbol,
                     AVG(log_returns) as avg_ret,
                     STDDEV(log_returns) as std_ret
-                FROM {self.ml_table}
+                FROM ({self._gold_union()})
                 GROUP BY asset_symbol
             )
-            SELECT 
+            SELECT
                 t.asset_symbol,
                 t.interval,
                 COUNT(*) as spike_candles
-            FROM {self.ml_table} t
+            FROM ({self._gold_union()}) t
             JOIN stats s ON t.asset_symbol = s.asset_symbol
             WHERE ABS(t.log_returns - s.avg_ret) > ({z_threshold} * s.std_ret)
             GROUP BY t.asset_symbol, t.interval
@@ -211,20 +221,20 @@ class MLProfiler:
         
         dup_query = f"""
             SELECT asset_symbol, interval, date, COUNT(*) as occurs
-            FROM {self.ml_table}
+            FROM ({self._gold_union()})
             GROUP BY asset_symbol, interval, date
             HAVING occurs > 1
         """
         dupes = self.conn.execute(dup_query).df()
-        
+
         query = f"""
             WITH deltas AS (
-                SELECT 
+                SELECT
                     asset_symbol,
                     interval,
                     date,
                     LAG(date) OVER (PARTITION BY asset_symbol, interval ORDER BY date) as prev_date
-                FROM {self.ml_table}
+                FROM ({self._gold_union()})
             )
             SELECT 
                 asset_symbol,
@@ -242,7 +252,7 @@ class MLProfiler:
     def run(self):
         """profiling process."""
         self.logger.info("ML PROFILER - STARTING...")
-        self.logger.info(f"ML Table: {self.ml_table}")
+        self.logger.info("Gold Tables: gold_crypto_features + gold_stock_features")
         
         summary = self.get_summary()
         print("\nML FEATURES SUMMARY (GOLD LAYER):")
