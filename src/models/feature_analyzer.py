@@ -39,11 +39,13 @@ class FeatureAnalyzer:
     def analyze_features(self):
         """Run complete feature analysis and create gold_feature_statistics table"""
         self.logger.info("=" * 60)
-        self.logger.info("Feature Quality Analysis: gold_ml_features")
+        self.logger.info("Feature Quality Analysis: gold_crypto_features + gold_stock_features")
         self.logger.info("=" * 60)
-        
-        df = self.conn.execute("SELECT * FROM gold_ml_features").df()
-        self.logger.info(f"Loaded {len(df)} rows from gold_ml_features")
+
+        df_crypto = self.conn.execute("SELECT * FROM gold_crypto_features").df()
+        df_stocks = self.conn.execute("SELECT * FROM gold_stock_features").df()
+        df = pd.concat([df_crypto, df_stocks], ignore_index=True)
+        self.logger.info(f"Loaded {len(df)} rows ({len(df_crypto)} crypto + {len(df_stocks)} stocks)")
         
         metadata_cols = ['asset_symbol', 'asset_class', 'exchange', 'interval', 'date']
         indicator_cols = [col for col in df.columns if col not in metadata_cols]
