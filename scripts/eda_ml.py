@@ -4,16 +4,29 @@ import pandas as pd
 PIPELINE_CONTAINER = "financial_data_pipeline"
 
 sql_query = """
-SELECT 
-    asset_symbol,
-    asset_class,
-    interval,
-    COUNT(*) as sample_count,
-    MIN(date) as first_date,
-    MAX(date) as last_date
-FROM gold_ml_features
-GROUP BY asset_symbol, asset_class, interval
-ORDER BY sample_count DESC
+SELECT * FROM (
+    SELECT
+        asset_symbol,
+        asset_class,
+        interval,
+        COUNT(*) as sample_count,
+        MIN(date) as first_date,
+        MAX(date) as last_date
+    FROM gold_crypto_features
+    GROUP BY asset_symbol, asset_class, interval
+
+    UNION ALL
+
+    SELECT
+        asset_symbol,
+        asset_class,
+        interval,
+        COUNT(*) as sample_count,
+        MIN(date) as first_date,
+        MAX(date) as last_date
+    FROM gold_stock_features
+    GROUP BY asset_symbol, asset_class, interval
+) ORDER BY sample_count DESC
 """
 
 docker_python_code = f"""
