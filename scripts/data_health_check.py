@@ -77,23 +77,25 @@ class DataHealthScanner:
         }
 
     def check_gold_layer(self):
-        """Continuity scan for the final gold_ml_features layer."""
-        self.logger.info("Initializing scan for Gold Layer (gold_ml_features)...")
-        assets = self.get_assets_to_check("gold_ml_features", "asset_symbol")
+        """Continuity scan for the final gold feature tables."""
+        self.logger.info("Initializing scan for Gold Layer (gold_crypto_features + gold_stock_features)...")
         all_results = []
 
-        for _, row in assets.iterrows():
-            symbol, interval = row['asset_symbol'], row['interval']
-            
-            df = self.conn.execute(f"""
-                SELECT date FROM gold_ml_features 
-                WHERE asset_symbol = '{symbol}' AND interval = '{interval}'
-                ORDER BY date
-            """).df()
+        for table_name in ["gold_crypto_features", "gold_stock_features"]:
+            assets = self.get_assets_to_check(table_name, "asset_symbol")
 
-            stats = self._calculate_gaps(df, symbol, interval)
-            all_results.append(stats)
-            
+            for _, row in assets.iterrows():
+                symbol, interval = row['asset_symbol'], row['interval']
+
+                df = self.conn.execute(f"""
+                    SELECT date FROM {table_name}
+                    WHERE asset_symbol = '{symbol}' AND interval = '{interval}'
+                    ORDER BY date
+                """).df()
+
+                stats = self._calculate_gaps(df, symbol, interval)
+                all_results.append(stats)
+
         return pd.DataFrame(all_results)
 
     def check_yahoo_silver(self):
