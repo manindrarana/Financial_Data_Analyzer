@@ -4,16 +4,20 @@ import pandas as pd
 PIPELINE_CONTAINER = "financial_data_pipeline"
 
 sql_query = """
-SELECT 
+SELECT
     COUNT(*) as total_samples,
-    AVG(returns_1d) as mean_return,
-    STDDEV(returns_1d) as std_return,
-    MIN(returns_1d) as min_return,
-    MAX(returns_1d) as max_return,
-    PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY returns_1d) as q25,
-    PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY returns_1d) as median,
-    PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY returns_1d) as q75
-FROM gold_ml_features
+    AVG(returns_1p) as mean_return,
+    STDDEV(returns_1p) as std_return,
+    MIN(returns_1p) as min_return,
+    MAX(returns_1p) as max_return,
+    PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY returns_1p) as q25,
+    PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY returns_1p) as median,
+    PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY returns_1p) as q75
+FROM (
+    SELECT returns_1p, interval FROM gold_crypto_features
+    UNION ALL
+    SELECT returns_1p, interval FROM gold_stock_features
+)
 WHERE interval IN ('1d', '1h')
 """
 
