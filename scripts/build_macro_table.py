@@ -5,28 +5,16 @@ Run from project root: python scripts/build_macro_table.py
 import duckdb
 import os
 from dotenv import load_dotenv
+from src.utils.s3 import configure_s3_access
 
 load_dotenv()
 
 DB_PATH      = "database/financial_data.duckdb"
-S3_ENDPOINT  = os.getenv("S3_ENDPOINT_URL", "http://localhost:9000").replace("http://", "")
-ACCESS_KEY   = os.getenv("AWS_ACCESS_KEY_ID")
-SECRET_KEY   = os.getenv("AWS_SECRET_ACCESS_KEY")
 
 print(f"Connecting to DuckDB: {DB_PATH}")
 conn = duckdb.connect(DB_PATH)
 
-conn.execute("INSTALL httpfs; LOAD httpfs;")
-conn.execute(f"""
-    CREATE SECRET IF NOT EXISTS (
-        TYPE S3,
-        KEY_ID '{ACCESS_KEY}',
-        SECRET '{SECRET_KEY}',
-        ENDPOINT '{S3_ENDPOINT}',
-        URL_STYLE 'path',
-        USE_SSL false
-    );
-""")
+configure_s3_access(conn)
 print("S3 access configured")
 
 print("Building macro_features_1h table...")
