@@ -3,6 +3,7 @@ import yaml
 import os
 from dotenv import load_dotenv
 from src.utils import get_logger
+from src.utils.s3 import configure_s3_access
 
 
 class FactLoader:
@@ -18,19 +19,8 @@ class FactLoader:
         self.db_path = self.config["paths"]["database"]
         self.conn = duckdb.connect(self.db_path)
         self.logger.info(f"Connected to persistent DuckDB at {self.db_path}")
-        
-        s3_endpoint = os.getenv("S3_ENDPOINT_URL", "http://localhost:9000").replace("http://", "")
-        self.conn.execute("INSTALL httpfs; LOAD httpfs;")
-        self.conn.execute(f"""
-            CREATE SECRET IF NOT EXISTS (
-                TYPE S3,
-                KEY_ID '{os.getenv("AWS_ACCESS_KEY_ID")}',
-                SECRET '{os.getenv("AWS_SECRET_ACCESS_KEY")}',
-                ENDPOINT '{s3_endpoint}',
-                URL_STYLE 'path',
-                USE_SSL false
-            );
-        """)
+
+        configure_s3_access(self.conn)
     
     def create_fact_table(self):
         """Create fact_price_history table with foreign keys"""
