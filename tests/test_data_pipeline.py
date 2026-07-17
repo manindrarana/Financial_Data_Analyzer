@@ -3,11 +3,9 @@ import pytest
 import duckdb
 import yaml
 from dotenv import load_dotenv
+from src.utils.s3 import configure_s3_access
 
 load_dotenv(dotenv_path=".env")
-S3_KEY = os.getenv("AWS_ACCESS_KEY_ID", "minioadmin")
-S3_SECRET = os.getenv("AWS_SECRET_ACCESS_KEY", "minioadmin")
-S3_ENDPOINT = os.getenv("S3_ENDPOINT_URL", "http://localhost:9000").replace("http://", "")
 
 with open("configs/settings.yml", "r") as f:
     _config = yaml.safe_load(f)
@@ -19,17 +17,7 @@ MIN_EXPECTED_COLUMNS = 40
 
 def get_duckdb_connection():
     con = duckdb.connect()
-    con.execute("INSTALL httpfs; LOAD httpfs;")
-    con.execute(f"""
-        CREATE SECRET IF NOT EXISTS (
-            TYPE S3,
-            KEY_ID '{S3_KEY}',
-            SECRET '{S3_SECRET}',
-            ENDPOINT '{S3_ENDPOINT}',
-            URL_STYLE 'path',
-            USE_SSL false
-        );
-    """)
+    configure_s3_access(con)
     return con
 
 
