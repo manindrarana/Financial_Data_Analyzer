@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 from dotenv import load_dotenv
 from src.utils import get_logger
+from src.utils.s3 import configure_s3_access
 from sklearn.ensemble import RandomForestRegressor
 
 
@@ -21,19 +22,8 @@ class FeatureAnalyzer:
         self.db_path = self.config["paths"]["database"]
         self.analytics_bucket = self.config["paths"].get("analytics_bucket", "analytics-data")
         self.conn = duckdb.connect(self.db_path)
-        
-        s3_endpoint = os.getenv("S3_ENDPOINT_URL", "http://localhost:9000").replace("http://", "")
-        self.conn.execute("INSTALL httpfs; LOAD httpfs;")
-        self.conn.execute(f"""
-            CREATE SECRET IF NOT EXISTS (
-                TYPE S3,
-                KEY_ID '{os.getenv("AWS_ACCESS_KEY_ID")}',
-                SECRET '{os.getenv("AWS_SECRET_ACCESS_KEY")}',
-                ENDPOINT '{s3_endpoint}',
-                URL_STYLE 'path',
-                USE_SSL false
-            );
-        """)
+
+        configure_s3_access(self.conn)
     
     
     def analyze_features(self):
