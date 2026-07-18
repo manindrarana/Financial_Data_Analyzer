@@ -177,7 +177,7 @@ class PipelineModelTrainer:
             mlflow.set_experiment(f"pipeline_auto_retrain_{asset_class}")
             mlflow.start_run(run_name=run_name)
             mlflow_run = mlflow.active_run()
-            mlflow.run_id = mlflow_run.info.run_id
+            mlflow_run_id = mlflow_run.info.run_id
             mlflow_enabled = True
             mlflow.set_tag("asset", asset)
             mlflow.set_tag("interval", interval)
