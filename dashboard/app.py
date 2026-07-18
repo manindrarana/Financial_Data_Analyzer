@@ -1750,8 +1750,8 @@ MAX_CANDLES_DISPLAY = 2000
 CRYPTO_INTERVALS = ["1h", "4h", "1d", "W", "M"]
 STOCK_INTERVALS  = ["1h", "1d", "1wk", "1mo"]
 
-PRED_CRYPTO_INTERVALS = ["1h", "4h", "1d", "W"]
-PRED_STOCK_INTERVALS  = ["1h", "1d", "1wk"]
+PRED_CRYPTO_INTERVALS = ["1h", "4h", "1d"]
+PRED_STOCK_INTERVALS  = ["1h", "1d"]
 
 INTERVAL_LABELS = {
     "1h": "1 Hour",
