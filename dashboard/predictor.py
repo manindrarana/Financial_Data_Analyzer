@@ -199,7 +199,7 @@ def run_prediction(asset="BTC", interval="1h", asset_class="crypto"):
 
     results["actual_direction"] = (
         results["close"].shift(-1) > results["close"]
-    ).astype(int)
+    ).where(results["close"].shift(-1).notna())
 
     results = results.dropna(subset=["actual_direction"])
     results["actual_direction"] = results["actual_direction"].astype(int)
