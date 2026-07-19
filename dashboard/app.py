@@ -3167,8 +3167,9 @@ def build_confusion_matrix(asset_class, asset_symbol, interval):
         )
 
     oos = df[df["is_oos"]] if "is_oos" in df.columns else df
+    oos = oos[oos["actual_direction"].notna()]
     if oos.empty:
-        oos = df
+        oos = df[df["actual_direction"].notna()]
 
     tp = int(((oos["prediction"] == 1) & (oos["actual_direction"] == 1)).sum())
     fp = int(((oos["prediction"] == 1) & (oos["actual_direction"] == 0)).sum())
