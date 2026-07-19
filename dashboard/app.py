@@ -935,7 +935,8 @@ def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, p
         )
 
         set_progress(dbc.Alert("Rendering results...", color="success"))
-        return _build_backtest_results(metrics, equity_df, trades_df)
+        buy_hold_df = predictions_df if bt_mode != "portfolio" else None
+        return _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=buy_hold_df)
 
     except Exception as e:
         return dbc.Alert(f"Backtest failed: {e}", color="danger")
