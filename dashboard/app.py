@@ -2359,14 +2359,15 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
         )
 
     if "is_oos" in results.columns:
-        oos = results[results["is_oos"]]
+        oos = results[results["is_oos"] & results["actual_direction"].notna()]
         oos_total = len(oos)
     else:
-        oos = results
+        oos = results[results["actual_direction"].notna()]
         oos_total = len(oos)
 
-    total = len(results)
-    correct = (results["prediction"] == results["actual_direction"]).sum()
+    scored = results[results["actual_direction"].notna()]
+    total = len(scored)
+    correct = (scored["prediction"] == scored["actual_direction"]).sum()
     accuracy = correct / total if total > 0 else 0
 
     oos_correct = (oos["prediction"] == oos["actual_direction"]).sum()
