@@ -2459,6 +2459,7 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
     prediction_direction = "UP" if latest_prediction["prediction"] == 1 else "DOWN"
     prediction_color = "#26a69a" if prediction_direction == "UP" else "#ef5350"
     prediction_confidence = latest_prediction["confidence"] * 100
+    prediction_date = pd.to_datetime(latest_prediction["date"]).strftime("%Y-%m-%d %H:%M UTC")
     next_prediction_card = dbc.Card(
         dbc.CardBody([
             html.P("Next Prediction", className="text-muted small mb-1"),
@@ -2466,7 +2467,11 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
             html.H2(prediction_direction, style={"color": prediction_color}, className="mb-2"),
             html.P(
                 f"Confidence: {prediction_confidence:.1f}%",
-                className="text-muted mb-0",
+                className="text-muted mb-1",
+            ),
+            html.P(
+                f"As of: {prediction_date}",
+                className="text-muted small mb-0",
             ),
         ]),
         color="dark",
