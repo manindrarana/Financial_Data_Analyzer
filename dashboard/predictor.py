@@ -199,10 +199,7 @@ def run_prediction(asset="BTC", interval="1h", asset_class="crypto"):
 
     results["actual_direction"] = (
         results["close"].shift(-1) > results["close"]
-    ).where(results["close"].shift(-1).notna())
-
-    results = results.dropna(subset=["actual_direction"])
-    results["actual_direction"] = results["actual_direction"].astype(int)
+    ).where(results["close"].shift(-1).notna()).astype(float)
 
     train_cutoff = get_train_cutoff(asset, interval, asset_class)
     if train_cutoff is not None:
