@@ -714,8 +714,11 @@ def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None):
         height=400, title="Equity Curve", hovermode="x unified",
         margin=dict(l=10, r=10, t=40, b=10),
         dragmode="pan",
+        hoverlabel=dict(bgcolor="#212529", font_size=13),
     )
     fig_equity.update_yaxes(title_text="Equity ($)")
+    fig_equity.update_xaxes(hoverformat="%Y-%m-%d %H:%M")
+    fig_equity.update_traces(hovertemplate="Date: %{x}<br>Value: $%{y:,.2f}<extra></extra>")
 
     trades_df = trades_df.copy()
     trades_df["entry_time"] = pd.to_datetime(trades_df["entry_time"])
