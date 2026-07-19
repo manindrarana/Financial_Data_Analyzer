@@ -629,11 +629,24 @@ def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None):
     if trades_df.empty:
         return dbc.Alert("No trades executed — try relaxing the confidence threshold or date range.", color="warning")
 
+    buy_hold_return_pct = 0.0
+    if buy_hold_df is not None and not buy_hold_df.empty:
+        bh = buy_hold_df[["date", "close"]].copy()
+        bh["date"] = pd.to_datetime(bh["date"])
+        bh = bh.sort_values("date")
+        bh = bh[bh["date"] >= pd.to_datetime(equity_df["date"].min())]
+        if not bh.empty and bh["close"].iloc[0] > 0:
+            buy_hold_return_pct = (bh["close"].iloc[-1] / bh["close"].iloc[0] - 1) * 100
+
     metric_cards = dbc.Row(
         [
             dbc.Col(dbc.Card(dbc.CardBody([
                 html.H5(f"{metrics.get('total_return_pct', 0):+.2f}%", className="card-title text-info"),
                 html.P("Total Return", className="card-text text-muted small"),
+            ]), color="dark", outline=True), width=2),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(f"{buy_hold_return_pct:+.2f}%", className="card-title text-warning"),
+                html.P("Buy & Hold Return", className="card-text text-muted small"),
             ]), color="dark", outline=True), width=2),
             dbc.Col(dbc.Card(dbc.CardBody([
                 html.H5(f"{metrics.get('sharpe_ratio', 0):.2f}", className="card-title text-info"),
