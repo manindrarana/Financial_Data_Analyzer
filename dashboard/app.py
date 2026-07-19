@@ -624,7 +624,7 @@ def render_backtest():
     )
 
 
-def _build_backtest_results(metrics, equity_df, trades_df):
+def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None):
     """Build Dash UI components from backtest results."""
     if trades_df.empty:
         return dbc.Alert("No trades executed — try relaxing the confidence threshold or date range.", color="warning")
