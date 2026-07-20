@@ -5,6 +5,7 @@ import json
 import sys
 import os
 import duckdb
+from datetime import datetime
 from pathlib import Path
 from prefect import flow, task, get_run_logger
 from src.utils import get_logger
@@ -43,6 +44,106 @@ def _mark_done(step: str):
     completed = _load_checkpoint()
     completed.add(step)
     _save_checkpoint(completed)
+
+
+def _get_db_path() -> str:
+    with open("configs/settings.yml", "r") as f:
+        config = yaml.safe_load(f)
+    return config["paths"]["database"]
+
+
+def _init_pipeline_runs_table():
+    db_path = _get_db_path()
+    parent = os.path.dirname(db_path)
+    if parent and not os.path.exists(parent):
+        os.makedirs(parent, exist_ok=True)
+    conn = duckdb.connect(db_path)
+    try:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS pipeline_runs (
+                run_id VARCHAR PRIMARY KEY,
+                start_time TIMESTAMP,
+                end_time TIMESTAMP,
+                duration_seconds DOUBLE,
+                status VARCHAR,
+                trigger VARCHAR,
+                error_message VARCHAR,
+                models_retrained VARCHAR,
+                rows_fetched INTEGER,
+                rows_cleaned INTEGER,
+                validator_failures INTEGER,
+                checkpoint_resumed BOOLEAN
+            )
+            """
+        )
+    finally:
+        conn.close()
+
+
+def _start_pipeline_run() -> str:
+    _init_pipeline_runs_table()
+    run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{os.getpid()}"
+    trigger = "manual"
+    if "--once" in sys.argv or "--now" in sys.argv:
+        trigger = "--once"
+    elif not FORCE_FLAG:
+        trigger = "cron"
+    checkpoint_resumed = bool(_load_checkpoint())
+    conn = duckdb.connect(_get_db_path())
+    try:
+        conn.execute(
+            """
+            INSERT INTO pipeline_runs
+                (run_id, start_time, end_time, duration_seconds, status,
+                 trigger, error_message, models_retrained, rows_fetched,
+                 rows_cleaned, validator_failures, checkpoint_resumed)
+            VALUES (?, NULL, NULL, NULL, 'running', ?, NULL, NULL, NULL, NULL, NULL, ?)
+            """,
+            [run_id, trigger, checkpoint_resumed],
+        )
+    finally:
+        conn.close()
+    return run_id
+
+
+def _end_pipeline_run(run_id, status, error_message, stats, run_start):
+    end_time = datetime.now()
+    duration = time.time() - run_start
+    models = stats.get("models_retrained") or []
+    models_str = ",".join(models) if models else None
+    conn = duckdb.connect(_get_db_path())
+    try:
+        conn.execute(
+            """
+            UPDATE pipeline_runs
+            SET end_time = ?, duration_seconds = ?, status = ?,
+                error_message = ?, models_retrained = ?, rows_fetched = ?,
+                rows_cleaned = ?, validator_failures = ?
+            WHERE run_id = ?
+            """,
+            [
+                end_time, duration, status, error_message, models_str,
+                stats.get("rows_fetched"), stats.get("rows_cleaned"),
+                stats.get("validator_failures", 0), run_id,
+            ],
+        )
+    finally:
+        conn.close()
+
+
+def _count_rows(table_names):
+    conn = _get_db_con()
+    try:
+        total = 0
+        for t in table_names:
+            try:
+                total += conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+            except Exception:
+                pass
+        return total
+    finally:
+        conn.close()
 
 
 FORCE_FLAG = "--force" in sys.argv
@@ -358,14 +459,26 @@ def run_pipeline():
     LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
     LOCK_FILE.write_text(str(os.getpid()))
 
+    run_id = _start_pipeline_run()
+    run_start = time.time()
     try:
-        _run_pipeline_impl(logger)
+        stats = _run_pipeline_impl(logger, run_id)
+        _end_pipeline_run(run_id, "success", None, stats, run_start)
+    except Exception as e:
+        logger.exception("Pipeline failed — marking run as failed in pipeline_runs")
+        _end_pipeline_run(
+            run_id, "failed", str(e)[:500],
+            {"models_retrained": [], "rows_fetched": None, "rows_cleaned": None,
+             "validator_failures": 0},
+            run_start,
+        )
+        raise
     finally:
         if LOCK_FILE.exists():
             LOCK_FILE.unlink()
 
 
-def _run_pipeline_impl(logger):
+def _run_pipeline_impl(logger, run_id):
     logger.info("=== Financial Data Pipeline (ELT) Starting ===")
     pipeline_start = time.time()
 
@@ -387,23 +500,50 @@ def _run_pipeline_impl(logger):
         ("step8_models",     lambda: train_models()),
     ]
 
+    validator_failures = 0
     for step_id, step_fn in steps:
         if _should_run(step_id, FORCE_FLAG):
             logger.info(f"[CHECKPOINT] Running {step_id}...")
             step_fn()
             validator = STEP_VALIDATORS.get(step_id)
             if validator:
-                validator()
-                logger.info(f"[VALIDATE] {step_id} validation passed")
+                try:
+                    validator()
+                    logger.info(f"[VALIDATE] {step_id} validation passed")
+                except Exception as e:
+                    validator_failures += 1
+                    logger.error(f"[VALIDATE] {step_id} validation FAILED: {e}")
+                    raise
             _mark_done(step_id)
             logger.info(f"[CHECKPOINT] {step_id} complete — saved")
         else:
             logger.info(f"[CHECKPOINT] Skipping {step_id} (already done)")
 
+    rows_fetched = _count_rows(["yahoo_stocks", "bybit_crypto", "fear_greed"])
+    rows_cleaned = _count_rows(["clean_yahoo_stocks", "clean_bybit_crypto", "clean_fear_greed"])
+    models_retrained = _collect_retrained_models(config)
+
     elapsed = time.time() - pipeline_start
     logger.info(f"=== Pipeline executed successfully in {elapsed:.1f}s ===")
     _clear_checkpoint()
     gc.collect()
+
+    return {
+        "models_retrained": models_retrained,
+        "rows_fetched": rows_fetched,
+        "rows_cleaned": rows_cleaned,
+        "validator_failures": validator_failures,
+    }
+
+
+def _collect_retrained_models(config) -> list:
+    try:
+        from src.models.trainer import PipelineModelTrainer
+        trainer = PipelineModelTrainer()
+        retrained = trainer.last_retrained_models if hasattr(trainer, "last_retrained_models") else []
+        return list(retrained)
+    except Exception:
+        return []
 
 
 if __name__ == "__main__":
