@@ -27,6 +27,18 @@ def _collect_text(component):
     return _collect_text(children)
 
 
+def _walk_components(component):
+    yield component
+    children = getattr(component, "children", None)
+    if children is None:
+        return
+    if isinstance(children, list):
+        for child in children:
+            yield from _walk_components(child)
+    else:
+        yield from _walk_components(children)
+
+
 def _make_db_with_runs(tmpdir, rows):
     db_path = os.path.join(tmpdir, "test.duckdb")
     conn = duckdb.connect(db_path)
@@ -316,7 +328,12 @@ class TestRenderPipelineHistory:
             with patch("dashboard.app.get_pipeline_runs", return_value=runs_df):
                 content = dashboard_app.render_pipeline_history()
 
-        table = content.children[0].children[0].children[3]
+        table = None
+        for node in _walk_components(content):
+            if hasattr(node, "columns") and isinstance(node.columns, list):
+                table = node
+                break
+        assert table is not None, "DataTable not found in render output"
         col_names = [c["name"] for c in table.columns]
         assert "run_id" in col_names
         assert "status" in col_names
