@@ -422,7 +422,9 @@ def train_models():
     logger.info("STEP 8: MODEL TRAINING (Auto-retrain on new data)")
     trainer = PipelineModelTrainer()
     trainer.run()
+    retrained = list(trainer.last_retrained_models)
     trainer.close()
+    return retrained
 
 
 def _run_concurrent_extract(config: dict) -> dict:
@@ -501,10 +503,13 @@ def _run_pipeline_impl(logger, run_id):
     ]
 
     validator_failures = 0
+    models_retrained = []
     for step_id, step_fn in steps:
         if _should_run(step_id, FORCE_FLAG):
             logger.info(f"[CHECKPOINT] Running {step_id}...")
-            step_fn()
+            result = step_fn()
+            if step_id == "step8_models" and isinstance(result, list):
+                models_retrained = result
             validator = STEP_VALIDATORS.get(step_id)
             if validator:
                 try:
@@ -521,7 +526,6 @@ def _run_pipeline_impl(logger, run_id):
 
     rows_fetched = _count_rows(["yahoo_stocks", "bybit_crypto", "fear_greed"])
     rows_cleaned = _count_rows(["clean_yahoo_stocks", "clean_bybit_crypto", "clean_fear_greed"])
-    models_retrained = _collect_retrained_models(config)
 
     elapsed = time.time() - pipeline_start
     logger.info(f"=== Pipeline executed successfully in {elapsed:.1f}s ===")
@@ -534,16 +538,6 @@ def _run_pipeline_impl(logger, run_id):
         "rows_cleaned": rows_cleaned,
         "validator_failures": validator_failures,
     }
-
-
-def _collect_retrained_models(config) -> list:
-    try:
-        from src.models.trainer import PipelineModelTrainer
-        trainer = PipelineModelTrainer()
-        retrained = trainer.last_retrained_models if hasattr(trainer, "last_retrained_models") else []
-        return list(retrained)
-    except Exception:
-        return []
 
 
 if __name__ == "__main__":
