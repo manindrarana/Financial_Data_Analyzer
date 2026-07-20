@@ -20,6 +20,7 @@ from plotly.subplots import make_subplots
 from dotenv import load_dotenv
 from dashboard.predictor import run_prediction
 from dashboard.model_health import get_model_health, get_summary_counts, STATUS_LABELS, STATUS_COLORS
+from dashboard.pipeline_history import get_pipeline_runs, get_run_summary
 import diskcache
 
 load_dotenv()
@@ -158,6 +159,7 @@ app.layout = dbc.Container(
                 dbc.Tab(label=" Data Explorer", tab_id="tab-explorer"),
                 dbc.Tab(label=" Model Health", tab_id="tab-model-health"),
                 dbc.Tab(label=" Model Insights", tab_id="tab-model-insights"),
+                dbc.Tab(label=" Pipeline History", tab_id="tab-pipeline-history"),
             ],
         ),
         html.Hr(),
@@ -300,6 +302,8 @@ def render_tab(active_tab: str):
         return render_model_health()
     elif active_tab == "tab-model-insights":
         return render_model_insights()
+    elif active_tab == "tab-pipeline-history":
+        return render_pipeline_history()
     return html.P("Select a tab.", className="text-muted")
 
 
@@ -1807,6 +1811,123 @@ def _load_asset_list():
 
 CRYPTO_ASSETS = _load_asset_list()
 STOCK_ASSETS  = ["AAPL", "AMZN", "GOOGL", "META", "MSFT", "TSLA"]
+
+
+def render_pipeline_history():
+    summary = get_run_summary()
+    runs_df = get_pipeline_runs(limit=50)
+
+    status_color_map = {
+        "success": "success",
+        "failed": "danger",
+        "running": "warning",
+    }
+
+    summary_cards = dbc.Row(
+        [
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(str(summary["total"]), className="card-title text-info text-center"),
+                html.P("Total Runs", className="card-text text-muted small text-center"),
+            ]), color="dark", outline=True), width=2),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(f"{summary['success_rate']}%", className="card-title text-success text-center"),
+                html.P("Success Rate", className="card-text text-muted small text-center"),
+            ]), color="dark", outline=True), width=2),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(str(summary["success"]), className="card-title text-success text-center"),
+                html.P("Successful", className="card-text text-muted small text-center"),
+            ]), color="dark", outline=True), width=2),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(str(summary["failed"]), className="card-title text-danger text-center"),
+                html.P("Failed", className="card-text text-muted small text-center"),
+            ]), color="dark", outline=True), width=2),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(str(summary["running"]), className="card-title text-warning text-center"),
+                html.P("Running", className="card-text text-muted small text-center"),
+            ]), color="dark", outline=True), width=2),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(summary["last_status"], className=f"card-title text-{status_color_map.get(summary['last_status'], 'muted')} text-center"),
+                html.P("Last Run Status", className="card-text text-muted small text-center"),
+            ]), color="dark", outline=True), width=2),
+        ],
+        className="mb-3",
+    )
+
+    last_error_block = None
+    if summary["last_error"]:
+        last_error_block = dbc.Alert(
+            f"Last failure: {summary['last_error']}",
+            color="danger",
+            className="mb-3",
+        )
+
+    if runs_df.empty:
+        table_block = dbc.Alert(
+            "No pipeline runs logged yet. The table is created on the first pipeline run.",
+            color="info",
+        )
+    else:
+        display_df = runs_df.copy()
+        if "start_time" in display_df.columns:
+            display_df["start_time"] = display_df["start_time"].astype(str)
+        if "end_time" in display_df.columns:
+            display_df["end_time"] = display_df["end_time"].astype(str)
+        if "duration_seconds" in display_df.columns:
+            display_df["duration_seconds"] = display_df["duration_seconds"].round(1)
+        if "models_retrained" in display_df.columns:
+            display_df["models_retrained"] = display_df["models_retrained"].fillna("").astype(str)
+
+        table_block = dash_table.DataTable(
+            columns=[{"name": c, "id": c} for c in display_df.columns],
+            data=display_df.to_dict("records"),
+            style_table={"overflowX": "auto"},
+            style_header={
+                "backgroundColor": "#1a1a1a",
+                "color": "#ccc",
+                "fontWeight": "bold",
+                "border": "1px solid #333",
+            },
+            style_cell={
+                "backgroundColor": "#111",
+                "color": "#ddd",
+                "textAlign": "left",
+                "padding": "6px",
+                "border": "1px solid #333",
+                "fontFamily": "monospace",
+                "fontSize": "12px",
+            },
+            style_data_conditional=[
+                {
+                    "if": {"filter_query": "{status} = 'success'"},
+                    "color": "#2ecc71",
+                },
+                {
+                    "if": {"filter_query": "{status} = 'failed'"},
+                    "color": "#e74c3c",
+                },
+                {
+                    "if": {"filter_query": "{status} = 'running'"},
+                    "color": "#f1c40f",
+                },
+            ],
+            page_size=15,
+            sort_action="native",
+        )
+
+    return dbc.Row(
+        dbc.Col(
+            [
+                html.H3("Pipeline Run History", className="text-light mb-2"),
+                html.P(
+                    "Every pipeline run is logged in a DuckDB table so the examiner can see the hourly cadence and success rate without opening the Prefect UI. Shows the last 50 runs.",
+                    className="text-muted small mb-3",
+                ),
+                summary_cards,
+                last_error_block,
+                table_block,
+            ]
+        )
+    )
 
 
 def _downsample_ohlcv(df, max_points):
