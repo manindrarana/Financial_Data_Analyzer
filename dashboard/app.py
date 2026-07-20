@@ -1919,7 +1919,7 @@ def render_pipeline_history():
             [
                 html.H3("Pipeline Run History", className="text-light mb-2"),
                 html.P(
-                    "Every pipeline run is logged in a DuckDB table so the examiner can see the hourly cadence and success rate without opening the Prefect UI. Shows the last 50 runs.",
+                    "Every pipeline run is logged in a DuckDB table so we can see the hourly cadence and success rate without opening the Prefect UI. Shows the last 50 runs.",
                     className="text-muted small mb-3",
                 ),
                 summary_cards,
