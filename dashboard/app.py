@@ -1873,7 +1873,8 @@ def render_pipeline_history():
         if "end_time" in display_df.columns:
             display_df["end_time"] = display_df["end_time"].astype(str)
         if "duration_seconds" in display_df.columns:
-            display_df["duration_seconds"] = pd.to_numeric(display_df["duration_seconds"], errors="coerce").round(1)
+            display_df["duration_seconds"] = (pd.to_numeric(display_df["duration_seconds"], errors="coerce") / 60).round(1)
+            display_df = display_df.rename(columns={"duration_seconds": "duration_mins"})
         if "models_retrained" in display_df.columns:
             display_df["models_retrained"] = display_df["models_retrained"].fillna("").astype(str)
 
