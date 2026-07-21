@@ -2,10 +2,10 @@
   "asset": "SOL",
   "interval": "1h",
   "asset_class": "crypto",
-  "train_end_date": "2025-08-08T21:00:00",
-  "train_rows": 33255,
-  "test_rows": 8314,
-  "test_accuracy": 0.5187635313928314,
+  "train_end_date": "2025-08-08T22:00:00",
+  "train_rows": 33256,
+  "test_rows": 8315,
+  "test_accuracy": 0.5196632591701744,
   "features": [
     "rsi_14",
     "roc_10",
@@ -46,7 +46,7 @@
     "eval_metric": "logloss",
     "random_state": 42
   },
-  "best_cv_score": 0.5266317595016701,
-  "trained_at": "2026-07-21T08:02:43.322636",
-  "mlflow_run_id": "ccc02df5cd1a4b56876d1a6c806db4ca"
+  "best_cv_score": 0.5263609280491108,
+  "trained_at": "2026-07-21T09:30:15.867721",
+  "mlflow_run_id": "8980a4419b334917a6ab8def429030e6"
 }
