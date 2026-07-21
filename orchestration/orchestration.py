@@ -84,6 +84,7 @@ def _init_pipeline_runs_table():
 def _start_pipeline_run() -> str:
     _init_pipeline_runs_table()
     run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{os.getpid()}"
+    start_time = datetime.now()
     trigger = "manual"
     if "--once" in sys.argv or "--now" in sys.argv:
         trigger = "--once"
@@ -98,9 +99,9 @@ def _start_pipeline_run() -> str:
                 (run_id, start_time, end_time, duration_seconds, status,
                  trigger, error_message, models_retrained, rows_fetched,
                  rows_cleaned, validator_failures, checkpoint_resumed)
-            VALUES (?, NULL, NULL, NULL, 'running', ?, NULL, NULL, NULL, NULL, NULL, ?)
+            VALUES (?, ?, NULL, NULL, 'running', ?, NULL, NULL, NULL, NULL, NULL, ?)
             """,
-            [run_id, trigger, checkpoint_resumed],
+            [run_id, start_time, trigger, checkpoint_resumed],
         )
     finally:
         conn.close()
