@@ -46,6 +46,8 @@ class PipelineModelTrainer:
         os.makedirs(self.crypto_dir, exist_ok=True)
         os.makedirs(self.stocks_dir, exist_ok=True)
 
+        self.last_retrained_models = []
+
         mlflow_uri = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
         mlflow.set_tracking_uri(mlflow_uri)
 
@@ -253,6 +255,7 @@ class PipelineModelTrainer:
                 pass
 
         self.logger.info(f"  Saved {asset}/{interval}: acc={test_acc:.4f}, train_rows={len(train_df)}")
+        self.last_retrained_models.append(f"{asset}_{interval}")
         return {"asset": asset, "interval": interval, "accuracy": round(test_acc, 4)}
 
     def run(self):
