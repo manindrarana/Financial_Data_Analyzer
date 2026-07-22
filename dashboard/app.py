@@ -888,7 +888,6 @@ def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, p
         from backtesting.metrics import run_metrics
 
         if bt_mode == "portfolio":
-            pred_mode = "pretrained" if False else "walk_forward"
             predictions_dict, _summaries = run_portfolio_backtest(
                 assets=portfolio_assets,
                 interval=interval,
@@ -897,7 +896,7 @@ def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, p
                 step_months=int(step_months),
                 date_start=date_start if date_start else None,
                 date_end=date_end if date_end else None,
-                mode=pred_mode,
+                mode="walk_forward",
                 asset_class=asset_class,
             )
 
@@ -1420,7 +1419,7 @@ def render_overview():
             className="text-muted small mb-3",
         ),
         freshness_row,
-        html.H5("Top Assets by Latest Price", className="text-light mb-2"),
+        html.H5("Most Recently Updated", className="text-light mb-2"),
         top5_row,
         html.Hr(),
         html.H5("Model Health Summary", className="text-light mb-2"),
