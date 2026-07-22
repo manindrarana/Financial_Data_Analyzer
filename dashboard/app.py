@@ -2799,7 +2799,8 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
     )
 
     range_label = f" ({range_value})" if range_value and range_value != "all" else " (all time)"
-    title = f"{asset_symbol}/USDT {interval_label}{range_label} -- XGBoost Direction Predictions"
+    symbol_label = f"{asset_symbol}/USDT" if asset_class == "crypto" else asset_symbol
+    title = f"{symbol_label} {interval_label}{range_label} -- XGBoost Direction Predictions"
 
     return html.Div([
         html.H3(title, className="text-light mb-3"),
