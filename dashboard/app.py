@@ -2773,7 +2773,7 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
             mode="gauge+number",
             value=oos_accuracy * 100,
             number={"suffix": "%", "font": {"size": 48, "color": "#17a2b8"}},
-            title={"text": "OOS Accuracy", "font": {"size": 14}},
+            title={"text": "Out-of-Sample Accuracy", "font": {"size": 14}},
             gauge={
                 "axis": {"range": [0, 100], "tickcolor": "#adb5bd"},
                 "bar": {"color": "#26a69a" if oos_accuracy >= 0.5 else "#ef5350"},
@@ -3379,7 +3379,7 @@ def build_confusion_matrix(asset_class, asset_symbol, interval):
 
     fig.update_layout(
         template="plotly_dark",
-        title=f"{asset_symbol} {interval} Confusion Matrix (Rows = actual, columns = predicted, OOS, n={total}, accuracy={accuracy:.1f}%)",
+        title=f"{asset_symbol} {interval} Confusion Matrix (Rows = actual, columns = predicted, out-of-sample, n={total}, accuracy={accuracy:.1f}%)",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         height=400,
