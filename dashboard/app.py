@@ -2647,7 +2647,20 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
                     ]),
                     color="dark", outline=True,
                 ),
-                width=12,
+                width=6,
+            ),
+            dbc.Col(
+                dbc.Card(
+                    dbc.CardBody([
+                        html.H5(
+                            f"{up_pred_pct:.1f}% UP / {100 - up_pred_pct:.1f}% DOWN",
+                            className="card-title text-info",
+                        ),
+                        html.P("Predicted Direction Split", className="card-text text-muted small"),
+                    ]),
+                    color="dark", outline=True,
+                ),
+                width=6,
             ),
         ],
         className="mb-3",
