@@ -2,10 +2,10 @@
   "asset": "BTC",
   "interval": "1h",
   "asset_class": "crypto",
-  "train_end_date": "2025-04-17T05:00:00",
-  "train_rows": 44173,
-  "test_rows": 11044,
-  "test_accuracy": 0.5264396957624049,
+  "train_end_date": "2025-04-18T00:00:00",
+  "train_rows": 44192,
+  "test_rows": 11048,
+  "test_accuracy": 0.5267921795800145,
   "features": [
     "rsi_14",
     "roc_10",
@@ -46,7 +46,7 @@
     "eval_metric": "logloss",
     "random_state": 42
   },
-  "best_cv_score": 0.5483827126936667,
-  "trained_at": "2026-07-21T09:29:40.293755",
-  "mlflow_run_id": "c6aa873aa7f341069f618898b658c77f"
+  "best_cv_score": 0.5480573291672327,
+  "trained_at": "2026-07-22T09:02:34.003136",
+  "mlflow_run_id": "bf3358bc25434bf19609debf0c8e1c98"
 }
