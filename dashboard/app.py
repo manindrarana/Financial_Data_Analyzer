@@ -3555,5 +3555,85 @@ def build_confidence_histogram(asset_class, asset_symbol, interval):
     return dcc.Graph(figure=fig, config={"displayModeBar": False})
 
 
+@app.callback(
+    dash.Output("ct-chart-container", "children"),
+    dash.Input("ch-class-dropdown", "value"),
+    dash.Input("ch-asset-dropdown", "value"),
+    dash.Input("ch-interval-dropdown", "value"),
+)
+def build_confidence_timeline(asset_class, asset_symbol, interval):
+    if not asset_symbol or not interval:
+        return dbc.Alert("Select an asset and interval.", color="info")
+
+    try:
+        df = run_prediction(asset_symbol, interval, asset_class)
+    except FileNotFoundError:
+        return dbc.Alert(
+            f"No trained model for {asset_symbol} @ {interval}. Train one first.",
+            color="warning",
+        )
+
+    if df is None or df.empty:
+        return dbc.Alert(
+            f"No prediction data for {asset_symbol} @ {interval}.",
+            color="warning",
+        )
+
+    oos = df[df["is_oos"]] if "is_oos" in df.columns else df
+    oos = oos[oos["actual_direction"].notna()]
+    if oos.empty:
+        oos = df[df["actual_direction"].notna()]
+
+    if oos.empty:
+        return dbc.Alert("No valid predictions with known outcomes.", color="warning")
+
+    correct_mask = oos["prediction"] == oos["actual_direction"]
+    correct = oos[correct_mask]
+    wrong = oos[~correct_mask]
+
+    total = len(oos)
+    n_correct = len(correct)
+    accuracy = n_correct / total * 100 if total else 0
+
+    traces = []
+    if not correct.empty:
+        traces.append(go.Scatter(
+            x=correct["date"],
+            y=correct["confidence"],
+            mode="markers",
+            name=f"Correct ({n_correct})",
+            marker=dict(color="#27ae60", size=7),
+            hovertemplate="Date: %{x}<br>Confidence: %{y:.2f}<br>Correct<extra></extra>",
+        ))
+    if not wrong.empty:
+        traces.append(go.Scatter(
+            x=wrong["date"],
+            y=wrong["confidence"],
+            mode="markers",
+            name=f"Wrong ({len(wrong)})",
+            marker=dict(color="#c0392b", size=7),
+            hovertemplate="Date: %{x}<br>Confidence: %{y:.2f}<br>Wrong<extra></extra>",
+        ))
+
+    if not traces:
+        return dbc.Alert("No prediction data to display.", color="warning")
+
+    fig = go.Figure(traces)
+    fig.add_hline(y=0.5, line_dash="dash", line_color="white",
+                  annotation_text="coin flip", annotation_position="top left")
+    fig.update_layout(
+        template="plotly_dark",
+        title=f"{asset_symbol} {interval} Confidence Over Time (out-of-sample, n={total}, accuracy={accuracy:.1f}%)",
+        xaxis_title="Date",
+        yaxis_title="Confidence",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=400,
+        margin=dict(l=60, r=40, t=60, b=40),
+    )
+
+    return dcc.Graph(figure=fig, config={"displayModeBar": False})
+
+
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=8050)
