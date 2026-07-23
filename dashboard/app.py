@@ -1673,6 +1673,59 @@ def render_model_insights():
             className="text-muted small mb-3",
         ),
         build_accuracy_chart(),
+        html.Hr(className="my-4"),
+        html.H3("Prediction Confidence", className="text-light mb-2"),
+        html.P(
+            "Shows how confident the model was for each prediction and whether that confidence was justified.",
+            className="text-muted small mb-3",
+        ),
+        dbc.Row([
+            dbc.Col([
+                html.Label("Asset Class", className="text-muted small mb-1"),
+                dcc.Dropdown(
+                    id="ch-class-dropdown",
+                    options=[
+                        {"label": "Crypto", "value": "crypto"},
+                        {"label": "Stocks", "value": "stocks"},
+                    ],
+                    value="crypto",
+                    clearable=False,
+                    style={"color": "#000"},
+                ),
+            ], width=3),
+            dbc.Col([
+                html.Label("Asset", className="text-muted small mb-1"),
+                dcc.Dropdown(
+                    id="ch-asset-dropdown",
+                    clearable=False,
+                    style={"color": "#000"},
+                ),
+            ], width=3),
+            dbc.Col([
+                html.Label("Interval", className="text-muted small mb-1"),
+                dcc.Dropdown(
+                    id="ch-interval-dropdown",
+                    clearable=False,
+                    style={"color": "#000"},
+                ),
+            ], width=3),
+        ], className="mb-3"),
+        dcc.Loading(
+            id="ch-loading",
+            type="circle",
+            children=html.Div(id="ch-chart-container"),
+        ),
+        html.Hr(className="my-4"),
+        html.H3("Confidence Timeline", className="text-light mb-2"),
+        html.P(
+            "Plots each prediction over time so you can see when the model was confident and whether it was right.",
+            className="text-muted small mb-3",
+        ),
+        dcc.Loading(
+            id="ct-loading",
+            type="circle",
+            children=html.Div(id="ct-chart-container"),
+        ),
     ])
 
 
@@ -3386,6 +3439,197 @@ def build_confusion_matrix(asset_class, asset_symbol, interval):
         margin=dict(l=80, r=40, t=60, b=40),
         xaxis=dict(title="Predicted"),
         yaxis=dict(title="Actual", autorange="reversed"),
+    )
+
+    return dcc.Graph(figure=fig, config={"displayModeBar": False})
+
+
+@app.callback(
+    dash.Output("ch-asset-dropdown", "options"),
+    dash.Output("ch-asset-dropdown", "value"),
+    dash.Input("ch-class-dropdown", "value"),
+)
+def update_ch_asset_dropdown(asset_class):
+    if asset_class == "crypto":
+        assets = CRYPTO_ASSETS
+        default = "BTC" if "BTC" in assets else (assets[0] if assets else None)
+    else:
+        assets = STOCK_ASSETS
+        default = assets[0] if assets else None
+    options = [{"label": a, "value": a} for a in assets]
+    return options, default
+
+
+@app.callback(
+    dash.Output("ch-interval-dropdown", "options"),
+    dash.Output("ch-interval-dropdown", "value"),
+    dash.Input("ch-class-dropdown", "value"),
+)
+def update_ch_interval_dropdown(asset_class):
+    if asset_class == "crypto":
+        intervals = PRED_CRYPTO_INTERVALS
+        default = "1h"
+    else:
+        intervals = PRED_STOCK_INTERVALS
+        default = "1h"
+    options = [{"label": INTERVAL_LABELS.get(iv, iv), "value": iv} for iv in intervals]
+    return options, default
+
+
+@app.callback(
+    dash.Output("ch-chart-container", "children"),
+    dash.Input("ch-class-dropdown", "value"),
+    dash.Input("ch-asset-dropdown", "value"),
+    dash.Input("ch-interval-dropdown", "value"),
+)
+def build_confidence_histogram(asset_class, asset_symbol, interval):
+    if not asset_symbol or not interval:
+        return dbc.Alert("Select an asset and interval.", color="info")
+
+    try:
+        df = run_prediction(asset_symbol, interval, asset_class)
+    except FileNotFoundError:
+        return dbc.Alert(
+            f"No trained model for {asset_symbol} @ {interval}. Train one first.",
+            color="warning",
+        )
+
+    if df is None or df.empty:
+        return dbc.Alert(
+            f"No prediction data for {asset_symbol} @ {interval}.",
+            color="warning",
+        )
+
+    oos = df[df["is_oos"]] if "is_oos" in df.columns else df
+    oos = oos[oos["actual_direction"].notna()]
+    if oos.empty:
+        oos = df[df["actual_direction"].notna()]
+
+    if oos.empty:
+        return dbc.Alert("No valid predictions with known outcomes.", color="warning")
+
+    correct_mask = oos["prediction"] == oos["actual_direction"]
+    correct_conf = oos[correct_mask]["confidence"]
+    wrong_conf = oos[~correct_mask]["confidence"]
+
+    total = len(oos)
+    n_correct = len(correct_conf)
+    n_wrong = len(wrong_conf)
+    accuracy = n_correct / total * 100 if total else 0
+
+    traces = []
+    if not correct_conf.empty:
+        traces.append(go.Histogram(
+            x=correct_conf,
+            name=f"Correct ({n_correct})",
+            marker_color="#27ae60",
+            opacity=0.6,
+            nbinsx=20,
+        ))
+    if not wrong_conf.empty:
+        traces.append(go.Histogram(
+            x=wrong_conf,
+            name=f"Wrong ({n_wrong})",
+            marker_color="#c0392b",
+            opacity=0.6,
+            nbinsx=20,
+        ))
+
+    if not traces:
+        return dbc.Alert("No prediction data to display.", color="warning")
+
+    fig = go.Figure(traces)
+    fig.update_layout(
+        barmode="overlay",
+        template="plotly_dark",
+        title=f"{asset_symbol} {interval} Prediction Confidence (out-of-sample, n={total}, accuracy={accuracy:.1f}%)",
+        xaxis_title="Confidence",
+        yaxis_title="Count",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=400,
+        margin=dict(l=60, r=40, t=60, b=40),
+        bargap=0.05,
+    )
+
+    return dcc.Graph(figure=fig, config={"displayModeBar": False})
+
+
+@app.callback(
+    dash.Output("ct-chart-container", "children"),
+    dash.Input("ch-class-dropdown", "value"),
+    dash.Input("ch-asset-dropdown", "value"),
+    dash.Input("ch-interval-dropdown", "value"),
+)
+def build_confidence_timeline(asset_class, asset_symbol, interval):
+    if not asset_symbol or not interval:
+        return dbc.Alert("Select an asset and interval.", color="info")
+
+    try:
+        df = run_prediction(asset_symbol, interval, asset_class)
+    except FileNotFoundError:
+        return dbc.Alert(
+            f"No trained model for {asset_symbol} @ {interval}. Train one first.",
+            color="warning",
+        )
+
+    if df is None or df.empty:
+        return dbc.Alert(
+            f"No prediction data for {asset_symbol} @ {interval}.",
+            color="warning",
+        )
+
+    oos = df[df["is_oos"]] if "is_oos" in df.columns else df
+    oos = oos[oos["actual_direction"].notna()]
+    if oos.empty:
+        oos = df[df["actual_direction"].notna()]
+
+    if oos.empty:
+        return dbc.Alert("No valid predictions with known outcomes.", color="warning")
+
+    correct_mask = oos["prediction"] == oos["actual_direction"]
+    correct = oos[correct_mask]
+    wrong = oos[~correct_mask]
+
+    total = len(oos)
+    n_correct = len(correct)
+    accuracy = n_correct / total * 100 if total else 0
+
+    traces = []
+    if not correct.empty:
+        traces.append(go.Scatter(
+            x=correct["date"],
+            y=correct["confidence"],
+            mode="markers",
+            name=f"Correct ({n_correct})",
+            marker=dict(color="#27ae60", size=7),
+            hovertemplate="Date: %{x}<br>Confidence: %{y:.2f}<br>Correct<extra></extra>",
+        ))
+    if not wrong.empty:
+        traces.append(go.Scatter(
+            x=wrong["date"],
+            y=wrong["confidence"],
+            mode="markers",
+            name=f"Wrong ({len(wrong)})",
+            marker=dict(color="#c0392b", size=7),
+            hovertemplate="Date: %{x}<br>Confidence: %{y:.2f}<br>Wrong<extra></extra>",
+        ))
+
+    if not traces:
+        return dbc.Alert("No prediction data to display.", color="warning")
+
+    fig = go.Figure(traces)
+    fig.add_hline(y=0.5, line_dash="dash", line_color="white",
+                  annotation_text="coin flip", annotation_position="top left")
+    fig.update_layout(
+        template="plotly_dark",
+        title=f"{asset_symbol} {interval} Confidence Over Time (out-of-sample, n={total}, accuracy={accuracy:.1f}%)",
+        xaxis_title="Date",
+        yaxis_title="Confidence",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=400,
+        margin=dict(l=60, r=40, t=60, b=40),
     )
 
     return dcc.Graph(figure=fig, config={"displayModeBar": False})
