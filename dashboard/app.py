@@ -1673,6 +1673,48 @@ def render_model_insights():
             className="text-muted small mb-3",
         ),
         build_accuracy_chart(),
+        html.Hr(className="my-4"),
+        html.H3("Prediction Confidence", className="text-light mb-2"),
+        html.P(
+            "Shows how confident the model was for each prediction and whether that confidence was justified.",
+            className="text-muted small mb-3",
+        ),
+        dbc.Row([
+            dbc.Col([
+                html.Label("Asset Class", className="text-muted small mb-1"),
+                dcc.Dropdown(
+                    id="ch-class-dropdown",
+                    options=[
+                        {"label": "Crypto", "value": "crypto"},
+                        {"label": "Stocks", "value": "stocks"},
+                    ],
+                    value="crypto",
+                    clearable=False,
+                    style={"color": "#000"},
+                ),
+            ], width=3),
+            dbc.Col([
+                html.Label("Asset", className="text-muted small mb-1"),
+                dcc.Dropdown(
+                    id="ch-asset-dropdown",
+                    clearable=False,
+                    style={"color": "#000"},
+                ),
+            ], width=3),
+            dbc.Col([
+                html.Label("Interval", className="text-muted small mb-1"),
+                dcc.Dropdown(
+                    id="ch-interval-dropdown",
+                    clearable=False,
+                    style={"color": "#000"},
+                ),
+            ], width=3),
+        ], className="mb-3"),
+        dcc.Loading(
+            id="ch-loading",
+            type="circle",
+            children=html.Div(id="ch-chart-container"),
+        ),
     ])
 
 
