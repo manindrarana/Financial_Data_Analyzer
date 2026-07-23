@@ -1715,6 +1715,17 @@ def render_model_insights():
             type="circle",
             children=html.Div(id="ch-chart-container"),
         ),
+        html.Hr(className="my-4"),
+        html.H3("Confidence Timeline", className="text-light mb-2"),
+        html.P(
+            "Plots each prediction over time so you can see when the model was confident and whether it was right.",
+            className="text-muted small mb-3",
+        ),
+        dcc.Loading(
+            id="ct-loading",
+            type="circle",
+            children=html.Div(id="ct-chart-container"),
+        ),
     ])
 
 
