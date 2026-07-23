@@ -674,3 +674,116 @@ class TestExplorerTableQuery:
 
         text = _collect_text(table)
         assert any("is empty" in t for t in text)
+
+
+class TestConfidenceHistogram:
+    def _fake_predictions(self):
+        return pd.DataFrame({
+            "date": pd.date_range("2024-01-01", periods=10, freq="1h"),
+            "close": [100, 101, 102, 101, 103, 104, 103, 105, 106, 105],
+            "prediction": [1, 1, 1, 0, 1, 1, 0, 1, 0, 1],
+            "confidence": [0.6, 0.7, 0.55, 0.65, 0.6, 0.7, 0.55, 0.65, 0.6, 0.7],
+            "actual_direction": [1, 1, 0, 0, 1, 1, 0, 1, 1, 0],
+            "is_oos": [True] * 10,
+        })
+
+    def test_split_by_correctness(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
+            result = dashboard_app.build_confidence_histogram("crypto", "BTC", "1h")
+
+        fig = result.figure
+        names = [t.name for t in fig.data]
+        assert any("Correct" in n for n in names)
+        assert any("Wrong" in n for n in names)
+
+    def test_correct_trace_green_wrong_trace_red(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
+            result = dashboard_app.build_confidence_histogram("crypto", "BTC", "1h")
+
+        fig = result.figure
+        for trace in fig.data:
+            if "Correct" in trace.name:
+                assert trace.marker.color == "#27ae60"
+            elif "Wrong" in trace.name:
+                assert trace.marker.color == "#c0392b"
+
+    def test_correct_counts_match_data(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
+            result = dashboard_app.build_confidence_histogram("crypto", "BTC", "1h")
+
+        fig = result.figure
+        df = self._fake_predictions()
+        expected_correct = int((df["prediction"] == df["actual_direction"]).sum())
+        expected_wrong = int((df["prediction"] != df["actual_direction"]).sum())
+        correct_trace = [t for t in fig.data if "Correct" in t.name][0]
+        wrong_trace = [t for t in fig.data if "Wrong" in t.name][0]
+        assert f"Correct ({expected_correct})" == correct_trace.name
+        assert f"Wrong ({expected_wrong})" == wrong_trace.name
+
+    def test_title_includes_asset_interval_and_accuracy(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
+            result = dashboard_app.build_confidence_histogram("crypto", "BTC", "1h")
+
+        fig = result.figure
+        title = fig.layout.title.text
+        assert "BTC" in title
+        assert "1h" in title
+        assert "n=10" in title
+
+    def test_no_model_shows_warning(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", side_effect=FileNotFoundError):
+            result = dashboard_app.build_confidence_histogram("crypto", "BTC", "1h")
+
+        text = _collect_text(result)
+        assert any("No trained model" in t for t in text)
+
+    def test_no_data_shows_warning(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", return_value=None):
+            result = dashboard_app.build_confidence_histogram("crypto", "BTC", "1h")
+
+        text = _collect_text(result)
+        assert any("No prediction data" in t for t in text)
+
+    def test_only_oos_data_used(self):
+        from dashboard import app as dashboard_app
+
+        df = self._fake_predictions()
+        df["is_oos"] = [True] * 5 + [False] * 5
+        with patch.object(dashboard_app, "run_prediction", return_value=df):
+            result = dashboard_app.build_confidence_histogram("crypto", "BTC", "1h")
+
+        fig = result.figure
+        title = fig.layout.title.text
+        assert "n=5" in title
+
+    def test_works_for_stocks(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
+            result = dashboard_app.build_confidence_histogram("stocks", "AAPL", "1h")
+
+        fig = result.figure
+        title = fig.layout.title.text
+        assert "AAPL" in title
+        assert "1h" in title
+
+    def test_barmode_overlay(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
+            result = dashboard_app.build_confidence_histogram("crypto", "BTC", "1h")
+
+        fig = result.figure
+        assert fig.layout.barmode == "overlay"
