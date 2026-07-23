@@ -4,8 +4,8 @@
   "asset_class": "crypto",
   "train_end_date": "2025-06-28T18:00:00",
   "train_rows": 37404,
-  "test_rows": 9351,
-  "test_accuracy": 0.5251844722489574,
+  "test_rows": 9352,
+  "test_accuracy": 0.5251283147989735,
   "features": [
     "rsi_14",
     "roc_10",
@@ -47,6 +47,6 @@
     "random_state": 42
   },
   "best_cv_score": 0.5419743178170144,
-  "trained_at": "2026-07-23T09:22:51.380001",
-  "mlflow_run_id": "0732803636704a63bfce0b51d90965ae"
+  "trained_at": "2026-07-23T10:22:50.153012",
+  "mlflow_run_id": "26b1b8b0a42444559cd80cf23c8fab9a"
 }
