@@ -787,3 +787,122 @@ class TestConfidenceHistogram:
 
         fig = result.figure
         assert fig.layout.barmode == "overlay"
+
+
+class TestConfidenceTimeline:
+    def _fake_predictions(self):
+        return pd.DataFrame({
+            "date": pd.date_range("2024-01-01", periods=10, freq="1h"),
+            "close": [100, 101, 102, 101, 103, 104, 103, 105, 106, 105],
+            "prediction": [1, 1, 1, 0, 1, 1, 0, 1, 0, 1],
+            "confidence": [0.6, 0.7, 0.55, 0.65, 0.6, 0.7, 0.55, 0.65, 0.6, 0.7],
+            "actual_direction": [1, 1, 0, 0, 1, 1, 0, 1, 1, 0],
+            "is_oos": [True] * 10,
+        })
+
+    def test_split_by_correctness(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
+            result = dashboard_app.build_confidence_timeline("crypto", "BTC", "1h")
+
+        fig = result.figure
+        names = [t.name for t in fig.data]
+        assert any("Correct" in n for n in names)
+        assert any("Wrong" in n for n in names)
+
+    def test_correct_green_wrong_red(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
+            result = dashboard_app.build_confidence_timeline("crypto", "BTC", "1h")
+
+        fig = result.figure
+        for trace in fig.data:
+            if "Correct" in trace.name:
+                assert trace.marker.color == "#27ae60"
+            elif "Wrong" in trace.name:
+                assert trace.marker.color == "#c0392b"
+
+    def test_x_axis_is_date(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
+            result = dashboard_app.build_confidence_timeline("crypto", "BTC", "1h")
+
+        fig = result.figure
+        assert fig.layout.xaxis.title.text == "Date"
+        correct_trace = [t for t in fig.data if "Correct" in t.name][0]
+        assert len(correct_trace.x) == 7
+
+    def test_y_axis_is_confidence(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
+            result = dashboard_app.build_confidence_timeline("crypto", "BTC", "1h")
+
+        fig = result.figure
+        assert fig.layout.yaxis.title.text == "Confidence"
+
+    def test_coin_flip_line_at_0_5(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
+            result = dashboard_app.build_confidence_timeline("crypto", "BTC", "1h")
+
+        fig = result.figure
+        shapes = fig.layout.shapes
+        assert any(s.y0 == 0.5 and s.y1 == 0.5 for s in shapes)
+
+    def test_title_includes_asset_interval_and_n(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
+            result = dashboard_app.build_confidence_timeline("crypto", "BTC", "1h")
+
+        fig = result.figure
+        title = fig.layout.title.text
+        assert "BTC" in title
+        assert "1h" in title
+        assert "n=10" in title
+
+    def test_no_model_shows_warning(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", side_effect=FileNotFoundError):
+            result = dashboard_app.build_confidence_timeline("crypto", "BTC", "1h")
+
+        text = _collect_text(result)
+        assert any("No trained model" in t for t in text)
+
+    def test_no_data_shows_warning(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", return_value=None):
+            result = dashboard_app.build_confidence_timeline("crypto", "BTC", "1h")
+
+        text = _collect_text(result)
+        assert any("No prediction data" in t for t in text)
+
+    def test_only_oos_data_used(self):
+        from dashboard import app as dashboard_app
+
+        df = self._fake_predictions()
+        df["is_oos"] = [True] * 5 + [False] * 5
+        with patch.object(dashboard_app, "run_prediction", return_value=df):
+            result = dashboard_app.build_confidence_timeline("crypto", "BTC", "1h")
+
+        fig = result.figure
+        title = fig.layout.title.text
+        assert "n=5" in title
+
+    def test_works_for_stocks(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
+            result = dashboard_app.build_confidence_timeline("stocks", "AAPL", "1h")
+
+        fig = result.figure
+        title = fig.layout.title.text
+        assert "AAPL" in title
+        assert "1h" in title
