@@ -191,6 +191,7 @@ def run_metrics(
     trades_df=None,
     equity_df=None,
     interval=None,
+    asset_class=None,
 ):
     if trades_df is None or equity_df is None:
         if trades_path is None:
