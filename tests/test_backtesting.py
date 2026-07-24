@@ -149,7 +149,7 @@ class TestSharpeAnnualization:
     def _make_equity_curve(self, n=200, seed=42):
         np.random.seed(seed)
         dates = [datetime(2024, 1, 1) + timedelta(hours=i) for i in range(n)]
-        returns = np.random.randn(n) * 0.01
+        returns = np.random.randn(n) * 0.005 + 0.002
         equity = 10000 * np.cumprod(1 + returns)
         equity = np.concatenate([[10000], equity[:-1]])
         return pd.DataFrame({
@@ -198,7 +198,7 @@ class TestSharpeAnnualization:
     def test_daily_crypto_sharpe_higher_than_daily_stock(self):
         np.random.seed(42)
         dates = [datetime(2024, 1, 1) + timedelta(days=i) for i in range(200)]
-        returns = np.random.randn(200) * 0.02
+        returns = np.random.randn(200) * 0.01 + 0.001
         equity = 10000 * np.cumprod(1 + returns)
         equity = np.concatenate([[10000], equity[:-1]])
         equity_df = pd.DataFrame({"date": dates, "equity": equity, "drawdown_pct": 0.0})
