@@ -5,44 +5,63 @@ import pandas as pd
 
 OUTPUT_DIR = os.path.join("backtesting", "results")
 
-ANNUALIZATION_FACTORS = {
-    "1h": 252 * 24,
-    "4h": 252 * 6,
-    "1d": 252,
+CRYPTO_TRADING_DAYS = 365
+STOCK_TRADING_DAYS = 252
+
+CRYPTO_ANNUALIZATION_FACTORS = {
+    "1h": CRYPTO_TRADING_DAYS * 24,
+    "4h": CRYPTO_TRADING_DAYS * 6,
+    "1d": CRYPTO_TRADING_DAYS,
     "1wk": 52,
     "1mo": 12,
     "W": 52,
     "M": 12,
-    "60": 252 * 24,
-    "240": 252 * 6,
-    "D": 252,
+    "60": CRYPTO_TRADING_DAYS * 24,
+    "240": CRYPTO_TRADING_DAYS * 6,
+    "D": CRYPTO_TRADING_DAYS,
 }
 
+STOCK_ANNUALIZATION_FACTORS = {
+    "1h": STOCK_TRADING_DAYS * 24,
+    "4h": STOCK_TRADING_DAYS * 6,
+    "1d": STOCK_TRADING_DAYS,
+    "1wk": 52,
+    "1mo": 12,
+    "W": 52,
+    "M": 12,
+    "60": STOCK_TRADING_DAYS * 24,
+    "240": STOCK_TRADING_DAYS * 6,
+    "D": STOCK_TRADING_DAYS,
+}
 
-def _infer_periods_per_year(equity_df):
+ANNUALIZATION_FACTORS = STOCK_ANNUALIZATION_FACTORS
+
+
+def _infer_periods_per_year(equity_df, asset_class=None):
     """Infer the annualization factor from the median time delta between rows.
 
-    Falls back to 252 (daily) when detection is ambiguous.
+    Falls back to 252 (daily stocks) or 365 (daily crypto) when detection is ambiguous.
     """
+    base_days = CRYPTO_TRADING_DAYS if asset_class == "crypto" else STOCK_TRADING_DAYS
     dates = pd.to_datetime(equity_df["date"]).sort_values()
     deltas = dates.diff().dropna()
     if deltas.empty:
-        return 252
+        return base_days
     median_seconds = deltas.median().total_seconds()
     hours = median_seconds / 3600
     if hours <= 1.5:
-        return 252 * 24
+        return base_days * 24
     elif hours <= 5:
-        return 252 * 6
+        return base_days * 6
     elif hours <= 30:
-        return 252
+        return base_days
     elif hours <= 200:
         return 52
     else:
         return 12
 
 
-def compute_metrics(trades_df, equity_df, initial_capital=10000, interval=None):
+def compute_metrics(trades_df, equity_df, initial_capital=10000, interval=None, asset_class=None):
     if trades_df.empty or equity_df.empty:
         return {
             "total_return_pct": 0.0,
@@ -85,12 +104,14 @@ def compute_metrics(trades_df, equity_df, initial_capital=10000, interval=None):
 
     period_returns = equity_df["period_return"].dropna()
 
+    factors = CRYPTO_ANNUALIZATION_FACTORS if asset_class == "crypto" else STOCK_ANNUALIZATION_FACTORS
+
     if interval is not None:
-        periods_per_year = ANNUALIZATION_FACTORS.get(interval)
+        periods_per_year = factors.get(interval)
         if periods_per_year is None:
-            periods_per_year = _infer_periods_per_year(equity_df)
+            periods_per_year = _infer_periods_per_year(equity_df, asset_class=asset_class)
     else:
-        periods_per_year = _infer_periods_per_year(equity_df)
+        periods_per_year = _infer_periods_per_year(equity_df, asset_class=asset_class)
 
     if len(period_returns) > 1 and period_returns.std() > 0:
         sharpe_ratio = (period_returns.mean() / period_returns.std()) * np.sqrt(periods_per_year)
@@ -170,6 +191,7 @@ def run_metrics(
     trades_df=None,
     equity_df=None,
     interval=None,
+    asset_class=None,
 ):
     if trades_df is None or equity_df is None:
         if trades_path is None:
@@ -189,7 +211,7 @@ def run_metrics(
     else:
         print(f"\n=== Performance Metrics ===\n")
 
-    metrics = compute_metrics(trades_df, equity_df, initial_capital, interval=interval)
+    metrics = compute_metrics(trades_df, equity_df, initial_capital, interval=interval, asset_class=asset_class)
 
     print(f"   Total Return:     {metrics['total_return_pct']:+.2f}%")
     print(f"   Total PnL:        ${metrics['total_pnl']:+,.2f}")

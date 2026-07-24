@@ -8,7 +8,14 @@ import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
 from backtesting.strategy import simulate_trades, simulate_portfolio_trades
-from backtesting.metrics import compute_metrics, ANNUALIZATION_FACTORS
+from backtesting.metrics import (
+    compute_metrics,
+    ANNUALIZATION_FACTORS,
+    CRYPTO_ANNUALIZATION_FACTORS,
+    STOCK_ANNUALIZATION_FACTORS,
+    CRYPTO_TRADING_DAYS,
+    STOCK_TRADING_DAYS,
+)
 
 
 def _make_predictions(n=200, seed=42):
@@ -110,14 +117,95 @@ class TestComputeMetrics:
 
 
 class TestAnnualizationFactors:
-    def test_hourly_factor(self):
-        assert ANNUALIZATION_FACTORS["1h"] == 252 * 24
+    def test_stock_hourly_factor(self):
+        assert STOCK_ANNUALIZATION_FACTORS["1h"] == 252 * 24
 
-    def test_daily_factor(self):
-        assert ANNUALIZATION_FACTORS["1d"] == 252
+    def test_stock_daily_factor(self):
+        assert STOCK_ANNUALIZATION_FACTORS["1d"] == 252
 
-    def test_weekly_factor(self):
-        assert ANNUALIZATION_FACTORS["1wk"] == 52
+    def test_stock_weekly_factor(self):
+        assert STOCK_ANNUALIZATION_FACTORS["1wk"] == 52
+
+    def test_crypto_hourly_factor(self):
+        assert CRYPTO_ANNUALIZATION_FACTORS["1h"] == 365 * 24
+
+    def test_crypto_daily_factor(self):
+        assert CRYPTO_ANNUALIZATION_FACTORS["1d"] == 365
+
+    def test_crypto_weekly_factor(self):
+        assert CRYPTO_ANNUALIZATION_FACTORS["1wk"] == 52
+
+    def test_backward_compat_alias(self):
+        assert ANNUALIZATION_FACTORS is STOCK_ANNUALIZATION_FACTORS
+
+    def test_crypto_uses_more_days_than_stock(self):
+        assert CRYPTO_TRADING_DAYS == 365
+        assert STOCK_TRADING_DAYS == 252
+        assert CRYPTO_ANNUALIZATION_FACTORS["1h"] > STOCK_ANNUALIZATION_FACTORS["1h"]
+        assert CRYPTO_ANNUALIZATION_FACTORS["1d"] > STOCK_ANNUALIZATION_FACTORS["1d"]
+
+
+class TestSharpeAnnualization:
+    def _make_equity_curve(self, n=200, seed=42):
+        np.random.seed(seed)
+        dates = [datetime(2024, 1, 1) + timedelta(hours=i) for i in range(n)]
+        returns = np.random.randn(n) * 0.005 + 0.002
+        equity = 10000 * np.cumprod(1 + returns)
+        equity = np.concatenate([[10000], equity[:-1]])
+        return pd.DataFrame({
+            "date": dates,
+            "equity": equity,
+            "drawdown_pct": 0.0,
+        })
+
+    def _make_trades(self):
+        return pd.DataFrame([
+            {"entry_time": datetime(2024, 1, 1), "exit_time": datetime(2024, 1, 2),
+             "pnl": 10.0, "exit_reason": "take_profit"},
+        ])
+
+    def test_crypto_sharpe_higher_than_stock_same_interval(self):
+        equity = self._make_equity_curve()
+        trades = self._make_trades()
+        crypto_metrics = compute_metrics(trades, equity, interval="1h", asset_class="crypto")
+        stock_metrics = compute_metrics(trades, equity, interval="1h", asset_class="stock")
+        assert crypto_metrics["sharpe_ratio"] > stock_metrics["sharpe_ratio"]
+
+    def test_crypto_stock_sharpe_ratio_matches_trading_days(self):
+        equity = self._make_equity_curve()
+        trades = self._make_trades()
+        crypto_metrics = compute_metrics(trades, equity, interval="1h", asset_class="crypto")
+        stock_metrics = compute_metrics(trades, equity, interval="1h", asset_class="stock")
+        if stock_metrics["sharpe_ratio"] != 0:
+            ratio = crypto_metrics["sharpe_ratio"] / stock_metrics["sharpe_ratio"]
+            expected = np.sqrt(CRYPTO_TRADING_DAYS / STOCK_TRADING_DAYS)
+            assert abs(ratio - expected) < 0.01
+
+    def test_default_asset_class_is_stock(self):
+        equity = self._make_equity_curve()
+        trades = self._make_trades()
+        default_metrics = compute_metrics(trades, equity, interval="1h")
+        stock_metrics = compute_metrics(trades, equity, interval="1h", asset_class="stock")
+        assert default_metrics["sharpe_ratio"] == stock_metrics["sharpe_ratio"]
+
+    def test_none_asset_class_uses_stock(self):
+        equity = self._make_equity_curve()
+        trades = self._make_trades()
+        none_metrics = compute_metrics(trades, equity, interval="1h", asset_class=None)
+        stock_metrics = compute_metrics(trades, equity, interval="1h", asset_class="stock")
+        assert none_metrics["sharpe_ratio"] == stock_metrics["sharpe_ratio"]
+
+    def test_daily_crypto_sharpe_higher_than_daily_stock(self):
+        np.random.seed(42)
+        dates = [datetime(2024, 1, 1) + timedelta(days=i) for i in range(200)]
+        returns = np.random.randn(200) * 0.01 + 0.001
+        equity = 10000 * np.cumprod(1 + returns)
+        equity = np.concatenate([[10000], equity[:-1]])
+        equity_df = pd.DataFrame({"date": dates, "equity": equity, "drawdown_pct": 0.0})
+        trades = self._make_trades()
+        crypto_metrics = compute_metrics(trades, equity_df, interval="1d", asset_class="crypto")
+        stock_metrics = compute_metrics(trades, equity_df, interval="1d", asset_class="stock")
+        assert crypto_metrics["sharpe_ratio"] > stock_metrics["sharpe_ratio"]
 
 
 class TestTransactionCosts:

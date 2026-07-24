@@ -965,6 +965,7 @@ def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, p
             initial_capital=float(capital),
             return_data=True,
             interval=interval,
+            asset_class=asset_class,
         )
 
         set_progress(dbc.Alert("Rendering results...", color="success"))
