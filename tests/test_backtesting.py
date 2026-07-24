@@ -8,7 +8,14 @@ import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
 from backtesting.strategy import simulate_trades, simulate_portfolio_trades
-from backtesting.metrics import compute_metrics, ANNUALIZATION_FACTORS
+from backtesting.metrics import (
+    compute_metrics,
+    ANNUALIZATION_FACTORS,
+    CRYPTO_ANNUALIZATION_FACTORS,
+    STOCK_ANNUALIZATION_FACTORS,
+    CRYPTO_TRADING_DAYS,
+    STOCK_TRADING_DAYS,
+)
 
 
 def _make_predictions(n=200, seed=42):
