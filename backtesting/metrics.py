@@ -104,12 +104,14 @@ def compute_metrics(trades_df, equity_df, initial_capital=10000, interval=None, 
 
     period_returns = equity_df["period_return"].dropna()
 
+    factors = CRYPTO_ANNUALIZATION_FACTORS if asset_class == "crypto" else STOCK_ANNUALIZATION_FACTORS
+
     if interval is not None:
-        periods_per_year = ANNUALIZATION_FACTORS.get(interval)
+        periods_per_year = factors.get(interval)
         if periods_per_year is None:
-            periods_per_year = _infer_periods_per_year(equity_df)
+            periods_per_year = _infer_periods_per_year(equity_df, asset_class=asset_class)
     else:
-        periods_per_year = _infer_periods_per_year(equity_df)
+        periods_per_year = _infer_periods_per_year(equity_df, asset_class=asset_class)
 
     if len(period_returns) > 1 and period_returns.std() > 0:
         sharpe_ratio = (period_returns.mean() / period_returns.std()) * np.sqrt(periods_per_year)
