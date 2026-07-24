@@ -211,7 +211,7 @@ def run_metrics(
     else:
         print(f"\n=== Performance Metrics ===\n")
 
-    metrics = compute_metrics(trades_df, equity_df, initial_capital, interval=interval)
+    metrics = compute_metrics(trades_df, equity_df, initial_capital, interval=interval, asset_class=asset_class)
 
     print(f"   Total Return:     {metrics['total_return_pct']:+.2f}%")
     print(f"   Total PnL:        ${metrics['total_pnl']:+,.2f}")
