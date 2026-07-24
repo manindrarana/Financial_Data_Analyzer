@@ -61,7 +61,7 @@ def _infer_periods_per_year(equity_df, asset_class=None):
         return 12
 
 
-def compute_metrics(trades_df, equity_df, initial_capital=10000, interval=None):
+def compute_metrics(trades_df, equity_df, initial_capital=10000, interval=None, asset_class=None):
     if trades_df.empty or equity_df.empty:
         return {
             "total_return_pct": 0.0,
