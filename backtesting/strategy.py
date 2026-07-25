@@ -34,6 +34,7 @@ def simulate_trades(
     in_position = False
     entry_idx = None
     entry_price = None
+    entry_cost = 0.0
     stop_price = None
     target_price = None
     direction = None
@@ -109,6 +110,7 @@ def simulate_trades(
             if pred == 1:
                 entry_idx = i
                 entry_price = current_price
+                entry_cost = entry_price * transaction_cost_pct
                 stop_price = entry_price * (1 - stop_loss_pct)
                 target_price = entry_price * (1 + take_profit_pct)
                 direction = "long"
@@ -117,13 +119,21 @@ def simulate_trades(
             elif allow_short and pred == 0:
                 entry_idx = i
                 entry_price = current_price
+                entry_cost = entry_price * transaction_cost_pct
                 stop_price = entry_price * (1 + stop_loss_pct)
                 target_price = entry_price * (1 - take_profit_pct)
                 direction = "short"
                 bars_held = 0
                 in_position = True
 
-        current_equity = cash
+        if in_position:
+            if direction == "long":
+                unrealized = current_price - entry_price - entry_cost
+            else:
+                unrealized = entry_price - current_price - entry_cost
+            current_equity = cash + unrealized
+        else:
+            current_equity = cash
         if current_equity > equity_peak:
             equity_peak = current_equity
 
