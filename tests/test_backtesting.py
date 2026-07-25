@@ -80,6 +80,22 @@ class TestSimulateTrades:
         trades, equity = simulate_trades(df, confidence_threshold=0.95)
         assert trades.empty
 
+    def test_equity_reflects_unrealized_loss_on_open_trade(self):
+        df = pd.DataFrame([
+            {"date": datetime(2024, 1, 1, 10, 0), "close": 100.0, "prediction": 1, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 11, 0), "close": 95.0, "prediction": 0, "confidence": 0.5},
+            {"date": datetime(2024, 1, 1, 12, 0), "close": 95.0, "prediction": 0, "confidence": 0.5},
+        ])
+        trades, equity = simulate_trades(
+            df, confidence_threshold=0.52, stop_loss_pct=0.10, take_profit_pct=0.04, max_hold_bars=24
+        )
+        assert len(trades) == 1
+        assert trades.iloc[0]["exit_reason"] == "force_close"
+        assert 9999.0 < equity.iloc[0]["equity"] < 10000.0
+        assert equity.iloc[1]["equity"] < 9995.0
+        assert equity.iloc[1]["drawdown_pct"] > 0.0
+        assert equity.iloc[2]["equity"] < 9995.0
+
 
 class TestComputeMetrics:
     def test_returns_all_expected_keys(self):
