@@ -396,7 +396,20 @@ def simulate_portfolio_trades(
                     "position_size": position_size,
                 }
 
-        current_equity = cash
+        if open_positions:
+            unrealized_total = 0.0
+            for pos in open_positions.values():
+                entry_price = pos["entry_price"]
+                position_size = pos["position_size"]
+                entry_cost = position_size * entry_price * transaction_cost_pct
+                exit_cost_now = position_size * current_price * transaction_cost_pct
+                if pos["direction"] == "long":
+                    unrealized_total += position_size * (current_price - entry_price) - entry_cost - exit_cost_now
+                else:
+                    unrealized_total += position_size * (entry_price - current_price) - entry_cost - exit_cost_now
+            current_equity = cash + unrealized_total
+        else:
+            current_equity = cash
         if current_equity > equity_peak:
             equity_peak = current_equity
 
