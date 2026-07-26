@@ -464,8 +464,9 @@ class TestDashboardRenderModelHealth:
             }):
                 content = dashboard_app.render_model_health()
 
-        table = content.children[2]
-        table_data = table.data
+        tables = [child for child in content.children if child.__class__.__name__ == "DataTable"]
+        assert len(tables) == 1
+        table_data = tables[0].data
         assert len(table_data) == 1
         assert table_data[0]["Asset"] == "BTC"
         assert table_data[0]["Interval"] == "1d"
