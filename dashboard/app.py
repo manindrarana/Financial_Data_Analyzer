@@ -1631,6 +1631,16 @@ def render_model_health():
         {"name": "Test Rows", "id": "Test Rows"},
         {"name": "Accuracy", "id": "Accuracy"},
         {"name": "CV Score", "id": "CV Score"},
+        {"name": "OOS Accuracy", "id": "OOS Accuracy"},
+        {"name": "Balanced Accuracy", "id": "Balanced Accuracy"},
+        {"name": "F1 Score", "id": "F1 Score"},
+        {"name": "MCC", "id": "MCC"},
+        {"name": "Best Baseline", "id": "Best Baseline"},
+        {"name": "Baseline Gap", "id": "Baseline Gap"},
+        {"name": "OOS Rows", "id": "OOS Rows"},
+        {"name": "Actual UP / DOWN", "id": "Actual UP / DOWN"},
+        {"name": "Predicted UP / DOWN", "id": "Predicted UP / DOWN"},
+        {"name": "Brier Score", "id": "Brier Score"},
         {"name": "Status", "id": "Status"},
     ]
 
