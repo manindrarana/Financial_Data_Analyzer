@@ -1586,6 +1586,12 @@ def render_model_health():
         status = m["status"]
         badge_color = STATUS_COLORS.get(status, "#888")
 
+        def format_percent(value):
+            return f"{value:.1%}" if value is not None else "N/A"
+
+        def format_score(value):
+            return f"{value:.3f}" if value is not None else "N/A"
+
         table_data.append({
             "Asset": m["asset"],
             "Interval": m["interval"],
@@ -1596,6 +1602,22 @@ def render_model_health():
             "Test Rows": m.get("test_rows") or "N/A",
             "Accuracy": accuracy_display,
             "CV Score": cv_display,
+            "OOS Accuracy": format_percent(quality["oos_accuracy"]),
+            "Balanced Accuracy": format_percent(quality["balanced_accuracy"]),
+            "F1 Score": format_score(quality["f1_score"]),
+            "MCC": format_score(quality["mcc"]),
+            "Best Baseline": format_percent(quality["best_baseline_accuracy"]),
+            "Baseline Gap": format_percent(quality["baseline_gap"]),
+            "OOS Rows": quality["oos_rows"] or "N/A",
+            "Actual UP / DOWN": (
+                f"{quality['actual_up_pct']:.1%} / {quality['actual_down_pct']:.1%}"
+                if quality["actual_up_pct"] is not None else "N/A"
+            ),
+            "Predicted UP / DOWN": (
+                f"{quality['predicted_up_pct']:.1%} / {quality['predicted_down_pct']:.1%}"
+                if quality["predicted_up_pct"] is not None else "N/A"
+            ),
+            "Brier Score": format_score(quality["brier_score"]),
             "Status": status,
         })
 
