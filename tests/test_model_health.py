@@ -7,6 +7,7 @@ import pytest
 import os
 import json
 import tempfile
+import pandas as pd
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch, MagicMock
 
@@ -343,6 +344,56 @@ class TestStatusConstants:
         assert STATUS_ORDER["missing_model"] < STATUS_ORDER["missing_metadata"]
         assert STATUS_ORDER["missing_metadata"] < STATUS_ORDER["stale"]
         assert STATUS_ORDER["stale"] < STATUS_ORDER["healthy"]
+
+
+class TestModelQualityMetrics:
+    def test_calculates_known_oos_metric_values(self):
+        from dashboard.app import _calculate_model_quality
+
+        predictions = pd.DataFrame({
+            "close": [100, 101, 100, 102, 103, 104],
+            "prediction": [0, 1, 0, 1, 1, 0],
+            "confidence": [0.9, 0.9, 0.8, 0.7, 0.6, 0.9],
+            "actual_direction": [0, 0, 1, 1, 0, float("nan")],
+            "is_oos": [False, False, True, True, True, True],
+        })
+
+        metrics = _calculate_model_quality(predictions)
+
+        assert metrics["oos_rows"] == 3
+        assert metrics["oos_accuracy"] == pytest.approx(1 / 3)
+        assert metrics["balanced_accuracy"] == pytest.approx(0.25)
+        assert metrics["f1_score"] == pytest.approx(0.5)
+        assert metrics["mcc"] == pytest.approx(-0.5)
+        assert metrics["best_baseline_accuracy"] == pytest.approx(2 / 3)
+        assert metrics["baseline_gap"] == pytest.approx(-1 / 3)
+        assert metrics["actual_up_pct"] == pytest.approx(2 / 3)
+        assert metrics["actual_down_pct"] == pytest.approx(1 / 3)
+        assert metrics["predicted_up_pct"] == pytest.approx(2 / 3)
+        assert metrics["predicted_down_pct"] == pytest.approx(1 / 3)
+        assert metrics["brier_score"] == pytest.approx((0.64 + 0.09 + 0.36) / 3)
+
+    def test_returns_unavailable_metrics_without_known_actuals(self):
+        from dashboard.app import _calculate_model_quality
+
+        predictions = pd.DataFrame({
+            "close": [100, 101],
+            "prediction": [1, 0],
+            "confidence": [0.6, 0.7],
+            "actual_direction": [float("nan"), float("nan")],
+            "is_oos": [True, True],
+        })
+
+        metrics = _calculate_model_quality(predictions)
+
+        assert metrics["oos_rows"] == 0
+        assert metrics["oos_accuracy"] is None
+        assert metrics["balanced_accuracy"] is None
+        assert metrics["f1_score"] is None
+        assert metrics["mcc"] is None
+        assert metrics["best_baseline_accuracy"] is None
+        assert metrics["baseline_gap"] is None
+        assert metrics["brier_score"] is None
 
 
 class TestDashboardRenderModelHealth:
