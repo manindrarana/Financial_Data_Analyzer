@@ -1435,6 +1435,82 @@ def render_overview():
         ),
     ])
 
+def _calculate_model_quality(predictions):
+    from sklearn.metrics import balanced_accuracy_score, f1_score, matthews_corrcoef, brier_score_loss
+
+    empty_metrics = {
+        "oos_accuracy": None,
+        "balanced_accuracy": None,
+        "f1_score": None,
+        "mcc": None,
+        "best_baseline_accuracy": None,
+        "baseline_gap": None,
+        "oos_rows": 0,
+        "actual_up_pct": None,
+        "actual_down_pct": None,
+        "predicted_up_pct": None,
+        "predicted_down_pct": None,
+        "brier_score": None,
+    }
+    if predictions is None or predictions.empty:
+        return empty_metrics
+
+    known = predictions[predictions["actual_direction"].notna()]
+    if "is_oos" in known.columns:
+        oos = known[known["is_oos"]]
+        scored = oos if not oos.empty else known
+    else:
+        scored = known
+    if scored.empty:
+        return empty_metrics
+
+    y_true = scored["actual_direction"].astype(int)
+    y_pred = scored["prediction"].astype(int)
+    accuracy = float((y_true == y_pred).mean())
+
+    sma20 = predictions["close"].rolling(window=20).mean()
+    sma50 = predictions["close"].rolling(window=50).mean()
+    baseline_rules = [
+        pd.Series(1, index=predictions.index),
+        pd.Series(0, index=predictions.index),
+        (predictions["close"].diff() > 0).astype(int).shift(1),
+        (sma20 > sma50).astype(float).where(sma20.notna() & sma50.notna()),
+    ]
+    baseline_accuracies = []
+    for rule in baseline_rules:
+        rule = rule.reindex(scored.index)
+        valid = rule.notna()
+        if valid.any():
+            baseline_accuracies.append(float((rule[valid].astype(int) == y_true[valid]).mean()))
+
+    best_baseline = max(baseline_accuracies) if baseline_accuracies else None
+    actual_up_pct = float((y_true == 1).mean())
+    predicted_up_pct = float((y_pred == 1).mean())
+
+    brier = None
+    if "confidence" in scored.columns:
+        confidence = pd.to_numeric(scored["confidence"], errors="coerce")
+        up_probability = confidence.where(y_pred == 1, 1 - confidence)
+        valid_probability = up_probability.between(0, 1) & up_probability.notna()
+        if valid_probability.any():
+            brier = float(brier_score_loss(y_true[valid_probability], up_probability[valid_probability]))
+
+    return {
+        "oos_accuracy": accuracy,
+        "balanced_accuracy": float(balanced_accuracy_score(y_true, y_pred)),
+        "f1_score": float(f1_score(y_true, y_pred, zero_division=0)),
+        "mcc": float(matthews_corrcoef(y_true, y_pred)),
+        "best_baseline_accuracy": best_baseline,
+        "baseline_gap": accuracy - best_baseline if best_baseline is not None else None,
+        "oos_rows": len(scored),
+        "actual_up_pct": actual_up_pct,
+        "actual_down_pct": 1 - actual_up_pct,
+        "predicted_up_pct": predicted_up_pct,
+        "predicted_down_pct": 1 - predicted_up_pct,
+        "brier_score": brier,
+    }
+
+
 def render_model_health():
     models = get_model_health()
     counts = get_summary_counts(models)
