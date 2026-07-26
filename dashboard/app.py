@@ -1435,6 +1435,82 @@ def render_overview():
         ),
     ])
 
+def _calculate_model_quality(predictions):
+    from sklearn.metrics import balanced_accuracy_score, f1_score, matthews_corrcoef, brier_score_loss
+
+    empty_metrics = {
+        "oos_accuracy": None,
+        "balanced_accuracy": None,
+        "f1_score": None,
+        "mcc": None,
+        "best_baseline_accuracy": None,
+        "baseline_gap": None,
+        "oos_rows": 0,
+        "actual_up_pct": None,
+        "actual_down_pct": None,
+        "predicted_up_pct": None,
+        "predicted_down_pct": None,
+        "brier_score": None,
+    }
+    if predictions is None or predictions.empty:
+        return empty_metrics
+
+    known = predictions[predictions["actual_direction"].notna()]
+    if "is_oos" in known.columns:
+        oos = known[known["is_oos"]]
+        scored = oos if not oos.empty else known
+    else:
+        scored = known
+    if scored.empty:
+        return empty_metrics
+
+    y_true = scored["actual_direction"].astype(int)
+    y_pred = scored["prediction"].astype(int)
+    accuracy = float((y_true == y_pred).mean())
+
+    sma20 = predictions["close"].rolling(window=20).mean()
+    sma50 = predictions["close"].rolling(window=50).mean()
+    baseline_rules = [
+        pd.Series(1, index=predictions.index),
+        pd.Series(0, index=predictions.index),
+        (predictions["close"].diff() > 0).astype(int).shift(1),
+        (sma20 > sma50).astype(float).where(sma20.notna() & sma50.notna()),
+    ]
+    baseline_accuracies = []
+    for rule in baseline_rules:
+        rule = rule.reindex(scored.index)
+        valid = rule.notna()
+        if valid.any():
+            baseline_accuracies.append(float((rule[valid].astype(int) == y_true[valid]).mean()))
+
+    best_baseline = max(baseline_accuracies) if baseline_accuracies else None
+    actual_up_pct = float((y_true == 1).mean())
+    predicted_up_pct = float((y_pred == 1).mean())
+
+    brier = None
+    if "confidence" in scored.columns:
+        confidence = pd.to_numeric(scored["confidence"], errors="coerce")
+        up_probability = confidence.where(y_pred == 1, 1 - confidence)
+        valid_probability = up_probability.between(0, 1) & up_probability.notna()
+        if valid_probability.any():
+            brier = float(brier_score_loss(y_true[valid_probability], up_probability[valid_probability]))
+
+    return {
+        "oos_accuracy": accuracy,
+        "balanced_accuracy": float(balanced_accuracy_score(y_true, y_pred)),
+        "f1_score": float(f1_score(y_true, y_pred, zero_division=0)),
+        "mcc": float(matthews_corrcoef(y_true, y_pred)),
+        "best_baseline_accuracy": best_baseline,
+        "baseline_gap": accuracy - best_baseline if best_baseline is not None else None,
+        "oos_rows": len(scored),
+        "actual_up_pct": actual_up_pct,
+        "actual_down_pct": 1 - actual_up_pct,
+        "predicted_up_pct": predicted_up_pct,
+        "predicted_down_pct": 1 - predicted_up_pct,
+        "brier_score": brier,
+    }
+
+
 def render_model_health():
     models = get_model_health()
     counts = get_summary_counts(models)
@@ -1478,6 +1554,12 @@ def render_model_health():
 
     table_data = []
     for m in models:
+        try:
+            predictions = run_prediction(m["asset"], m["interval"], m["asset_class"])
+            quality = _calculate_model_quality(predictions)
+        except (FileNotFoundError, OSError, ValueError, KeyError):
+            quality = _calculate_model_quality(None)
+
         trained_at = m.get("trained_at")
         if trained_at:
             try:
@@ -1504,6 +1586,12 @@ def render_model_health():
         status = m["status"]
         badge_color = STATUS_COLORS.get(status, "#888")
 
+        def format_percent(value):
+            return f"{value:.1%}" if value is not None else "N/A"
+
+        def format_score(value):
+            return f"{value:.3f}" if value is not None else "N/A"
+
         table_data.append({
             "Asset": m["asset"],
             "Interval": m["interval"],
@@ -1514,6 +1602,22 @@ def render_model_health():
             "Test Rows": m.get("test_rows") or "N/A",
             "Accuracy": accuracy_display,
             "CV Score": cv_display,
+            "OOS Accuracy": format_percent(quality["oos_accuracy"]),
+            "Balanced Accuracy": format_percent(quality["balanced_accuracy"]),
+            "F1 Score": format_score(quality["f1_score"]),
+            "MCC": format_score(quality["mcc"]),
+            "Best Baseline": format_percent(quality["best_baseline_accuracy"]),
+            "Baseline Gap": format_percent(quality["baseline_gap"]),
+            "OOS Rows": quality["oos_rows"] or "N/A",
+            "Actual UP / DOWN": (
+                f"{quality['actual_up_pct']:.1%} / {quality['actual_down_pct']:.1%}"
+                if quality["actual_up_pct"] is not None else "N/A"
+            ),
+            "Predicted UP / DOWN": (
+                f"{quality['predicted_up_pct']:.1%} / {quality['predicted_down_pct']:.1%}"
+                if quality["predicted_up_pct"] is not None else "N/A"
+            ),
+            "Brier Score": format_score(quality["brier_score"]),
             "Status": status,
         })
 
@@ -1527,6 +1631,16 @@ def render_model_health():
         {"name": "Test Rows", "id": "Test Rows"},
         {"name": "Accuracy", "id": "Accuracy"},
         {"name": "CV Score", "id": "CV Score"},
+        {"name": "OOS Accuracy", "id": "OOS Accuracy"},
+        {"name": "Balanced Accuracy", "id": "Balanced Accuracy"},
+        {"name": "F1 Score", "id": "F1 Score"},
+        {"name": "MCC", "id": "MCC"},
+        {"name": "Best Baseline", "id": "Best Baseline"},
+        {"name": "Baseline Gap", "id": "Baseline Gap"},
+        {"name": "OOS Rows", "id": "OOS Rows"},
+        {"name": "Actual UP / DOWN", "id": "Actual UP / DOWN"},
+        {"name": "Predicted UP / DOWN", "id": "Predicted UP / DOWN"},
+        {"name": "Brier Score", "id": "Brier Score"},
         {"name": "Status", "id": "Status"},
     ]
 

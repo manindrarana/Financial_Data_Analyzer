@@ -176,9 +176,12 @@ def run_prediction(asset="BTC", interval="1h", asset_class="crypto"):
 
     df = make_stationary(df)
 
-    available_features = [f for f in MODEL_FEATURES if f in df.columns]
-    if len(available_features) < len(MODEL_FEATURES):
-        missing = set(MODEL_FEATURES) - set(available_features)
+    expected_features = MODEL_FEATURES if asset_class == "crypto" else [
+        feature for feature in MODEL_FEATURES if feature != "fear_greed"
+    ]
+    available_features = [feature for feature in expected_features if feature in df.columns]
+    if len(available_features) < len(expected_features):
+        missing = set(expected_features) - set(available_features)
         print(f"Warning: missing features for prediction: {missing}")
 
     df_clean = df.dropna(subset=available_features)
