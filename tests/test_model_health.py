@@ -482,7 +482,7 @@ class TestDashboardRenderModelHealth:
             }):
                 content = dashboard_app.render_model_health()
 
-        assert len(content.children) == 3
-        alert = content.children[2]
+        assert len(content.children) == 4
+        alert = content.children[3]
         alert_text = _collect_text(alert)
         assert "No models found" in " ".join(alert_text)
