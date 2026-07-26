@@ -1554,6 +1554,12 @@ def render_model_health():
 
     table_data = []
     for m in models:
+        try:
+            predictions = run_prediction(m["asset"], m["interval"], m["asset_class"])
+            quality = _calculate_model_quality(predictions)
+        except (FileNotFoundError, OSError, ValueError, KeyError):
+            quality = _calculate_model_quality(None)
+
         trained_at = m.get("trained_at")
         if trained_at:
             try:
