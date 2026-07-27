@@ -1831,6 +1831,17 @@ def render_model_insights():
             children=html.Div(id="ch-chart-container"),
         ),
         html.Hr(className="my-4"),
+        html.H3("Confidence Threshold Evaluation", className="text-light mb-2"),
+        html.P(
+            "Compares accuracy and trading results at different confidence levels, including how many predictions are kept or discarded.",
+            className="text-muted small mb-3",
+        ),
+        dcc.Loading(
+            id="cte-loading",
+            type="circle",
+            children=html.Div(id="cte-table-container"),
+        ),
+        html.Hr(className="my-4"),
         html.H3("Confidence Timeline", className="text-light mb-2"),
         html.P(
             "Plots each prediction over time so you can see when the model was confident and whether it was right.",
@@ -3589,6 +3600,105 @@ def update_ch_interval_dropdown(asset_class):
         default = "1h"
     options = [{"label": INTERVAL_LABELS.get(iv, iv), "value": iv} for iv in intervals]
     return options, default
+
+
+def build_confidence_threshold_rows(df, interval, asset_class):
+    from backtesting.metrics import compute_metrics
+    from backtesting.strategy import run_strategy
+
+    oos = df[df["is_oos"]] if "is_oos" in df.columns else df
+    oos = oos[oos["actual_direction"].notna()]
+    if oos.empty:
+        oos = df[df["actual_direction"].notna()]
+
+    total = len(oos)
+    rows = []
+    for threshold in (0.50, 0.52, 0.54, 0.56, 0.58):
+        selected = oos[oos["confidence"] >= threshold]
+        correct = int((selected["prediction"] == selected["actual_direction"]).sum())
+        wrong = int(len(selected) - correct)
+        accuracy = correct / len(selected) * 100 if len(selected) else 0.0
+        coverage = len(selected) / total * 100 if total else 0.0
+
+        trades, equity = run_strategy(
+            predictions_df=oos,
+            confidence_threshold=threshold,
+            return_data=True,
+        )
+        metrics = compute_metrics(
+            trades,
+            equity,
+            interval=interval,
+            asset_class=asset_class,
+        )
+        rows.append({
+            "threshold": threshold,
+            "accuracy": accuracy,
+            "coverage": coverage,
+            "correct": correct,
+            "wrong": wrong,
+            "trades": metrics["total_trades"],
+            "return": metrics["total_return_pct"],
+            "drawdown": metrics["max_drawdown_pct"],
+        })
+
+    return rows
+
+
+@app.callback(
+    dash.Output("cte-table-container", "children"),
+    dash.Input("ch-class-dropdown", "value"),
+    dash.Input("ch-asset-dropdown", "value"),
+    dash.Input("ch-interval-dropdown", "value"),
+)
+def build_confidence_threshold_table(asset_class, asset_symbol, interval):
+    if not asset_symbol or not interval:
+        return dbc.Alert("Select an asset and interval.", color="info")
+
+    try:
+        df = run_prediction(asset_symbol, interval, asset_class)
+    except FileNotFoundError:
+        return dbc.Alert(
+            f"No trained model for {asset_symbol} @ {interval}. Train one first.",
+            color="warning",
+        )
+
+    if df is None or df.empty:
+        return dbc.Alert(
+            f"No prediction data for {asset_symbol} @ {interval}.",
+            color="warning",
+        )
+
+    rows = build_confidence_threshold_rows(df, interval, asset_class)
+    if not rows:
+        return dbc.Alert("No valid predictions with known outcomes.", color="warning")
+
+    table_rows = []
+    for row in rows:
+        table_rows.append(html.Tr([
+            html.Td(f"{row['threshold']:.2f}", className="text-center"),
+            html.Td(f"{row['accuracy']:.1f}%", className="text-center"),
+            html.Td(f"{row['coverage']:.1f}%", className="text-center"),
+            html.Td(str(row["correct"]), className="text-center"),
+            html.Td(str(row["wrong"]), className="text-center"),
+            html.Td(str(row["trades"]), className="text-center"),
+            html.Td(f"{row['return']:+.2f}%", className="text-center"),
+            html.Td(f"{row['drawdown']:.2f}%", className="text-center"),
+        ]))
+
+    return dbc.Table([
+        html.Thead(html.Tr([
+            html.Th("Threshold"),
+            html.Th("Accuracy"),
+            html.Th("Coverage"),
+            html.Th("Correct"),
+            html.Th("Wrong"),
+            html.Th("Trades"),
+            html.Th("Return"),
+            html.Th("Drawdown"),
+        ])),
+        html.Tbody(table_rows),
+    ], bordered=True, hover=True, size="sm", striped=True, responsive=True)
 
 
 @app.callback(
