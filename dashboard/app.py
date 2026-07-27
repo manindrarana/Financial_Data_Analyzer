@@ -3646,6 +3646,62 @@ def build_confidence_threshold_rows(df, interval, asset_class):
 
 
 @app.callback(
+    dash.Output("cte-table-container", "children"),
+    dash.Input("ch-class-dropdown", "value"),
+    dash.Input("ch-asset-dropdown", "value"),
+    dash.Input("ch-interval-dropdown", "value"),
+)
+def build_confidence_threshold_table(asset_class, asset_symbol, interval):
+    if not asset_symbol or not interval:
+        return dbc.Alert("Select an asset and interval.", color="info")
+
+    try:
+        df = run_prediction(asset_symbol, interval, asset_class)
+    except FileNotFoundError:
+        return dbc.Alert(
+            f"No trained model for {asset_symbol} @ {interval}. Train one first.",
+            color="warning",
+        )
+
+    if df is None or df.empty:
+        return dbc.Alert(
+            f"No prediction data for {asset_symbol} @ {interval}.",
+            color="warning",
+        )
+
+    rows = build_confidence_threshold_rows(df, interval, asset_class)
+    if not rows:
+        return dbc.Alert("No valid predictions with known outcomes.", color="warning")
+
+    table_rows = []
+    for row in rows:
+        table_rows.append(html.Tr([
+            html.Td(f"{row['threshold']:.2f}", className="text-center"),
+            html.Td(f"{row['accuracy']:.1f}%", className="text-center"),
+            html.Td(f"{row['coverage']:.1f}%", className="text-center"),
+            html.Td(str(row["correct"]), className="text-center"),
+            html.Td(str(row["wrong"]), className="text-center"),
+            html.Td(str(row["trades"]), className="text-center"),
+            html.Td(f"{row['return']:+.2f}%", className="text-center"),
+            html.Td(f"{row['drawdown']:.2f}%", className="text-center"),
+        ]))
+
+    return dbc.Table([
+        html.Thead(html.Tr([
+            html.Th("Threshold"),
+            html.Th("Accuracy"),
+            html.Th("Coverage"),
+            html.Th("Correct"),
+            html.Th("Wrong"),
+            html.Th("Trades"),
+            html.Th("Return"),
+            html.Th("Drawdown"),
+        ])),
+        html.Tbody(table_rows),
+    ], bordered=True, hover=True, size="sm", striped=True, responsive=True)
+
+
+@app.callback(
     dash.Output("ch-chart-container", "children"),
     dash.Input("ch-class-dropdown", "value"),
     dash.Input("ch-asset-dropdown", "value"),
