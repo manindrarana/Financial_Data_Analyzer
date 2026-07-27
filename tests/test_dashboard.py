@@ -906,3 +906,108 @@ class TestConfidenceTimeline:
         title = fig.layout.title.text
         assert "AAPL" in title
         assert "1h" in title
+
+
+class TestConfidenceThresholdEvaluation:
+    def _fake_predictions(self):
+        return pd.DataFrame({
+            "date": pd.date_range("2024-01-01", periods=5, freq="1h"),
+            "close": [100, 101, 102, 103, 104],
+            "prediction": [1, 0, 1, 0, 1],
+            "confidence": [0.50, 0.51, 0.52, 0.54, 0.58],
+            "actual_direction": [1, 1, 1, 0, 0],
+            "is_oos": [True] * 5,
+        })
+
+    def test_threshold_accuracy_coverage_and_counts(self):
+        from dashboard import app as dashboard_app
+
+        empty = pd.DataFrame()
+        metrics = {
+            "total_trades": 2,
+            "total_return_pct": 1.25,
+            "max_drawdown_pct": 0.75,
+        }
+        with patch("backtesting.strategy.run_strategy", return_value=(empty, empty)), \
+             patch("backtesting.metrics.compute_metrics", return_value=metrics):
+            rows = dashboard_app.build_confidence_threshold_rows(
+                self._fake_predictions(), "1h", "crypto"
+            )
+
+        assert rows[0] == {
+            "threshold": 0.50,
+            "accuracy": 60.0,
+            "coverage": 100.0,
+            "correct": 3,
+            "wrong": 2,
+            "trades": 2,
+            "return": 1.25,
+            "drawdown": 0.75,
+        }
+        assert rows[1]["threshold"] == 0.52
+        assert rows[1]["accuracy"] == pytest.approx(66.67, abs=0.01)
+        assert rows[1]["coverage"] == 60.0
+        assert rows[1]["correct"] == 2
+        assert rows[1]["wrong"] == 1
+        assert rows[-1]["threshold"] == 0.58
+        assert rows[-1]["accuracy"] == 0.0
+        assert rows[-1]["coverage"] == 20.0
+
+    def test_only_oos_predictions_are_evaluated(self):
+        from dashboard import app as dashboard_app
+
+        df = self._fake_predictions()
+        df.loc[4, "is_oos"] = False
+        empty = pd.DataFrame()
+        metrics = {
+            "total_trades": 0,
+            "total_return_pct": 0.0,
+            "max_drawdown_pct": 0.0,
+        }
+        with patch("backtesting.strategy.run_strategy", return_value=(empty, empty)), \
+             patch("backtesting.metrics.compute_metrics", return_value=metrics):
+            rows = dashboard_app.build_confidence_threshold_rows(df, "1h", "crypto")
+
+        assert rows[0]["coverage"] == 100.0
+        assert rows[0]["correct"] == 3
+        assert rows[0]["wrong"] == 1
+        assert rows[-1]["coverage"] == 0.0
+
+    def test_table_displays_headers_and_formatted_values(self):
+        from dashboard import app as dashboard_app
+
+        rows = [{
+            "threshold": 0.52,
+            "accuracy": 54.4,
+            "coverage": 61.0,
+            "correct": 33,
+            "wrong": 28,
+            "trades": 12,
+            "return": 2.5,
+            "drawdown": 1.75,
+        }]
+        with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()), \
+             patch.object(dashboard_app, "build_confidence_threshold_rows", return_value=rows):
+            result = dashboard_app.build_confidence_threshold_table("crypto", "BTC", "1h")
+
+        text = _collect_text(result)
+        for heading in ["Threshold", "Accuracy", "Coverage", "Correct", "Wrong", "Trades", "Return", "Drawdown"]:
+            assert heading in text
+        for value in ["0.52", "54.4%", "61.0%", "33", "28", "12", "+2.50%", "1.75%"]:
+            assert value in text
+
+    def test_no_model_shows_warning(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", side_effect=FileNotFoundError):
+            result = dashboard_app.build_confidence_threshold_table("crypto", "BTC", "1h")
+
+        assert any("No trained model" in value for value in _collect_text(result))
+
+    def test_no_data_shows_warning(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", return_value=None):
+            result = dashboard_app.build_confidence_threshold_table("crypto", "BTC", "1h")
+
+        assert any("No prediction data" in value for value in _collect_text(result))
