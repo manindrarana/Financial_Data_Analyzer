@@ -3591,6 +3591,49 @@ def update_ch_interval_dropdown(asset_class):
     return options, default
 
 
+def build_confidence_threshold_rows(df, interval, asset_class):
+    from backtesting.metrics import compute_metrics
+    from backtesting.strategy import run_strategy
+
+    oos = df[df["is_oos"]] if "is_oos" in df.columns else df
+    oos = oos[oos["actual_direction"].notna()]
+    if oos.empty:
+        oos = df[df["actual_direction"].notna()]
+
+    total = len(oos)
+    rows = []
+    for threshold in (0.50, 0.52, 0.54, 0.56, 0.58):
+        selected = oos[oos["confidence"] >= threshold]
+        correct = int((selected["prediction"] == selected["actual_direction"]).sum())
+        wrong = int(len(selected) - correct)
+        accuracy = correct / len(selected) * 100 if len(selected) else 0.0
+        coverage = len(selected) / total * 100 if total else 0.0
+
+        trades, equity = run_strategy(
+            predictions_df=oos,
+            confidence_threshold=threshold,
+            return_data=True,
+        )
+        metrics = compute_metrics(
+            trades,
+            equity,
+            interval=interval,
+            asset_class=asset_class,
+        )
+        rows.append({
+            "threshold": threshold,
+            "accuracy": accuracy,
+            "coverage": coverage,
+            "correct": correct,
+            "wrong": wrong,
+            "trades": metrics["total_trades"],
+            "return": metrics["total_return_pct"],
+            "drawdown": metrics["max_drawdown_pct"],
+        })
+
+    return rows
+
+
 @app.callback(
     dash.Output("ch-chart-container", "children"),
     dash.Input("ch-class-dropdown", "value"),
