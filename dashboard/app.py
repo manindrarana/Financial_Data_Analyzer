@@ -1852,17 +1852,6 @@ def render_model_insights():
             type="circle",
             children=html.Div(id="ct-chart-container"),
         ),
-        html.Hr(className="my-4"),
-        html.H3("Confidence Threshold Evaluation", className="text-light mb-2"),
-        html.P(
-            "Compares accuracy and trading results at different confidence levels, including how many predictions are kept or discarded.",
-            className="text-muted small mb-3",
-        ),
-        dcc.Loading(
-            id="cte-loading",
-            type="circle",
-            children=html.Div(id="cte-table-container"),
-        ),
     ])
 
 
