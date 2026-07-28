@@ -217,7 +217,11 @@ class PipelineModelTrainer:
         calibrator = LogisticRegression(solver="lbfgs")
         calibrator.fit(calibration_up_prob.reshape(-1, 1), y_calibration)
 
-        y_pred = model.predict(X_test)
+        test_raw_up_prob = model.predict_proba(X_test)[:, 1]
+        test_calibrated_up_prob = calibrator.predict_proba(
+            test_raw_up_prob.reshape(-1, 1)
+        )[:, 1]
+        y_pred = (test_calibrated_up_prob >= 0.5).astype(int)
         test_acc = accuracy_score(y_test, y_pred)
 
         if mlflow_enabled:
