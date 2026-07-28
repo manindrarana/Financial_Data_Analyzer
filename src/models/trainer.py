@@ -13,6 +13,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
+from sklearn.linear_model import LogisticRegression
 from src.utils import get_logger
 from src.models.feature_engineering import MODEL_FEATURES, NEEDED_COLS, make_stationary
 
@@ -203,8 +204,18 @@ class PipelineModelTrainer:
             base_model, PARAM_GRID, cv=tscv, scoring="accuracy",
             n_jobs=-1, verbose=0,
         )
-        grid.fit(X_train, y_train)
+        calibration_idx = int(len(X_train) * 0.8)
+        X_fit = X_train.iloc[:calibration_idx]
+        y_fit = y_train.iloc[:calibration_idx]
+        X_calibration = X_train.iloc[calibration_idx:]
+        y_calibration = y_train.iloc[calibration_idx:]
+
+        grid.fit(X_fit, y_fit)
         model = grid.best_estimator_
+
+        calibration_up_prob = model.predict_proba(X_calibration)[:, 1]
+        calibrator = LogisticRegression(solver="lbfgs")
+        calibrator.fit(calibration_up_prob.reshape(-1, 1), y_calibration)
 
         y_pred = model.predict(X_test)
         test_acc = accuracy_score(y_test, y_pred)
