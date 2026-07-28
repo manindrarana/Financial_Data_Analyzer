@@ -3753,6 +3753,111 @@ def build_confidence_threshold_table(asset_class, asset_symbol, interval):
 
 
 @app.callback(
+    dash.Output("calibration-container", "children"),
+    dash.Input("ch-class-dropdown", "value"),
+    dash.Input("ch-asset-dropdown", "value"),
+    dash.Input("ch-interval-dropdown", "value"),
+)
+def build_calibration_reliability(asset_class, asset_symbol, interval):
+    from sklearn.metrics import brier_score_loss
+
+    if not asset_symbol or not interval:
+        return dbc.Alert("Select an asset and interval.", color="info")
+
+    try:
+        predictions = run_prediction(asset_symbol, interval, asset_class)
+    except FileNotFoundError:
+        return dbc.Alert(
+            f"No trained model for {asset_symbol} @ {interval}. Train one first.",
+            color="warning",
+        )
+
+    if predictions is None or predictions.empty:
+        return dbc.Alert(
+            f"No prediction data for {asset_symbol} @ {interval}.",
+            color="warning",
+        )
+
+    metrics = _calculate_calibration_metrics(predictions)
+    calibration_bins = metrics["calibration_bins"]
+    if calibration_bins.empty:
+        return dbc.Alert("No valid predictions with known outcomes.", color="warning")
+
+    known = predictions[predictions["actual_direction"].notna()]
+    if "is_oos" in known.columns:
+        oos = known[known["is_oos"]]
+        scored = oos if not oos.empty else known
+    else:
+        scored = known
+    confidence = pd.to_numeric(scored["confidence"], errors="coerce")
+    correctness = (scored["prediction"].astype(int) == scored["actual_direction"].astype(int)).astype(int)
+    valid = confidence.between(0.5, 1.0) & confidence.notna()
+    brier_score = float(brier_score_loss(correctness[valid], confidence[valid]))
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=[0.5, 1.0],
+        y=[0.5, 1.0],
+        mode="lines",
+        name="Perfect calibration",
+        line=dict(color="#ffffff", dash="dash"),
+        hoverinfo="skip",
+    ))
+    fig.add_trace(go.Scatter(
+        x=calibration_bins["confidence"],
+        y=calibration_bins["accuracy"],
+        mode="lines+markers",
+        name="Model reliability",
+        marker=dict(color="#3498db", size=9),
+        line=dict(color="#3498db", width=2),
+        customdata=calibration_bins["count"],
+        hovertemplate=(
+            "Average confidence: %{x:.1%}<br>"
+            "Actual accuracy: %{y:.1%}<br>"
+            "Predictions: %{customdata}<extra></extra>"
+        ),
+    ))
+    fig.update_layout(
+        template="plotly_dark",
+        title=f"{asset_symbol} {interval} Calibration Curve (out-of-sample, n={int(calibration_bins['count'].sum())})",
+        xaxis=dict(title="Predicted Confidence", range=[0.49, 1.01], tickformat=".0%"),
+        yaxis=dict(title="Actual Correctness", range=[0.0, 1.01], tickformat=".0%"),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=430,
+        margin=dict(l=60, r=40, t=60, b=50),
+    )
+
+    table_rows = [html.Tr([
+        html.Td(f"{row.confidence:.1%}", className="text-center"),
+        html.Td(f"{row.accuracy:.1%}", className="text-center"),
+        html.Td(str(int(row.count)), className="text-center"),
+    ]) for row in calibration_bins.itertuples(index=False)]
+
+    return html.Div([
+        dbc.Row([
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(f"{brier_score:.3f}", className="card-title text-info text-center"),
+                html.P("Brier Score", className="card-text text-muted small text-center"),
+            ]), color="dark", outline=True), width=3),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(f"{metrics['expected_calibration_error']:.1%}", className="card-title text-info text-center"),
+                html.P("Expected Calibration Error", className="card-text text-muted small text-center"),
+            ]), color="dark", outline=True), width=3),
+        ], className="mb-3"),
+        dcc.Graph(figure=fig, config={"displayModeBar": False}),
+        dbc.Table([
+            html.Thead(html.Tr([
+                html.Th("Average Confidence"),
+                html.Th("Actual Accuracy"),
+                html.Th("Predictions"),
+            ])),
+            html.Tbody(table_rows),
+        ], bordered=True, hover=True, size="sm", striped=True, responsive=True),
+    ])
+
+
+@app.callback(
     dash.Output("ch-chart-container", "children"),
     dash.Input("ch-class-dropdown", "value"),
     dash.Input("ch-asset-dropdown", "value"),
