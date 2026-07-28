@@ -181,6 +181,12 @@ def train_one(asset, interval, asset_class, table_name):
         "features": available_features,
         "best_params": best_params,
         "best_cv_score": float(grid.best_score_),
+        "calibration": {
+            "method": "platt_scaling",
+            "coefficient": float(calibrator.coef_[0][0]),
+            "intercept": float(calibrator.intercept_[0]),
+            "rows": len(X_calibration),
+        },
     }
     with open(meta_path, "w") as f:
         json.dump(metadata, f, indent=2)
