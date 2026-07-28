@@ -8,7 +8,12 @@ import os
 import pandas as pd
 from unittest.mock import patch, MagicMock
 
-from dashboard.predictor import _discover_model, _INTERVAL_MINUTES, FEATURE_TABLES
+from dashboard.predictor import (
+    _apply_probability_calibration,
+    _discover_model,
+    _INTERVAL_MINUTES,
+    FEATURE_TABLES,
+)
 
 
 def _collect_text(component):
