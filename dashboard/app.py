@@ -1882,6 +1882,17 @@ def render_model_insights():
             children=html.Div(id="ch-chart-container"),
         ),
         html.Hr(className="my-4"),
+        html.H3("Probability Calibration", className="text-light mb-2"),
+        html.P(
+            "Compares predicted confidence with actual correctness to show whether the confidence can be treated as a probability.",
+            className="text-muted small mb-3",
+        ),
+        dcc.Loading(
+            id="calibration-loading",
+            type="circle",
+            children=html.Div(id="calibration-container"),
+        ),
+        html.Hr(className="my-4"),
         html.H3("Confidence Threshold Evaluation", className="text-light mb-2"),
         html.P(
             "Compares accuracy and trading results at different confidence levels, including how many predictions are kept or discarded.",
