@@ -70,7 +70,26 @@ def _model_cache_key(asset, interval, asset_class):
 
 
 _train_cutoffs = {}
+_calibration_params = {}
 _model_cache = {}
+
+
+def get_calibration_params(asset, interval, asset_class="crypto"):
+    cache_key = _model_cache_key(asset, interval, asset_class)
+    if cache_key in _calibration_params:
+        return _calibration_params[cache_key]
+
+    meta_path = _discover_meta(asset, interval, asset_class)
+    if meta_path is not None:
+        with open(meta_path) as f:
+            metadata = json.load(f)
+        calibration = metadata.get("calibration")
+        if calibration and calibration.get("method") == "platt_scaling":
+            _calibration_params[cache_key] = calibration
+            return calibration
+
+    _calibration_params[cache_key] = None
+    return None
 
 
 def _discover_meta(asset, interval, asset_class):
