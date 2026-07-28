@@ -908,6 +908,42 @@ class TestConfidenceTimeline:
         assert "1h" in title
 
 
+class TestCalibrationMetrics:
+    def test_calculates_ece_and_confidence_bins_from_oos_predictions(self):
+        from dashboard import app as dashboard_app
+
+        predictions = pd.DataFrame({
+            "prediction": [1, 0, 1, 0, 1],
+            "confidence": [0.52, 0.54, 0.62, 0.68, 0.95],
+            "actual_direction": [1, 1, 1, 0, 0],
+            "is_oos": [True, True, True, True, False],
+        })
+
+        metrics = dashboard_app._calculate_calibration_metrics(predictions, n_bins=5)
+        bins = metrics["calibration_bins"]
+
+        assert metrics["expected_calibration_error"] == pytest.approx(0.19)
+        assert bins.to_dict("records") == [
+            {"confidence": pytest.approx(0.53), "accuracy": pytest.approx(0.5), "count": 2},
+            {"confidence": pytest.approx(0.65), "accuracy": pytest.approx(1.0), "count": 2},
+        ]
+
+    def test_returns_unavailable_metrics_without_known_outcomes(self):
+        from dashboard import app as dashboard_app
+
+        predictions = pd.DataFrame({
+            "prediction": [1, 0],
+            "confidence": [0.6, 0.7],
+            "actual_direction": [float("nan"), float("nan")],
+            "is_oos": [True, True],
+        })
+
+        metrics = dashboard_app._calculate_calibration_metrics(predictions)
+
+        assert metrics["expected_calibration_error"] is None
+        assert metrics["calibration_bins"].empty
+
+
 class TestConfidenceThresholdEvaluation:
     def _fake_predictions(self):
         return pd.DataFrame({
