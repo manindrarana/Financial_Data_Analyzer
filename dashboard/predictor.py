@@ -92,6 +92,16 @@ def get_calibration_params(asset, interval, asset_class="crypto"):
     return None
 
 
+def _apply_probability_calibration(raw_up_prob, calibration):
+    if calibration is None:
+        return raw_up_prob
+
+    calibration_score = (
+        calibration["coefficient"] * raw_up_prob + calibration["intercept"]
+    )
+    return 1 / (1 + np.exp(-calibration_score))
+
+
 def _discover_meta(asset, interval, asset_class):
     subdir = "crypto" if asset_class == "crypto" else "stocks"
     models_dir = os.path.join("src", "models", subdir)
