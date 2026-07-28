@@ -944,6 +944,54 @@ class TestCalibrationMetrics:
         assert metrics["calibration_bins"].empty
 
 
+class TestCalibrationReliability:
+    def _fake_predictions(self):
+        return pd.DataFrame({
+            "prediction": [1, 0, 1, 0, 1],
+            "confidence": [0.52, 0.54, 0.62, 0.68, 0.95],
+            "actual_direction": [1, 1, 1, 0, 0],
+            "is_oos": [True, True, True, True, False],
+        })
+
+    def test_displays_curve_scores_and_reliability_values(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
+            result = dashboard_app.build_calibration_reliability("crypto", "BTC", "1h")
+
+        graph = next(child for child in result.children if hasattr(child, "figure"))
+        fig = graph.figure
+        perfect, reliability = fig.data
+        text = _collect_text(result)
+
+        assert list(perfect.x) == [0.5, 1.0]
+        assert list(perfect.y) == [0.5, 1.0]
+        assert list(reliability.x) == pytest.approx([0.53, 0.65])
+        assert list(reliability.y) == pytest.approx([0.5, 1.0])
+        assert list(reliability.customdata) == [2, 2]
+        for value in ["0.153", "15.3%", "53.0%", "50.0%", "65.0%", "100.0%", "2"]:
+            assert value in text
+        assert "n=4" in fig.layout.title.text
+
+    def test_no_model_shows_warning(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", side_effect=FileNotFoundError):
+            result = dashboard_app.build_calibration_reliability("crypto", "BTC", "1h")
+
+        assert any("No trained model" in value for value in _collect_text(result))
+
+    def test_no_known_outcomes_shows_warning(self):
+        from dashboard import app as dashboard_app
+
+        predictions = self._fake_predictions()
+        predictions["actual_direction"] = float("nan")
+        with patch.object(dashboard_app, "run_prediction", return_value=predictions):
+            result = dashboard_app.build_calibration_reliability("crypto", "BTC", "1h")
+
+        assert any("No valid predictions" in value for value in _collect_text(result))
+
+
 class TestConfidenceThresholdEvaluation:
     def _fake_predictions(self):
         return pd.DataFrame({
