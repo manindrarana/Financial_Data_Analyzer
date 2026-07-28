@@ -157,7 +157,11 @@ def train_one(asset, interval, asset_class, table_name):
     print(f"  Best params: {grid.best_params_}")
     print(f"  Best CV score: {grid.best_score_:.4f}")
 
-    y_pred = model.predict(X_test)
+    test_raw_up_prob = model.predict_proba(X_test)[:, 1]
+    test_calibrated_up_prob = calibrator.predict_proba(
+        test_raw_up_prob.reshape(-1, 1)
+    )[:, 1]
+    y_pred = (test_calibrated_up_prob >= 0.5).astype(int)
     test_acc = accuracy_score(y_test, y_pred)
     print(f"  Test accuracy: {test_acc:.4f} ({test_acc*100:.2f}%)")
 
