@@ -223,13 +223,7 @@ def run_prediction(asset="BTC", interval="1h", asset_class="crypto"):
     raw_up_prob = model.predict_proba(X)[:, 1]
 
     calibration = get_calibration_params(asset, interval, asset_class)
-    if calibration is not None:
-        calibration_score = (
-            calibration["coefficient"] * raw_up_prob + calibration["intercept"]
-        )
-        up_prob = 1 / (1 + np.exp(-calibration_score))
-    else:
-        up_prob = raw_up_prob
+    up_prob = _apply_probability_calibration(raw_up_prob, calibration)
 
     predictions = (up_prob >= 0.5).astype(int)
 
