@@ -245,6 +245,12 @@ class PipelineModelTrainer:
             "features": available_features,
             "best_params": best_params,
             "best_cv_score": float(grid.best_score_),
+            "calibration": {
+                "method": "platt_scaling",
+                "coefficient": float(calibrator.coef_[0][0]),
+                "intercept": float(calibrator.intercept_[0]),
+                "rows": len(X_calibration),
+            },
             "trained_at": datetime.utcnow().isoformat(),
             "mlflow_run_id": mlflow_run_id,
         }
