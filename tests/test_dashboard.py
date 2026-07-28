@@ -966,10 +966,10 @@ class TestCalibrationReliability:
 
         assert list(perfect.x) == [0.5, 1.0]
         assert list(perfect.y) == [0.5, 1.0]
-        assert list(reliability.x) == pytest.approx([0.53, 0.65])
-        assert list(reliability.y) == pytest.approx([0.5, 1.0])
-        assert list(reliability.customdata) == [2, 2]
-        for value in ["0.153", "15.3%", "53.0%", "50.0%", "65.0%", "100.0%", "2"]:
+        assert list(reliability.x) == pytest.approx([0.53, 0.62, 0.68])
+        assert list(reliability.y) == pytest.approx([0.5, 1.0, 1.0])
+        assert list(reliability.customdata) == [2, 1, 1]
+        for value in ["0.153", "19.0%", "53.0%", "50.0%", "62.0%", "68.0%", "100.0%", "2", "1"]:
             assert value in text
         assert "n=4" in fig.layout.title.text
 
