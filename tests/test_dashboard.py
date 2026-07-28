@@ -41,6 +41,26 @@ class TestIntervalMinutes:
         assert _INTERVAL_MINUTES["1d"] == 1440
 
 
+class TestProbabilityCalibration:
+    def test_applies_platt_scaling_values(self):
+        raw_probabilities = pd.Series([0.2, 0.5, 0.8]).to_numpy()
+        calibration = {
+            "coefficient": 2.0,
+            "intercept": -1.0,
+        }
+
+        calibrated = _apply_probability_calibration(raw_probabilities, calibration)
+
+        assert calibrated == pytest.approx([0.35434369, 0.5, 0.64565631])
+
+    def test_returns_raw_probabilities_without_calibration(self):
+        raw_probabilities = pd.Series([0.2, 0.5, 0.8]).to_numpy()
+
+        calibrated = _apply_probability_calibration(raw_probabilities, None)
+
+        assert calibrated is raw_probabilities
+
+
 class TestDiscoverModel:
     def test_exact_match_found(self):
         with patch("os.path.exists", return_value=True):
