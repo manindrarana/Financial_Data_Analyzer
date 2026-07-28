@@ -1511,6 +1511,57 @@ def _calculate_model_quality(predictions):
     }
 
 
+def _calculate_calibration_metrics(predictions, n_bins=10):
+    empty_metrics = {
+        "expected_calibration_error": None,
+        "calibration_bins": pd.DataFrame(columns=["confidence", "accuracy", "count"]),
+    }
+    if predictions is None or predictions.empty:
+        return empty_metrics
+
+    known = predictions[predictions["actual_direction"].notna()]
+    if "is_oos" in known.columns:
+        oos = known[known["is_oos"]]
+        scored = oos if not oos.empty else known
+    else:
+        scored = known
+    if scored.empty or "confidence" not in scored.columns:
+        return empty_metrics
+
+    confidence = pd.to_numeric(scored["confidence"], errors="coerce")
+    correctness = (
+        scored["prediction"].astype(int) == scored["actual_direction"].astype(int)
+    ).astype(float)
+    valid = confidence.between(0.5, 1.0) & confidence.notna()
+    if not valid.any():
+        return empty_metrics
+
+    confidence = confidence[valid]
+    correctness = correctness[valid]
+    bins = np.linspace(0.5, 1.0, n_bins + 1)
+    bin_ids = pd.cut(confidence, bins=bins, labels=False, include_lowest=True)
+    grouped = pd.DataFrame({
+        "confidence": confidence,
+        "correctness": correctness,
+        "bin": bin_ids,
+    }).dropna(subset=["bin"])
+    if grouped.empty:
+        return empty_metrics
+
+    calibration_bins = (
+        grouped.groupby("bin", observed=True)
+        .agg(confidence=("confidence", "mean"), accuracy=("correctness", "mean"), count=("correctness", "size"))
+        .reset_index(drop=True)
+    )
+    weights = calibration_bins["count"] / calibration_bins["count"].sum()
+    ece = float((weights * (calibration_bins["confidence"] - calibration_bins["accuracy"]).abs()).sum())
+
+    return {
+        "expected_calibration_error": ece,
+        "calibration_bins": calibration_bins,
+    }
+
+
 def render_model_health():
     models = get_model_health()
     counts = get_summary_counts(models)
