@@ -10,9 +10,11 @@ from unittest.mock import patch, MagicMock
 
 from dashboard.predictor import (
     _apply_probability_calibration,
+    _calibration_params,
     _discover_model,
     _INTERVAL_MINUTES,
     FEATURE_TABLES,
+    get_calibration_params,
 )
 
 
