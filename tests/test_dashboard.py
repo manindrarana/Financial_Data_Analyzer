@@ -62,6 +62,35 @@ class TestProbabilityCalibration:
 
         assert calibrated is raw_probabilities
 
+    def test_loads_platt_parameters_from_metadata(self):
+        _calibration_params.clear()
+        metadata = {
+            "calibration": {
+                "method": "platt_scaling",
+                "coefficient": 2.0,
+                "intercept": -1.0,
+                "rows": 100,
+            }
+        }
+        with patch("dashboard.predictor._discover_meta", return_value="metadata.json"), \
+             patch("builtins.open", MagicMock()) as open_mock:
+            open_mock.return_value.__enter__.return_value.read.return_value = ""
+            with patch("json.load", return_value=metadata):
+                calibration = get_calibration_params("BTC", "1h", "crypto")
+
+        assert calibration == metadata["calibration"]
+        _calibration_params.clear()
+
+    def test_legacy_metadata_uses_raw_probability_fallback(self):
+        _calibration_params.clear()
+        with patch("dashboard.predictor._discover_meta", return_value="metadata.json"), \
+             patch("builtins.open", MagicMock()), \
+             patch("json.load", return_value={"train_end_date": "2026-01-01"}):
+            calibration = get_calibration_params("BTC", "1h", "crypto")
+
+        assert calibration is None
+        _calibration_params.clear()
+
 
 class TestDiscoverModel:
     def test_exact_match_found(self):
