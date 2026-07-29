@@ -5,7 +5,7 @@
   "train_end_date": "2023-10-18T00:00:00",
   "train_rows": 2769,
   "test_rows": 693,
-  "test_accuracy": 0.5165945165945166,
+  "test_accuracy": 0.47619047619047616,
   "features": [
     "rsi_14",
     "roc_10",
@@ -39,13 +39,19 @@
   ],
   "best_params": {
     "learning_rate": 0.01,
-    "max_depth": 5,
-    "n_estimators": 100,
+    "max_depth": 3,
+    "n_estimators": 200,
     "subsample": 1.0,
     "eval_metric": "logloss",
     "random_state": 42
   },
-  "best_cv_score": 0.5254604550379198,
-  "trained_at": "2026-07-28T10:00:33.708509",
-  "mlflow_run_id": "c4223dd7ec214ea288701e4438f940e4"
+  "best_cv_score": 0.5210027100271003,
+  "calibration": {
+    "method": "platt_scaling",
+    "coefficient": 0.2649318354939319,
+    "intercept": -0.1696467510657369,
+    "rows": 554
+  },
+  "trained_at": "2026-07-29T08:47:19.676028",
+  "mlflow_run_id": "a879f2536aaa474ba5ed6dba7146e446"
 }

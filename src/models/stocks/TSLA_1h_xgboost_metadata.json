@@ -5,7 +5,7 @@
   "train_end_date": "2026-02-18T15:30:00",
   "train_rows": 3069,
   "test_rows": 768,
-  "test_accuracy": 0.5091145833333334,
+  "test_accuracy": 0.51953125,
   "features": [
     "rsi_14",
     "roc_10",
@@ -45,7 +45,13 @@
     "eval_metric": "logloss",
     "random_state": 42
   },
-  "best_cv_score": 0.5205278592375366,
-  "trained_at": "2026-07-28T10:00:38.946273",
-  "mlflow_run_id": "cc82bd69ea6d407cbc65d45a409b9c77"
+  "best_cv_score": 0.5378973105134475,
+  "calibration": {
+    "method": "platt_scaling",
+    "coefficient": 0.34440175842104465,
+    "intercept": -0.19188854309159634,
+    "rows": 614
+  },
+  "trained_at": "2026-07-29T08:47:24.741813",
+  "mlflow_run_id": "71ff26f9200043528fa8858087fe4aaa"
 }

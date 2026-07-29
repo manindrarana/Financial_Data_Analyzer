@@ -19,6 +19,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from dotenv import load_dotenv
+from sklearn.metrics import balanced_accuracy_score, brier_score_loss, f1_score, matthews_corrcoef
 from dashboard.predictor import run_prediction
 from dashboard.model_health import get_model_health, get_summary_counts, STATUS_LABELS, STATUS_COLORS
 from dashboard.pipeline_history import get_pipeline_runs, get_run_summary
@@ -1436,7 +1437,6 @@ def render_overview():
     ])
 
 def _calculate_model_quality(predictions):
-    from sklearn.metrics import balanced_accuracy_score, f1_score, matthews_corrcoef, brier_score_loss
 
     empty_metrics = {
         "oos_accuracy": None,
@@ -3770,7 +3770,6 @@ def build_confidence_threshold_table(asset_class, asset_symbol, interval):
     dash.Input("ch-interval-dropdown", "value"),
 )
 def build_calibration_reliability(asset_class, asset_symbol, interval):
-    from sklearn.metrics import brier_score_loss
 
     if not asset_symbol or not interval:
         return dbc.Alert("Select an asset and interval.", color="info")
