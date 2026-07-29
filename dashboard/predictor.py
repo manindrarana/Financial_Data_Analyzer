@@ -70,7 +70,36 @@ def _model_cache_key(asset, interval, asset_class):
 
 
 _train_cutoffs = {}
+_calibration_params = {}
 _model_cache = {}
+
+
+def get_calibration_params(asset, interval, asset_class="crypto"):
+    cache_key = _model_cache_key(asset, interval, asset_class)
+    if cache_key in _calibration_params:
+        return _calibration_params[cache_key]
+
+    meta_path = _discover_meta(asset, interval, asset_class)
+    if meta_path is not None:
+        with open(meta_path) as f:
+            metadata = json.load(f)
+        calibration = metadata.get("calibration")
+        if calibration and calibration.get("method") == "platt_scaling":
+            _calibration_params[cache_key] = calibration
+            return calibration
+
+    _calibration_params[cache_key] = None
+    return None
+
+
+def _apply_probability_calibration(raw_up_prob, calibration):
+    if calibration is None:
+        return raw_up_prob
+
+    calibration_score = (
+        calibration["coefficient"] * raw_up_prob + calibration["intercept"]
+    )
+    return 1 / (1 + np.exp(-calibration_score))
 
 
 def _discover_meta(asset, interval, asset_class):
@@ -191,10 +220,12 @@ def run_prediction(asset="BTC", interval="1h", asset_class="crypto"):
 
     model = _get_model(asset, interval, asset_class)
     X = df_clean[available_features]
-    predictions = model.predict(X)
-    probabilities = model.predict_proba(X)
+    raw_up_prob = model.predict_proba(X)[:, 1]
 
-    up_prob = probabilities[:, 1]
+    calibration = get_calibration_params(asset, interval, asset_class)
+    up_prob = _apply_probability_calibration(raw_up_prob, calibration)
+
+    predictions = (up_prob >= 0.5).astype(int)
 
     results = df_clean[["date", "close"]].copy()
     results["prediction"] = predictions

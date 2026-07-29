@@ -14,6 +14,7 @@ import xgboost as xgb
 import yaml
 from sklearn.metrics import accuracy_score, classification_report
 from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
+from sklearn.linear_model import LogisticRegression
 from src.models.feature_engineering import MODEL_FEATURES, NEEDED_COLS, make_stationary
 
 DB_PATH = os.path.join("database", "financial_data.duckdb")
@@ -135,8 +136,19 @@ def train_one(asset, interval, asset_class, table_name):
         base_model, PARAM_GRID, cv=tscv, scoring="accuracy",
         n_jobs=-1, verbose=0,
     )
-    grid.fit(X_train, y_train)
+    calibration_idx = int(len(X_train) * 0.8)
+    X_fit = X_train.iloc[:calibration_idx]
+    y_fit = y_train.iloc[:calibration_idx]
+    X_calibration = X_train.iloc[calibration_idx:]
+    y_calibration = y_train.iloc[calibration_idx:]
+
+    grid.fit(X_fit, y_fit)
     model = grid.best_estimator_
+
+    calibration_up_prob = model.predict_proba(X_calibration)[:, 1]
+    calibrator = LogisticRegression(solver="lbfgs")
+    calibrator.fit(calibration_up_prob.reshape(-1, 1), y_calibration)
+
     best_params = grid.best_params_
     best_params["subsample"] = 1.0
     best_params["eval_metric"] = "logloss"
@@ -145,7 +157,11 @@ def train_one(asset, interval, asset_class, table_name):
     print(f"  Best params: {grid.best_params_}")
     print(f"  Best CV score: {grid.best_score_:.4f}")
 
-    y_pred = model.predict(X_test)
+    test_raw_up_prob = model.predict_proba(X_test)[:, 1]
+    test_calibrated_up_prob = calibrator.predict_proba(
+        test_raw_up_prob.reshape(-1, 1)
+    )[:, 1]
+    y_pred = (test_calibrated_up_prob >= 0.5).astype(int)
     test_acc = accuracy_score(y_test, y_pred)
     print(f"  Test accuracy: {test_acc:.4f} ({test_acc*100:.2f}%)")
 
@@ -169,6 +185,12 @@ def train_one(asset, interval, asset_class, table_name):
         "features": available_features,
         "best_params": best_params,
         "best_cv_score": float(grid.best_score_),
+        "calibration": {
+            "method": "platt_scaling",
+            "coefficient": float(calibrator.coef_[0][0]),
+            "intercept": float(calibrator.intercept_[0]),
+            "rows": len(X_calibration),
+        },
     }
     with open(meta_path, "w") as f:
         json.dump(metadata, f, indent=2)

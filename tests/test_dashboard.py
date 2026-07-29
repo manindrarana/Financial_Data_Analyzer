@@ -8,7 +8,14 @@ import os
 import pandas as pd
 from unittest.mock import patch, MagicMock
 
-from dashboard.predictor import _discover_model, _INTERVAL_MINUTES, FEATURE_TABLES
+from dashboard.predictor import (
+    _apply_probability_calibration,
+    _calibration_params,
+    _discover_model,
+    _INTERVAL_MINUTES,
+    FEATURE_TABLES,
+    get_calibration_params,
+)
 
 
 def _collect_text(component):
@@ -34,6 +41,55 @@ class TestIntervalMinutes:
 
     def test_1d_is_1440(self):
         assert _INTERVAL_MINUTES["1d"] == 1440
+
+
+class TestProbabilityCalibration:
+    def test_applies_platt_scaling_values(self):
+        raw_probabilities = pd.Series([0.2, 0.5, 0.8]).to_numpy()
+        calibration = {
+            "coefficient": 2.0,
+            "intercept": -1.0,
+        }
+
+        calibrated = _apply_probability_calibration(raw_probabilities, calibration)
+
+        assert calibrated == pytest.approx([0.35434369, 0.5, 0.64565631])
+
+    def test_returns_raw_probabilities_without_calibration(self):
+        raw_probabilities = pd.Series([0.2, 0.5, 0.8]).to_numpy()
+
+        calibrated = _apply_probability_calibration(raw_probabilities, None)
+
+        assert calibrated is raw_probabilities
+
+    def test_loads_platt_parameters_from_metadata(self):
+        _calibration_params.clear()
+        metadata = {
+            "calibration": {
+                "method": "platt_scaling",
+                "coefficient": 2.0,
+                "intercept": -1.0,
+                "rows": 100,
+            }
+        }
+        with patch("dashboard.predictor._discover_meta", return_value="metadata.json"), \
+             patch("builtins.open", MagicMock()) as open_mock:
+            open_mock.return_value.__enter__.return_value.read.return_value = ""
+            with patch("json.load", return_value=metadata):
+                calibration = get_calibration_params("BTC", "1h", "crypto")
+
+        assert calibration == metadata["calibration"]
+        _calibration_params.clear()
+
+    def test_legacy_metadata_uses_raw_probability_fallback(self):
+        _calibration_params.clear()
+        with patch("dashboard.predictor._discover_meta", return_value="metadata.json"), \
+             patch("builtins.open", MagicMock()), \
+             patch("json.load", return_value={"train_end_date": "2026-01-01"}):
+            calibration = get_calibration_params("BTC", "1h", "crypto")
+
+        assert calibration is None
+        _calibration_params.clear()
 
 
 class TestDiscoverModel:
@@ -906,6 +962,90 @@ class TestConfidenceTimeline:
         title = fig.layout.title.text
         assert "AAPL" in title
         assert "1h" in title
+
+
+class TestCalibrationMetrics:
+    def test_calculates_ece_and_confidence_bins_from_oos_predictions(self):
+        from dashboard import app as dashboard_app
+
+        predictions = pd.DataFrame({
+            "prediction": [1, 0, 1, 0, 1],
+            "confidence": [0.52, 0.54, 0.62, 0.68, 0.95],
+            "actual_direction": [1, 1, 1, 0, 0],
+            "is_oos": [True, True, True, True, False],
+        })
+
+        metrics = dashboard_app._calculate_calibration_metrics(predictions, n_bins=5)
+        bins = metrics["calibration_bins"]
+
+        assert metrics["expected_calibration_error"] == pytest.approx(0.19)
+        assert bins.to_dict("records") == [
+            {"confidence": pytest.approx(0.53), "accuracy": pytest.approx(0.5), "count": 2},
+            {"confidence": pytest.approx(0.65), "accuracy": pytest.approx(1.0), "count": 2},
+        ]
+
+    def test_returns_unavailable_metrics_without_known_outcomes(self):
+        from dashboard import app as dashboard_app
+
+        predictions = pd.DataFrame({
+            "prediction": [1, 0],
+            "confidence": [0.6, 0.7],
+            "actual_direction": [float("nan"), float("nan")],
+            "is_oos": [True, True],
+        })
+
+        metrics = dashboard_app._calculate_calibration_metrics(predictions)
+
+        assert metrics["expected_calibration_error"] is None
+        assert metrics["calibration_bins"].empty
+
+
+class TestCalibrationReliability:
+    def _fake_predictions(self):
+        return pd.DataFrame({
+            "prediction": [1, 0, 1, 0, 1],
+            "confidence": [0.52, 0.54, 0.62, 0.68, 0.95],
+            "actual_direction": [1, 1, 1, 0, 0],
+            "is_oos": [True, True, True, True, False],
+        })
+
+    def test_displays_curve_scores_and_reliability_values(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
+            result = dashboard_app.build_calibration_reliability("crypto", "BTC", "1h")
+
+        graph = next(child for child in result.children if hasattr(child, "figure"))
+        fig = graph.figure
+        perfect, reliability = fig.data
+        text = _collect_text(result)
+
+        assert list(perfect.x) == [0.5, 1.0]
+        assert list(perfect.y) == [0.5, 1.0]
+        assert list(reliability.x) == pytest.approx([0.53, 0.62, 0.68])
+        assert list(reliability.y) == pytest.approx([0.5, 1.0, 1.0])
+        assert list(reliability.customdata) == [2, 1, 1]
+        for value in ["0.192", "19.0%", "53.0%", "50.0%", "62.0%", "68.0%", "100.0%", "2", "1"]:
+            assert value in text
+        assert "n=4" in fig.layout.title.text
+
+    def test_no_model_shows_warning(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", side_effect=FileNotFoundError):
+            result = dashboard_app.build_calibration_reliability("crypto", "BTC", "1h")
+
+        assert any("No trained model" in value for value in _collect_text(result))
+
+    def test_no_known_outcomes_shows_warning(self):
+        from dashboard import app as dashboard_app
+
+        predictions = self._fake_predictions()
+        predictions["actual_direction"] = float("nan")
+        with patch.object(dashboard_app, "run_prediction", return_value=predictions):
+            result = dashboard_app.build_calibration_reliability("crypto", "BTC", "1h")
+
+        assert any("No valid predictions" in value for value in _collect_text(result))
 
 
 class TestConfidenceThresholdEvaluation:

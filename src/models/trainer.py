@@ -13,6 +13,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
+from sklearn.linear_model import LogisticRegression
 from src.utils import get_logger
 from src.models.feature_engineering import MODEL_FEATURES, NEEDED_COLS, make_stationary
 
@@ -203,10 +204,24 @@ class PipelineModelTrainer:
             base_model, PARAM_GRID, cv=tscv, scoring="accuracy",
             n_jobs=-1, verbose=0,
         )
-        grid.fit(X_train, y_train)
+        calibration_idx = int(len(X_train) * 0.8)
+        X_fit = X_train.iloc[:calibration_idx]
+        y_fit = y_train.iloc[:calibration_idx]
+        X_calibration = X_train.iloc[calibration_idx:]
+        y_calibration = y_train.iloc[calibration_idx:]
+
+        grid.fit(X_fit, y_fit)
         model = grid.best_estimator_
 
-        y_pred = model.predict(X_test)
+        calibration_up_prob = model.predict_proba(X_calibration)[:, 1]
+        calibrator = LogisticRegression(solver="lbfgs")
+        calibrator.fit(calibration_up_prob.reshape(-1, 1), y_calibration)
+
+        test_raw_up_prob = model.predict_proba(X_test)[:, 1]
+        test_calibrated_up_prob = calibrator.predict_proba(
+            test_raw_up_prob.reshape(-1, 1)
+        )[:, 1]
+        y_pred = (test_calibrated_up_prob >= 0.5).astype(int)
         test_acc = accuracy_score(y_test, y_pred)
 
         if mlflow_enabled:
@@ -234,6 +249,12 @@ class PipelineModelTrainer:
             "features": available_features,
             "best_params": best_params,
             "best_cv_score": float(grid.best_score_),
+            "calibration": {
+                "method": "platt_scaling",
+                "coefficient": float(calibrator.coef_[0][0]),
+                "intercept": float(calibrator.intercept_[0]),
+                "rows": len(X_calibration),
+            },
             "trained_at": datetime.utcnow().isoformat(),
             "mlflow_run_id": mlflow_run_id,
         }

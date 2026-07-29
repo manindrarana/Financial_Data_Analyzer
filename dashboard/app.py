@@ -19,6 +19,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from dotenv import load_dotenv
+from sklearn.metrics import balanced_accuracy_score, brier_score_loss, f1_score, matthews_corrcoef
 from dashboard.predictor import run_prediction
 from dashboard.model_health import get_model_health, get_summary_counts, STATUS_LABELS, STATUS_COLORS
 from dashboard.pipeline_history import get_pipeline_runs, get_run_summary
@@ -1436,7 +1437,6 @@ def render_overview():
     ])
 
 def _calculate_model_quality(predictions):
-    from sklearn.metrics import balanced_accuracy_score, f1_score, matthews_corrcoef, brier_score_loss
 
     empty_metrics = {
         "oos_accuracy": None,
@@ -1508,6 +1508,57 @@ def _calculate_model_quality(predictions):
         "predicted_up_pct": predicted_up_pct,
         "predicted_down_pct": 1 - predicted_up_pct,
         "brier_score": brier,
+    }
+
+
+def _calculate_calibration_metrics(predictions, n_bins=10):
+    empty_metrics = {
+        "expected_calibration_error": None,
+        "calibration_bins": pd.DataFrame(columns=["confidence", "accuracy", "count"]),
+    }
+    if predictions is None or predictions.empty:
+        return empty_metrics
+
+    known = predictions[predictions["actual_direction"].notna()]
+    if "is_oos" in known.columns:
+        oos = known[known["is_oos"]]
+        scored = oos if not oos.empty else known
+    else:
+        scored = known
+    if scored.empty or "confidence" not in scored.columns:
+        return empty_metrics
+
+    confidence = pd.to_numeric(scored["confidence"], errors="coerce")
+    correctness = (
+        scored["prediction"].astype(int) == scored["actual_direction"].astype(int)
+    ).astype(float)
+    valid = confidence.between(0.5, 1.0) & confidence.notna()
+    if not valid.any():
+        return empty_metrics
+
+    confidence = confidence[valid]
+    correctness = correctness[valid]
+    bins = np.linspace(0.5, 1.0, n_bins + 1)
+    bin_ids = pd.cut(confidence, bins=bins, labels=False, include_lowest=True)
+    grouped = pd.DataFrame({
+        "confidence": confidence,
+        "correctness": correctness,
+        "bin": bin_ids,
+    }).dropna(subset=["bin"])
+    if grouped.empty:
+        return empty_metrics
+
+    calibration_bins = (
+        grouped.groupby("bin", observed=True)
+        .agg(confidence=("confidence", "mean"), accuracy=("correctness", "mean"), count=("correctness", "size"))
+        .reset_index(drop=True)
+    )
+    weights = calibration_bins["count"] / calibration_bins["count"].sum()
+    ece = float((weights * (calibration_bins["confidence"] - calibration_bins["accuracy"]).abs()).sum())
+
+    return {
+        "expected_calibration_error": ece,
+        "calibration_bins": calibration_bins,
     }
 
 
@@ -1829,6 +1880,17 @@ def render_model_insights():
             id="ch-loading",
             type="circle",
             children=html.Div(id="ch-chart-container"),
+        ),
+        html.Hr(className="my-4"),
+        html.H3("Probability Calibration", className="text-light mb-2"),
+        html.P(
+            "Compares predicted confidence with actual correctness to show whether the confidence can be treated as a probability.",
+            className="text-muted small mb-3",
+        ),
+        dcc.Loading(
+            id="calibration-loading",
+            type="circle",
+            children=html.Div(id="calibration-container"),
         ),
         html.Hr(className="my-4"),
         html.H3("Confidence Threshold Evaluation", className="text-light mb-2"),
@@ -3699,6 +3761,110 @@ def build_confidence_threshold_table(asset_class, asset_symbol, interval):
         ])),
         html.Tbody(table_rows),
     ], bordered=True, hover=True, size="sm", striped=True, responsive=True)
+
+
+@app.callback(
+    dash.Output("calibration-container", "children"),
+    dash.Input("ch-class-dropdown", "value"),
+    dash.Input("ch-asset-dropdown", "value"),
+    dash.Input("ch-interval-dropdown", "value"),
+)
+def build_calibration_reliability(asset_class, asset_symbol, interval):
+
+    if not asset_symbol or not interval:
+        return dbc.Alert("Select an asset and interval.", color="info")
+
+    try:
+        predictions = run_prediction(asset_symbol, interval, asset_class)
+    except FileNotFoundError:
+        return dbc.Alert(
+            f"No trained model for {asset_symbol} @ {interval}. Train one first.",
+            color="warning",
+        )
+
+    if predictions is None or predictions.empty:
+        return dbc.Alert(
+            f"No prediction data for {asset_symbol} @ {interval}.",
+            color="warning",
+        )
+
+    metrics = _calculate_calibration_metrics(predictions)
+    calibration_bins = metrics["calibration_bins"]
+    if calibration_bins.empty:
+        return dbc.Alert("No valid predictions with known outcomes.", color="warning")
+
+    known = predictions[predictions["actual_direction"].notna()]
+    if "is_oos" in known.columns:
+        oos = known[known["is_oos"]]
+        scored = oos if not oos.empty else known
+    else:
+        scored = known
+    confidence = pd.to_numeric(scored["confidence"], errors="coerce")
+    correctness = (scored["prediction"].astype(int) == scored["actual_direction"].astype(int)).astype(int)
+    valid = confidence.between(0.5, 1.0) & confidence.notna()
+    brier_score = float(brier_score_loss(correctness[valid], confidence[valid]))
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=[0.5, 1.0],
+        y=[0.5, 1.0],
+        mode="lines",
+        name="Perfect calibration",
+        line=dict(color="#ffffff", dash="dash"),
+        hoverinfo="skip",
+    ))
+    fig.add_trace(go.Scatter(
+        x=calibration_bins["confidence"],
+        y=calibration_bins["accuracy"],
+        mode="lines+markers",
+        name="Model reliability",
+        marker=dict(color="#3498db", size=9),
+        line=dict(color="#3498db", width=2),
+        customdata=calibration_bins["count"],
+        hovertemplate=(
+            "Average confidence: %{x:.1%}<br>"
+            "Actual accuracy: %{y:.1%}<br>"
+            "Predictions: %{customdata}<extra></extra>"
+        ),
+    ))
+    fig.update_layout(
+        template="plotly_dark",
+        title=f"{asset_symbol} {interval} Calibration Curve (out-of-sample, n={int(calibration_bins['count'].sum())})",
+        xaxis=dict(title="Predicted Confidence", range=[0.49, 1.01], tickformat=".0%"),
+        yaxis=dict(title="Actual Correctness", range=[0.0, 1.01], tickformat=".0%"),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=430,
+        margin=dict(l=60, r=40, t=60, b=50),
+    )
+
+    table_rows = [html.Tr([
+        html.Td(f"{row.confidence:.1%}", className="text-center"),
+        html.Td(f"{row.accuracy:.1%}", className="text-center"),
+        html.Td(str(int(row.count)), className="text-center"),
+    ]) for row in calibration_bins.itertuples(index=False)]
+
+    return html.Div([
+        dbc.Row([
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(f"{brier_score:.3f}", className="card-title text-info text-center"),
+                html.P("Brier Score", className="card-text text-muted small text-center"),
+            ]), color="dark", outline=True), width=3),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(f"{metrics['expected_calibration_error']:.1%}", className="card-title text-info text-center"),
+                html.P("Expected Calibration Error", className="card-text text-muted small text-center"),
+            ]), color="dark", outline=True), width=3),
+        ], className="mb-3"),
+        dcc.Graph(figure=fig, config={"displayModeBar": False}),
+        dbc.Table([
+            html.Thead(html.Tr([
+                html.Th("Average Confidence"),
+                html.Th("Actual Accuracy"),
+                html.Th("Predictions"),
+            ])),
+            html.Tbody(table_rows),
+        ], bordered=True, hover=True, size="sm", striped=True, responsive=True),
+    ])
 
 
 @app.callback(
