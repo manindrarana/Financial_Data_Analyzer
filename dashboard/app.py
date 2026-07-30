@@ -1834,6 +1834,31 @@ def render_model_health():
             className="text-muted small mb-3",
         ),
         summary_cards,
+        html.H4("Model Rankings", className="text-light mt-4 mb-2"),
+        html.P(
+            "Ranks models by out-of-sample classification metrics. Trading metrics will be added after standardized backtesting is available.",
+            className="text-muted small mb-2",
+        ),
+        dbc.Row([
+            dbc.Col([
+                html.Label("Rank By", className="text-muted small mb-1"),
+                dcc.Dropdown(
+                    id="model-ranking-objective",
+                    options=[
+                        {"label": details["label"], "value": objective}
+                        for objective, details in CLASSIFICATION_RANKING_OBJECTIVES.items()
+                    ],
+                    value="oos_accuracy",
+                    clearable=False,
+                    style={"color": "#000"},
+                ),
+            ], width=4),
+        ], className="mb-3"),
+        html.Div(
+            id="model-ranking-container",
+            children=build_model_ranking_table(models),
+        ),
+        html.H4("Model Status", className="text-light mt-4 mb-2"),
         table,
     ])
 
