@@ -90,6 +90,53 @@ STATUS_COLORS = {
 
 STATUS_ORDER = {"missing_model": 0, "missing_metadata": 1, "stale": 2, "healthy": 3}
 
+CLASSIFICATION_RANKING_OBJECTIVES = {
+    "oos_accuracy": {"label": "OOS Accuracy", "higher_is_better": True},
+    "baseline_gap": {"label": "Baseline Improvement", "higher_is_better": True},
+    "balanced_accuracy": {"label": "Balanced Accuracy", "higher_is_better": True},
+    "brier_score": {"label": "Brier Score", "higher_is_better": False},
+}
+
+
+def rank_models(models: List[dict], objective: str):
+    if objective not in CLASSIFICATION_RANKING_OBJECTIVES:
+        raise ValueError(f"Unknown ranking objective: {objective}")
+
+    higher_is_better = CLASSIFICATION_RANKING_OBJECTIVES[objective]["higher_is_better"]
+    ranked = [dict(model) for model in models]
+    available = [model for model in ranked if model.get(objective) is not None and not pd.isna(model[objective])]
+    unavailable = [model for model in ranked if model.get(objective) is None or pd.isna(model[objective])]
+
+    available.sort(
+        key=lambda model: (
+            -model[objective] if higher_is_better else model[objective],
+            model.get("asset_class", ""),
+            model.get("asset", ""),
+            model.get("interval", ""),
+        )
+    )
+    unavailable.sort(key=lambda model: (
+        model.get("asset_class", ""),
+        model.get("asset", ""),
+        model.get("interval", ""),
+    ))
+
+    previous_score = None
+    previous_rank = None
+    for position, model in enumerate(available, start=1):
+        score = model[objective]
+        if previous_score is None or score != previous_score:
+            previous_rank = position
+        model["rank"] = previous_rank
+        model["ranking_score"] = score
+        previous_score = score
+
+    for model in unavailable:
+        model["rank"] = None
+        model["ranking_score"] = None
+
+    return available + unavailable
+
 
 def get_model_health(threshold_days: int = STALE_THRESHOLD_DAYS):
     results = []
