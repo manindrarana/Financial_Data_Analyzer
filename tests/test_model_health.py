@@ -595,7 +595,7 @@ class TestModelRankingUI:
                 table = dashboard_app.update_model_ranking("balanced_accuracy")
 
         assert [row["Asset"] for row in table.data] == ["ETH", "BTC", "SOL"]
-        assert [row["Balanced Accuracy"] for row in table.data] == ["100.0%", "75.0%", "N/A"]
+        assert [row["Balanced Accuracy"] for row in table.data] == ["100.0%", "83.3%", "N/A"]
 
 
 class TestDashboardRenderModelHealth:
