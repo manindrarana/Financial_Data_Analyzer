@@ -1569,6 +1569,90 @@ def _calculate_calibration_metrics(predictions, n_bins=10):
     }
 
 
+def build_model_ranking_table(models, objective="oos_accuracy"):
+    ranked_models = []
+    for model in models:
+        try:
+            predictions = run_prediction(model["asset"], model["interval"], model["asset_class"])
+            quality = _calculate_model_quality(predictions)
+        except (FileNotFoundError, OSError, ValueError, KeyError):
+            quality = _calculate_model_quality(None)
+        ranked_models.append({**model, **quality})
+
+    ranked_models = rank_models(ranked_models, objective)
+    objective_label = CLASSIFICATION_RANKING_OBJECTIVES[objective]["label"]
+
+    def format_percent(value):
+        return f"{value:.1%}" if value is not None else "N/A"
+
+    def format_score(value):
+        return f"{value:.3f}" if value is not None else "N/A"
+
+    table_data = []
+    for model in ranked_models:
+        selected_score = model["ranking_score"]
+        table_data.append({
+            "Rank": model["rank"] if model["rank"] is not None else "N/A",
+            "Class": model["asset_class"].capitalize(),
+            "Asset": model["asset"],
+            "Interval": model["interval"],
+            objective_label: (
+                format_score(selected_score)
+                if objective == "brier_score"
+                else format_percent(selected_score)
+            ),
+            "OOS Accuracy": format_percent(model.get("oos_accuracy")),
+            "Baseline Gap": format_percent(model.get("baseline_gap")),
+            "Balanced Accuracy": format_percent(model.get("balanced_accuracy")),
+            "Brier Score": format_score(model.get("brier_score")),
+            "OOS Rows": model.get("oos_rows") or "N/A",
+        })
+
+    columns = [
+        {"name": "Rank", "id": "Rank"},
+        {"name": "Class", "id": "Class"},
+        {"name": "Asset", "id": "Asset"},
+        {"name": "Interval", "id": "Interval"},
+        {"name": objective_label, "id": objective_label},
+        {"name": "OOS Accuracy", "id": "OOS Accuracy"},
+        {"name": "Baseline Gap", "id": "Baseline Gap"},
+        {"name": "Balanced Accuracy", "id": "Balanced Accuracy"},
+        {"name": "Brier Score", "id": "Brier Score"},
+        {"name": "OOS Rows", "id": "OOS Rows"},
+    ]
+
+    return dash_table.DataTable(
+        id="model-ranking-table",
+        data=table_data,
+        columns=columns,
+        page_size=50,
+        sort_action="native",
+        filter_action="native",
+        style_table={"overflowX": "auto"},
+        style_cell={
+            "backgroundColor": "#222222",
+            "color": "#e0e0e0",
+            "borderColor": "#404040",
+            "fontSize": "12px",
+            "padding": "6px 10px",
+            "minWidth": "90px",
+        },
+        style_header={
+            "backgroundColor": "#333333",
+            "fontWeight": "bold",
+            "borderColor": "#555555",
+        },
+        style_filter={
+            "backgroundColor": "#2a2a2a",
+            "borderColor": "#555555",
+        },
+        style_data_conditional=[
+            {"if": {"row_index": "odd"}, "backgroundColor": "#262626"},
+            {"if": {"column_id": "Rank"}, "fontWeight": "bold", "color": "#5dade2"},
+        ],
+    )
+
+
 def render_model_health():
     models = get_model_health()
     counts = get_summary_counts(models)
