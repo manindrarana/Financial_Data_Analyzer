@@ -21,6 +21,8 @@ from dashboard.model_health import (
     STATUS_LABELS,
     STATUS_COLORS,
     STATUS_ORDER,
+    CLASSIFICATION_RANKING_OBJECTIVES,
+    rank_models,
 )
 
 
@@ -394,6 +396,98 @@ class TestModelQualityMetrics:
         assert metrics["best_baseline_accuracy"] is None
         assert metrics["baseline_gap"] is None
         assert metrics["brier_score"] is None
+
+
+class TestClassificationModelRankings:
+    def setup_method(self):
+        self.models = [
+            {
+                "asset": "BTC",
+                "interval": "1h",
+                "asset_class": "crypto",
+                "oos_accuracy": 0.53,
+                "baseline_gap": 0.02,
+                "balanced_accuracy": 0.51,
+                "brier_score": 0.24,
+            },
+            {
+                "asset": "ETH",
+                "interval": "4h",
+                "asset_class": "crypto",
+                "oos_accuracy": 0.55,
+                "baseline_gap": 0.01,
+                "balanced_accuracy": 0.54,
+                "brier_score": 0.21,
+            },
+            {
+                "asset": "AAPL",
+                "interval": "1d",
+                "asset_class": "stocks",
+                "oos_accuracy": 0.51,
+                "baseline_gap": 0.03,
+                "balanced_accuracy": 0.52,
+                "brier_score": 0.26,
+            },
+        ]
+
+    @pytest.mark.parametrize(
+        "objective, expected_assets, expected_scores",
+        [
+            ("oos_accuracy", ["ETH", "BTC", "AAPL"], [0.55, 0.53, 0.51]),
+            ("baseline_gap", ["AAPL", "BTC", "ETH"], [0.03, 0.02, 0.01]),
+            ("balanced_accuracy", ["ETH", "AAPL", "BTC"], [0.54, 0.52, 0.51]),
+            ("brier_score", ["ETH", "BTC", "AAPL"], [0.21, 0.24, 0.26]),
+        ],
+    )
+    def test_ranks_known_values_in_correct_direction(self, objective, expected_assets, expected_scores):
+        ranked = rank_models(self.models, objective)
+
+        assert [model["asset"] for model in ranked] == expected_assets
+        assert [model["ranking_score"] for model in ranked] == expected_scores
+        assert [model["rank"] for model in ranked] == [1, 2, 3]
+
+    def test_equal_scores_share_rank(self):
+        models = [
+            {"asset": "BTC", "interval": "1h", "asset_class": "crypto", "oos_accuracy": 0.55},
+            {"asset": "ETH", "interval": "4h", "asset_class": "crypto", "oos_accuracy": 0.55},
+            {"asset": "AAPL", "interval": "1d", "asset_class": "stocks", "oos_accuracy": 0.50},
+        ]
+
+        ranked = rank_models(models, "oos_accuracy")
+
+        assert [model["rank"] for model in ranked] == [1, 1, 3]
+        assert [model["asset"] for model in ranked[:2]] == ["BTC", "ETH"]
+
+    def test_missing_and_nan_scores_are_last_without_rank(self):
+        models = self.models + [
+            {"asset": "SOL", "interval": "1d", "asset_class": "crypto", "oos_accuracy": None},
+            {"asset": "MSFT", "interval": "1h", "asset_class": "stocks", "oos_accuracy": float("nan")},
+        ]
+
+        ranked = rank_models(models, "oos_accuracy")
+
+        assert [model["asset"] for model in ranked[:3]] == ["ETH", "BTC", "AAPL"]
+        assert [model["asset"] for model in ranked[3:]] == ["SOL", "MSFT"]
+        assert all(model["rank"] is None for model in ranked[3:])
+        assert all(model["ranking_score"] is None for model in ranked[3:])
+
+    def test_does_not_modify_source_models(self):
+        rank_models(self.models, "oos_accuracy")
+
+        assert all("rank" not in model for model in self.models)
+        assert all("ranking_score" not in model for model in self.models)
+
+    def test_rejects_unknown_objective(self):
+        with pytest.raises(ValueError, match="Unknown ranking objective"):
+            rank_models(self.models, "total_return")
+
+    def test_objectives_have_expected_labels_and_directions(self):
+        assert CLASSIFICATION_RANKING_OBJECTIVES == {
+            "oos_accuracy": {"label": "OOS Accuracy", "higher_is_better": True},
+            "baseline_gap": {"label": "Baseline Improvement", "higher_is_better": True},
+            "balanced_accuracy": {"label": "Balanced Accuracy", "higher_is_better": True},
+            "brier_score": {"label": "Brier Score", "higher_is_better": False},
+        }
 
 
 class TestDashboardRenderModelHealth:
