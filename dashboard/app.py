@@ -1862,6 +1862,15 @@ def render_model_health():
         table,
     ])
 
+
+@app.callback(
+    dash.Output("model-ranking-container", "children"),
+    dash.Input("model-ranking-objective", "value"),
+)
+def update_model_ranking(objective):
+    return build_model_ranking_table(get_model_health(), objective or "oos_accuracy")
+
+
 def render_model_insights():
     """Interactive model insights — feature importance, accuracy chart, confusion matrix."""
     return html.Div([
