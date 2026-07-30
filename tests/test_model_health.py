@@ -490,6 +490,93 @@ class TestClassificationModelRankings:
         }
 
 
+class TestModelRankingUI:
+    def setup_method(self):
+        self.models = [
+            {"asset": "BTC", "interval": "1h", "asset_class": "crypto"},
+            {"asset": "ETH", "interval": "4h", "asset_class": "crypto"},
+            {"asset": "SOL", "interval": "1d", "asset_class": "crypto"},
+        ]
+        self.predictions = {
+            "BTC": pd.DataFrame({
+                "close": [100, 101, 102, 103],
+                "prediction": [1, 1, 0, 0],
+                "confidence": [0.8, 0.7, 0.9, 0.6],
+                "actual_direction": [1, 1, 1, 0],
+                "is_oos": [True, True, True, True],
+            }),
+            "ETH": pd.DataFrame({
+                "close": [100, 99, 98, 99],
+                "prediction": [0, 1, 0, 1],
+                "confidence": [0.9, 0.8, 0.7, 0.6],
+                "actual_direction": [0, 1, 0, 1],
+                "is_oos": [True, True, True, True],
+            }),
+        }
+
+    def _run_prediction(self, asset, interval, asset_class):
+        if asset == "SOL":
+            raise FileNotFoundError
+        return self.predictions[asset]
+
+    def test_default_table_ranks_exact_oos_accuracy_values(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", side_effect=self._run_prediction):
+            table = dashboard_app.build_model_ranking_table(self.models)
+
+        assert [row["Asset"] for row in table.data] == ["ETH", "BTC", "SOL"]
+        assert [row["Rank"] for row in table.data] == [1, 2, "N/A"]
+        assert [row["OOS Accuracy"] for row in table.data] == ["100.0%", "75.0%", "N/A"]
+        assert [row["OOS Rows"] for row in table.data] == [4, 4, "N/A"]
+
+    def test_brier_table_ranks_lower_exact_scores_first(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", side_effect=self._run_prediction):
+            table = dashboard_app.build_model_ranking_table(self.models, "brier_score")
+
+        assert [row["Asset"] for row in table.data] == ["ETH", "BTC", "SOL"]
+        assert [row["Brier Score"] for row in table.data] == ["0.038", "0.275", "N/A"]
+        assert [row["Rank"] for row in table.data] == [1, 2, "N/A"]
+
+    def test_layout_shows_all_classification_objectives(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", side_effect=self._run_prediction):
+            with patch.object(dashboard_app, "get_model_health", return_value=self.models):
+                with patch.object(dashboard_app, "get_summary_counts", return_value={
+                    "total": 3,
+                    "healthy": 3,
+                    "stale": 0,
+                    "missing_model": 0,
+                    "missing_metadata": 0,
+                }):
+                    content = dashboard_app.render_model_health()
+
+        dropdown = next(
+            component for component in content.children[5].children[0].children
+            if getattr(component, "id", None) == "model-ranking-objective"
+        )
+        assert dropdown.value == "oos_accuracy"
+        assert dropdown.options == [
+            {"label": "OOS Accuracy", "value": "oos_accuracy"},
+            {"label": "Baseline Improvement", "value": "baseline_gap"},
+            {"label": "Balanced Accuracy", "value": "balanced_accuracy"},
+            {"label": "Brier Score", "value": "brier_score"},
+        ]
+
+    def test_callback_uses_selected_objective_and_current_models(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "get_model_health", return_value=self.models):
+            with patch.object(dashboard_app, "run_prediction", side_effect=self._run_prediction):
+                table = dashboard_app.update_model_ranking("balanced_accuracy")
+
+        assert [row["Asset"] for row in table.data] == ["ETH", "BTC", "SOL"]
+        assert [row["Balanced Accuracy"] for row in table.data] == ["100.0%", "75.0%", "N/A"]
+
+
 class TestDashboardRenderModelHealth:
     def test_renders_tab_label(self):
         from dashboard import app as dashboard_app
