@@ -493,9 +493,30 @@ class TestClassificationModelRankings:
 class TestModelRankingUI:
     def setup_method(self):
         self.models = [
-            {"asset": "BTC", "interval": "1h", "asset_class": "crypto"},
-            {"asset": "ETH", "interval": "4h", "asset_class": "crypto"},
-            {"asset": "SOL", "interval": "1d", "asset_class": "crypto"},
+            {
+                "asset": "BTC",
+                "interval": "1h",
+                "asset_class": "crypto",
+                "status": "healthy",
+                "has_model": True,
+                "has_metadata": True,
+            },
+            {
+                "asset": "ETH",
+                "interval": "4h",
+                "asset_class": "crypto",
+                "status": "healthy",
+                "has_model": True,
+                "has_metadata": True,
+            },
+            {
+                "asset": "SOL",
+                "interval": "1d",
+                "asset_class": "crypto",
+                "status": "missing_model",
+                "has_model": False,
+                "has_metadata": True,
+            },
         ]
         self.predictions = {
             "BTC": pd.DataFrame({
@@ -537,7 +558,7 @@ class TestModelRankingUI:
             table = dashboard_app.build_model_ranking_table(self.models, "brier_score")
 
         assert [row["Asset"] for row in table.data] == ["ETH", "BTC", "SOL"]
-        assert [row["Brier Score"] for row in table.data] == ["0.038", "0.275", "N/A"]
+        assert [row["Brier Score"] for row in table.data] == ["0.075", "0.275", "N/A"]
         assert [row["Rank"] for row in table.data] == [1, 2, "N/A"]
 
     def test_layout_shows_all_classification_objectives(self):
