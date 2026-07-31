@@ -97,6 +97,15 @@ CLASSIFICATION_RANKING_OBJECTIVES = {
     "brier_score": {"label": "Brier Score", "higher_is_better": False},
 }
 
+TRADING_RANKING_OBJECTIVES = {
+    "total_return_pct": {"label": "Total Return", "higher_is_better": True},
+    "max_drawdown_pct": {"label": "Maximum Drawdown", "higher_is_better": False},
+    "sharpe_ratio": {"label": "Sharpe Ratio", "higher_is_better": True},
+    "return_volatility": {"label": "Return Volatility", "higher_is_better": False},
+}
+
+RANKING_OBJECTIVES = {**CLASSIFICATION_RANKING_OBJECTIVES, **TRADING_RANKING_OBJECTIVES}
+
 STANDARD_TRADING_CONFIG = {
     "confidence_threshold": 0.52,
     "stop_loss_pct": 0.02,
