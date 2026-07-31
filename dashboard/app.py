@@ -23,10 +23,12 @@ from sklearn.metrics import balanced_accuracy_score, brier_score_loss, f1_score,
 from dashboard.predictor import run_prediction
 from dashboard.model_health import (
     CLASSIFICATION_RANKING_OBJECTIVES,
+    RANKING_OBJECTIVES,
     STATUS_COLORS,
     STATUS_LABELS,
     get_model_health,
     get_summary_counts,
+    evaluate_trading_performance,
     rank_models,
 )
 from dashboard.pipeline_history import get_pipeline_runs, get_run_summary
@@ -1579,14 +1581,29 @@ def build_model_ranking_table(models, objective="oos_accuracy"):
             quality = _calculate_model_quality(None)
         ranked_models.append({**model, **quality})
 
+    if objective not in CLASSIFICATION_RANKING_OBJECTIVES:
+        ranked_models = evaluate_trading_performance(ranked_models)
+
     ranked_models = rank_models(ranked_models, objective)
-    objective_label = CLASSIFICATION_RANKING_OBJECTIVES[objective]["label"]
+    objective_label = RANKING_OBJECTIVES[objective]["label"]
 
     def format_percent(value):
         return f"{value:.1%}" if value is not None else "N/A"
 
+    def format_percentage_points(value):
+        return f"{value:.2f}%" if value is not None else "N/A"
+
     def format_score(value):
         return f"{value:.3f}" if value is not None else "N/A"
+
+    def format_ranking_score(value):
+        if objective in ("total_return_pct", "max_drawdown_pct"):
+            return format_percentage_points(value)
+        if objective == "return_volatility":
+            return format_percent(value)
+        if objective in ("brier_score", "sharpe_ratio"):
+            return format_score(value)
+        return format_percent(value)
 
     table_data = []
     for model in ranked_models:
@@ -1596,11 +1613,7 @@ def build_model_ranking_table(models, objective="oos_accuracy"):
             "Class": model["asset_class"].capitalize(),
             "Asset": model["asset"],
             "Interval": model["interval"],
-            objective_label: (
-                format_score(selected_score)
-                if objective == "brier_score"
-                else format_percent(selected_score)
-            ),
+            objective_label: format_ranking_score(selected_score),
             "OOS Accuracy": format_percent(model.get("oos_accuracy")),
             "Baseline Gap": format_percent(model.get("baseline_gap")),
             "Balanced Accuracy": format_percent(model.get("balanced_accuracy")),
