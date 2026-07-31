@@ -1849,7 +1849,7 @@ def render_model_health():
         summary_cards,
         html.H4("Model Rankings", className="text-light mt-4 mb-2"),
         html.P(
-            "Ranks models by out-of-sample classification metrics. Trading metrics will be added after standardized backtesting is available.",
+            "Ranks models by out-of-sample classification quality or standardized trading performance. Trading metrics use the same evaluation period and strategy settings for every model.",
             className="text-muted small mb-2",
         ),
         dbc.Row([
@@ -1859,7 +1859,7 @@ def render_model_health():
                     id="model-ranking-objective",
                     options=[
                         {"label": details["label"], "value": objective}
-                        for objective, details in CLASSIFICATION_RANKING_OBJECTIVES.items()
+                        for objective, details in RANKING_OBJECTIVES.items()
                     ],
                     value="oos_accuracy",
                     clearable=False,
