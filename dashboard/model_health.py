@@ -97,6 +97,104 @@ CLASSIFICATION_RANKING_OBJECTIVES = {
     "brier_score": {"label": "Brier Score", "higher_is_better": False},
 }
 
+STANDARD_TRADING_CONFIG = {
+    "confidence_threshold": 0.52,
+    "stop_loss_pct": 0.02,
+    "take_profit_pct": 0.04,
+    "max_hold_bars": 24,
+    "initial_capital": 10000,
+    "transaction_cost_pct": 0.001,
+    "allow_short": False,
+}
+
+TRADING_METRIC_FIELDS = (
+    "total_return_pct",
+    "max_drawdown_pct",
+    "sharpe_ratio",
+    "return_volatility",
+)
+
+
+def _unavailable_trading_metrics():
+    return {field: None for field in TRADING_METRIC_FIELDS}
+
+
+def evaluate_trading_performance(models: List[dict], prediction_runner=None):
+    if prediction_runner is None:
+        from dashboard.predictor import run_prediction
+        prediction_runner = run_prediction
+
+    from backtesting.metrics import compute_metrics
+    from backtesting.strategy import simulate_trades
+
+    evaluated = [dict(model, **_unavailable_trading_metrics()) for model in models]
+    predictions_by_model = {}
+
+    for index, model in enumerate(evaluated):
+        if not model.get("has_model", True):
+            continue
+
+        try:
+            predictions = prediction_runner(
+                asset=model["asset"],
+                interval=model["interval"],
+                asset_class=model["asset_class"],
+            )
+        except (FileNotFoundError, OSError, RuntimeError, ValueError):
+            continue
+
+        if predictions is None or predictions.empty:
+            continue
+
+        predictions = predictions.copy()
+        predictions["date"] = pd.to_datetime(predictions["date"])
+        if "is_oos" in predictions.columns:
+            predictions = predictions[predictions["is_oos"] == True]
+        predictions = predictions.dropna(subset=["date", "close", "prediction", "confidence"])
+        if not predictions.empty:
+            predictions_by_model[index] = predictions
+
+    if not predictions_by_model:
+        return evaluated
+
+    evaluation_start = max(predictions["date"].min() for predictions in predictions_by_model.values())
+    evaluation_end = min(predictions["date"].max() for predictions in predictions_by_model.values())
+    if evaluation_start > evaluation_end:
+        return evaluated
+
+    for index, predictions in predictions_by_model.items():
+        model = evaluated[index]
+        evaluation_predictions = predictions[
+            (predictions["date"] >= evaluation_start)
+            & (predictions["date"] <= evaluation_end)
+        ]
+        if evaluation_predictions.empty:
+            continue
+
+        trades, equity = simulate_trades(evaluation_predictions, **STANDARD_TRADING_CONFIG)
+        if equity.empty:
+            continue
+
+        metrics = compute_metrics(
+            trades,
+            equity,
+            initial_capital=STANDARD_TRADING_CONFIG["initial_capital"],
+            interval=model["interval"],
+            asset_class=model["asset_class"],
+        )
+        periodic_returns = equity.sort_values("date")["equity"].pct_change().dropna()
+
+        model["total_return_pct"] = metrics["total_return_pct"]
+        model["max_drawdown_pct"] = metrics["max_drawdown_pct"]
+        model["sharpe_ratio"] = metrics["sharpe_ratio"]
+        model["return_volatility"] = (
+            round(float(periodic_returns.std()), 6) if len(periodic_returns) > 1 else 0.0
+        )
+        model["trading_evaluation_start"] = evaluation_start
+        model["trading_evaluation_end"] = evaluation_end
+
+    return evaluated
+
 
 def rank_models(models: List[dict], objective: str):
     if objective not in CLASSIFICATION_RANKING_OBJECTIVES:
