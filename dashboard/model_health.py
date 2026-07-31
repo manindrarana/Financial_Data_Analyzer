@@ -206,10 +206,10 @@ def evaluate_trading_performance(models: List[dict], prediction_runner=None):
 
 
 def rank_models(models: List[dict], objective: str):
-    if objective not in CLASSIFICATION_RANKING_OBJECTIVES:
+    if objective not in RANKING_OBJECTIVES:
         raise ValueError(f"Unknown ranking objective: {objective}")
 
-    higher_is_better = CLASSIFICATION_RANKING_OBJECTIVES[objective]["higher_is_better"]
+    higher_is_better = RANKING_OBJECTIVES[objective]["higher_is_better"]
     ranked = [dict(model) for model in models]
     available = [model for model in ranked if model.get(objective) is not None and not pd.isna(model[objective])]
     unavailable = [model for model in ranked if model.get(objective) is None or pd.isna(model[objective])]
