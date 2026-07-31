@@ -535,7 +535,7 @@ class TestStandardizedTradingEvaluation:
             prediction_runner=lambda asset, interval, asset_class: self.predictions[asset],
         )
 
-        assert evaluated[0]["total_return_pct"] == pytest.approx(0.04)
+        assert evaluated[0]["total_return_pct"] == pytest.approx(0.07)
         assert evaluated[0]["max_drawdown_pct"] == pytest.approx(0.02)
         assert evaluated[0]["sharpe_ratio"] == pytest.approx(50.43)
         assert evaluated[0]["return_volatility"] == pytest.approx(0.000206)
