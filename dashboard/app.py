@@ -21,7 +21,16 @@ from plotly.subplots import make_subplots
 from dotenv import load_dotenv
 from sklearn.metrics import balanced_accuracy_score, brier_score_loss, f1_score, matthews_corrcoef
 from dashboard.predictor import run_prediction
-from dashboard.model_health import get_model_health, get_summary_counts, STATUS_LABELS, STATUS_COLORS
+from dashboard.model_health import (
+    CLASSIFICATION_RANKING_OBJECTIVES,
+    RANKING_OBJECTIVES,
+    STATUS_COLORS,
+    STATUS_LABELS,
+    get_model_health,
+    get_summary_counts,
+    evaluate_trading_performance,
+    rank_models,
+)
 from dashboard.pipeline_history import get_pipeline_runs, get_run_summary
 import diskcache
 
@@ -1562,6 +1571,101 @@ def _calculate_calibration_metrics(predictions, n_bins=10):
     }
 
 
+def build_model_ranking_table(models, objective="oos_accuracy"):
+    ranked_models = []
+    for model in models:
+        try:
+            predictions = run_prediction(model["asset"], model["interval"], model["asset_class"])
+            quality = _calculate_model_quality(predictions)
+        except (FileNotFoundError, OSError, ValueError, KeyError):
+            quality = _calculate_model_quality(None)
+        ranked_models.append({**model, **quality})
+
+    if objective not in CLASSIFICATION_RANKING_OBJECTIVES:
+        ranked_models = evaluate_trading_performance(ranked_models)
+
+    ranked_models = rank_models(ranked_models, objective)
+    objective_label = RANKING_OBJECTIVES[objective]["label"]
+
+    def format_percent(value):
+        return f"{value:.1%}" if value is not None else "N/A"
+
+    def format_percentage_points(value):
+        return f"{value:.2f}%" if value is not None else "N/A"
+
+    def format_score(value):
+        return f"{value:.3f}" if value is not None else "N/A"
+
+    def format_ranking_score(value):
+        if objective in ("total_return_pct", "max_drawdown_pct"):
+            return format_percentage_points(value)
+        if objective == "return_volatility":
+            return format_percent(value)
+        if objective in ("brier_score", "sharpe_ratio"):
+            return format_score(value)
+        return format_percent(value)
+
+    table_data = []
+    for model in ranked_models:
+        selected_score = model["ranking_score"]
+        table_data.append({
+            "Rank": model["rank"] if model["rank"] is not None else "N/A",
+            "Class": model["asset_class"].capitalize(),
+            "Asset": model["asset"],
+            "Interval": model["interval"],
+            objective_label: format_ranking_score(selected_score),
+            "OOS Accuracy": format_percent(model.get("oos_accuracy")),
+            "Baseline Gap": format_percent(model.get("baseline_gap")),
+            "Balanced Accuracy": format_percent(model.get("balanced_accuracy")),
+            "Brier Score": format_score(model.get("brier_score")),
+            "OOS Rows": model.get("oos_rows") or "N/A",
+        })
+
+    columns = [
+        {"name": "Rank", "id": "Rank"},
+        {"name": "Class", "id": "Class"},
+        {"name": "Asset", "id": "Asset"},
+        {"name": "Interval", "id": "Interval"},
+        {"name": objective_label, "id": objective_label},
+        {"name": "OOS Accuracy", "id": "OOS Accuracy"},
+        {"name": "Baseline Gap", "id": "Baseline Gap"},
+        {"name": "Balanced Accuracy", "id": "Balanced Accuracy"},
+        {"name": "Brier Score", "id": "Brier Score"},
+        {"name": "OOS Rows", "id": "OOS Rows"},
+    ]
+
+    return dash_table.DataTable(
+        id="model-ranking-table",
+        data=table_data,
+        columns=columns,
+        page_size=50,
+        sort_action="native",
+        filter_action="native",
+        style_table={"overflowX": "auto"},
+        style_cell={
+            "backgroundColor": "#222222",
+            "color": "#e0e0e0",
+            "borderColor": "#404040",
+            "fontSize": "12px",
+            "padding": "6px 10px",
+            "minWidth": "90px",
+        },
+        style_header={
+            "backgroundColor": "#333333",
+            "fontWeight": "bold",
+            "borderColor": "#555555",
+        },
+        style_filter={
+            "backgroundColor": "#2a2a2a",
+            "borderColor": "#555555",
+        },
+        style_data_conditional=[
+            {"if": {"row_index": "odd"}, "backgroundColor": "#262626"},
+            {"if": {"column_id": "Rank"}, "fontWeight": "bold", "color": "#5dade2"},
+        ],
+    )
+
+
 def render_model_health():
     models = get_model_health()
     counts = get_summary_counts(models)
@@ -1743,8 +1847,42 @@ def render_model_health():
             className="text-muted small mb-3",
         ),
         summary_cards,
+        html.H4("Model Rankings", className="text-light mt-4 mb-2"),
+        html.P(
+            "Ranks models by out-of-sample classification quality or standardized trading performance. Trading metrics use the same evaluation period and strategy settings for every model.",
+            className="text-muted small mb-2",
+        ),
+        dbc.Row([
+            dbc.Col([
+                html.Label("Rank By", className="text-muted small mb-1"),
+                dcc.Dropdown(
+                    id="model-ranking-objective",
+                    options=[
+                        {"label": details["label"], "value": objective}
+                        for objective, details in RANKING_OBJECTIVES.items()
+                    ],
+                    value="oos_accuracy",
+                    clearable=False,
+                    style={"color": "#000"},
+                ),
+            ], width=4),
+        ], className="mb-3"),
+        html.Div(
+            id="model-ranking-container",
+            children=build_model_ranking_table(models),
+        ),
+        html.H4("Model Status", className="text-light mt-4 mb-2"),
         table,
     ])
+
+
+@app.callback(
+    dash.Output("model-ranking-container", "children"),
+    dash.Input("model-ranking-objective", "value"),
+)
+def update_model_ranking(objective):
+    return build_model_ranking_table(get_model_health(), objective or "oos_accuracy")
+
 
 def render_model_insights():
     """Interactive model insights — feature importance, accuracy chart, confusion matrix."""

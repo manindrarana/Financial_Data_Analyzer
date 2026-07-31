@@ -21,6 +21,11 @@ from dashboard.model_health import (
     STATUS_LABELS,
     STATUS_COLORS,
     STATUS_ORDER,
+    CLASSIFICATION_RANKING_OBJECTIVES,
+    RANKING_OBJECTIVES,
+    STANDARD_TRADING_CONFIG,
+    evaluate_trading_performance,
+    rank_models,
 )
 
 
@@ -394,6 +399,305 @@ class TestModelQualityMetrics:
         assert metrics["best_baseline_accuracy"] is None
         assert metrics["baseline_gap"] is None
         assert metrics["brier_score"] is None
+
+
+class TestClassificationModelRankings:
+    def setup_method(self):
+        self.models = [
+            {
+                "asset": "BTC",
+                "interval": "1h",
+                "asset_class": "crypto",
+                "oos_accuracy": 0.53,
+                "baseline_gap": 0.02,
+                "balanced_accuracy": 0.51,
+                "brier_score": 0.24,
+            },
+            {
+                "asset": "ETH",
+                "interval": "4h",
+                "asset_class": "crypto",
+                "oos_accuracy": 0.55,
+                "baseline_gap": 0.01,
+                "balanced_accuracy": 0.54,
+                "brier_score": 0.21,
+            },
+            {
+                "asset": "AAPL",
+                "interval": "1d",
+                "asset_class": "stocks",
+                "oos_accuracy": 0.51,
+                "baseline_gap": 0.03,
+                "balanced_accuracy": 0.52,
+                "brier_score": 0.26,
+            },
+        ]
+
+    @pytest.mark.parametrize(
+        "objective, expected_assets, expected_scores",
+        [
+            ("oos_accuracy", ["ETH", "BTC", "AAPL"], [0.55, 0.53, 0.51]),
+            ("baseline_gap", ["AAPL", "BTC", "ETH"], [0.03, 0.02, 0.01]),
+            ("balanced_accuracy", ["ETH", "AAPL", "BTC"], [0.54, 0.52, 0.51]),
+            ("brier_score", ["ETH", "BTC", "AAPL"], [0.21, 0.24, 0.26]),
+        ],
+    )
+    def test_ranks_known_values_in_correct_direction(self, objective, expected_assets, expected_scores):
+        ranked = rank_models(self.models, objective)
+
+        assert [model["asset"] for model in ranked] == expected_assets
+        assert [model["ranking_score"] for model in ranked] == expected_scores
+        assert [model["rank"] for model in ranked] == [1, 2, 3]
+
+    def test_equal_scores_share_rank(self):
+        models = [
+            {"asset": "BTC", "interval": "1h", "asset_class": "crypto", "oos_accuracy": 0.55},
+            {"asset": "ETH", "interval": "4h", "asset_class": "crypto", "oos_accuracy": 0.55},
+            {"asset": "AAPL", "interval": "1d", "asset_class": "stocks", "oos_accuracy": 0.50},
+        ]
+
+        ranked = rank_models(models, "oos_accuracy")
+
+        assert [model["rank"] for model in ranked] == [1, 1, 3]
+        assert [model["asset"] for model in ranked[:2]] == ["BTC", "ETH"]
+
+    def test_missing_and_nan_scores_are_last_without_rank(self):
+        models = self.models + [
+            {"asset": "SOL", "interval": "1d", "asset_class": "crypto", "oos_accuracy": None},
+            {"asset": "MSFT", "interval": "1h", "asset_class": "stocks", "oos_accuracy": float("nan")},
+        ]
+
+        ranked = rank_models(models, "oos_accuracy")
+
+        assert [model["asset"] for model in ranked[:3]] == ["ETH", "BTC", "AAPL"]
+        assert [model["asset"] for model in ranked[3:]] == ["SOL", "MSFT"]
+        assert all(model["rank"] is None for model in ranked[3:])
+        assert all(model["ranking_score"] is None for model in ranked[3:])
+
+    def test_does_not_modify_source_models(self):
+        rank_models(self.models, "oos_accuracy")
+
+        assert all("rank" not in model for model in self.models)
+        assert all("ranking_score" not in model for model in self.models)
+
+    def test_rejects_unknown_objective(self):
+        with pytest.raises(ValueError, match="Unknown ranking objective"):
+            rank_models(self.models, "total_return")
+
+    def test_objectives_have_expected_labels_and_directions(self):
+        assert CLASSIFICATION_RANKING_OBJECTIVES == {
+            "oos_accuracy": {"label": "OOS Accuracy", "higher_is_better": True},
+            "baseline_gap": {"label": "Baseline Improvement", "higher_is_better": True},
+            "balanced_accuracy": {"label": "Balanced Accuracy", "higher_is_better": True},
+            "brier_score": {"label": "Brier Score", "higher_is_better": False},
+        }
+
+
+class TestStandardizedTradingEvaluation:
+    def setup_method(self):
+        self.models = [
+            {"asset": "BTC", "interval": "1h", "asset_class": "crypto", "has_model": True},
+            {"asset": "ETH", "interval": "1h", "asset_class": "crypto", "has_model": True},
+        ]
+        self.predictions = {
+            "BTC": pd.DataFrame({
+                "date": pd.date_range("2026-01-01", periods=6, freq="h"),
+                "close": [100.0, 103.0, 101.0, 105.0, 104.0, 108.0],
+                "prediction": [1, 1, 1, 1, 1, 1],
+                "confidence": [0.60] * 6,
+                "is_oos": [True] * 6,
+            }),
+            "ETH": pd.DataFrame({
+                "date": pd.date_range("2026-01-01 01:00", periods=6, freq="h"),
+                "close": [200.0, 198.0, 201.0, 197.0, 202.0, 204.0],
+                "prediction": [1, 1, 1, 1, 1, 1],
+                "confidence": [0.60] * 6,
+                "is_oos": [True] * 6,
+            }),
+        }
+
+    def test_uses_same_period_and_strategy_configuration(self):
+        runner = lambda asset, interval, asset_class: self.predictions[asset]
+
+        with patch("backtesting.strategy.simulate_trades", wraps=__import__(
+            "backtesting.strategy", fromlist=["simulate_trades"]
+        ).simulate_trades) as simulate:
+            evaluated = evaluate_trading_performance(self.models, prediction_runner=runner)
+
+        assert simulate.call_count == 2
+        assert all(call.kwargs == STANDARD_TRADING_CONFIG for call in simulate.call_args_list)
+        assert all(model["trading_evaluation_start"] == pd.Timestamp("2026-01-01 01:00") for model in evaluated)
+        assert all(model["trading_evaluation_end"] == pd.Timestamp("2026-01-01 05:00") for model in evaluated)
+        assert all(len(call.args[0]) == 5 for call in simulate.call_args_list)
+
+    def test_calculates_known_trading_metric_values(self):
+        evaluated = evaluate_trading_performance(
+            [self.models[0]],
+            prediction_runner=lambda asset, interval, asset_class: self.predictions[asset],
+        )
+
+        assert evaluated[0]["total_return_pct"] == pytest.approx(0.07)
+        assert evaluated[0]["max_drawdown_pct"] == pytest.approx(0.02)
+        assert evaluated[0]["sharpe_ratio"] == pytest.approx(42.29)
+        assert evaluated[0]["return_volatility"] == pytest.approx(0.000246)
+
+    def test_unavailable_predictions_return_none_metrics(self):
+        evaluated = evaluate_trading_performance(
+            self.models,
+            prediction_runner=lambda asset, interval, asset_class: None,
+        )
+
+        for model in evaluated:
+            assert model["total_return_pct"] is None
+            assert model["max_drawdown_pct"] is None
+            assert model["sharpe_ratio"] is None
+            assert model["return_volatility"] is None
+
+    def test_does_not_modify_source_models(self):
+        evaluate_trading_performance(
+            self.models,
+            prediction_runner=lambda asset, interval, asset_class: self.predictions[asset],
+        )
+
+        assert all("total_return_pct" not in model for model in self.models)
+
+
+class TestModelRankingUI:
+    def setup_method(self):
+        self.models = [
+            {
+                "asset": "BTC",
+                "interval": "1h",
+                "asset_class": "crypto",
+                "status": "healthy",
+                "has_model": True,
+                "has_metadata": True,
+            },
+            {
+                "asset": "ETH",
+                "interval": "4h",
+                "asset_class": "crypto",
+                "status": "healthy",
+                "has_model": True,
+                "has_metadata": True,
+            },
+            {
+                "asset": "SOL",
+                "interval": "1d",
+                "asset_class": "crypto",
+                "status": "missing_model",
+                "has_model": False,
+                "has_metadata": True,
+            },
+        ]
+        self.predictions = {
+            "BTC": pd.DataFrame({
+                "close": [100, 101, 102, 103],
+                "prediction": [1, 1, 0, 0],
+                "confidence": [0.8, 0.7, 0.9, 0.6],
+                "actual_direction": [1, 1, 1, 0],
+                "is_oos": [True, True, True, True],
+            }),
+            "ETH": pd.DataFrame({
+                "close": [100, 99, 98, 99],
+                "prediction": [0, 1, 0, 1],
+                "confidence": [0.9, 0.8, 0.7, 0.6],
+                "actual_direction": [0, 1, 0, 1],
+                "is_oos": [True, True, True, True],
+            }),
+        }
+
+    def _run_prediction(self, asset, interval, asset_class):
+        if asset == "SOL":
+            raise FileNotFoundError
+        return self.predictions[asset]
+
+    def test_default_table_ranks_exact_oos_accuracy_values(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", side_effect=self._run_prediction):
+            table = dashboard_app.build_model_ranking_table(self.models)
+
+        assert [row["Asset"] for row in table.data] == ["ETH", "BTC", "SOL"]
+        assert [row["Rank"] for row in table.data] == [1, 2, "N/A"]
+        assert [row["OOS Accuracy"] for row in table.data] == ["100.0%", "75.0%", "N/A"]
+        assert [row["OOS Rows"] for row in table.data] == [4, 4, "N/A"]
+
+    def test_brier_table_ranks_lower_exact_scores_first(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", side_effect=self._run_prediction):
+            table = dashboard_app.build_model_ranking_table(self.models, "brier_score")
+
+        assert [row["Asset"] for row in table.data] == ["ETH", "BTC", "SOL"]
+        assert [row["Brier Score"] for row in table.data] == ["0.075", "0.275", "N/A"]
+        assert [row["Rank"] for row in table.data] == [1, 2, "N/A"]
+
+    def test_layout_shows_all_ranking_objectives(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "run_prediction", side_effect=self._run_prediction):
+            with patch.object(dashboard_app, "get_model_health", return_value=self.models):
+                with patch.object(dashboard_app, "get_summary_counts", return_value={
+                    "total": 3,
+                    "healthy": 3,
+                    "stale": 0,
+                    "missing_model": 0,
+                    "missing_metadata": 0,
+                }):
+                    content = dashboard_app.render_model_health()
+
+        dropdown = next(
+            component for component in content.children[5].children[0].children
+            if getattr(component, "id", None) == "model-ranking-objective"
+        )
+        assert dropdown.value == "oos_accuracy"
+        assert dropdown.options == [
+            {"label": details["label"], "value": objective}
+            for objective, details in RANKING_OBJECTIVES.items()
+        ]
+
+    @pytest.mark.parametrize(
+        "objective, expected_assets, expected_values",
+        [
+            ("total_return_pct", ["BTC", "ETH", "SOL"], ["4.25%", "-1.50%", "N/A"]),
+            ("max_drawdown_pct", ["ETH", "BTC", "SOL"], ["1.25%", "3.50%", "N/A"]),
+            ("sharpe_ratio", ["BTC", "ETH", "SOL"], ["1.400", "-0.200", "N/A"]),
+            ("return_volatility", ["ETH", "BTC", "SOL"], ["0.8%", "1.2%", "N/A"]),
+        ],
+    )
+    def test_trading_objectives_rank_and_format_known_values(
+        self, objective, expected_assets, expected_values
+    ):
+        from dashboard import app as dashboard_app
+
+        evaluated = [
+            {**self.models[0], "total_return_pct": 4.25, "max_drawdown_pct": 3.50,
+             "sharpe_ratio": 1.40, "return_volatility": 0.012},
+            {**self.models[1], "total_return_pct": -1.50, "max_drawdown_pct": 1.25,
+             "sharpe_ratio": -0.20, "return_volatility": 0.008},
+            {**self.models[2], "total_return_pct": None, "max_drawdown_pct": None,
+             "sharpe_ratio": None, "return_volatility": None},
+        ]
+
+        with patch.object(dashboard_app, "run_prediction", side_effect=self._run_prediction):
+            with patch.object(dashboard_app, "evaluate_trading_performance", return_value=evaluated):
+                table = dashboard_app.build_model_ranking_table(self.models, objective)
+
+        label = RANKING_OBJECTIVES[objective]["label"]
+        assert [row["Asset"] for row in table.data] == expected_assets
+        assert [row["Rank"] for row in table.data] == [1, 2, "N/A"]
+        assert [row[label] for row in table.data] == expected_values
+
+    def test_callback_uses_selected_objective_and_current_models(self):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "get_model_health", return_value=self.models):
+            with patch.object(dashboard_app, "run_prediction", side_effect=self._run_prediction):
+                table = dashboard_app.update_model_ranking("balanced_accuracy")
+
+        assert [row["Asset"] for row in table.data] == ["ETH", "BTC", "SOL"]
+        assert [row["Balanced Accuracy"] for row in table.data] == ["100.0%", "83.3%", "N/A"]
 
 
 class TestDashboardRenderModelHealth:
