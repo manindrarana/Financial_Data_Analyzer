@@ -492,6 +492,75 @@ class TestClassificationModelRankings:
         }
 
 
+class TestStandardizedTradingEvaluation:
+    def setup_method(self):
+        self.models = [
+            {"asset": "BTC", "interval": "1h", "asset_class": "crypto", "has_model": True},
+            {"asset": "ETH", "interval": "1h", "asset_class": "crypto", "has_model": True},
+        ]
+        self.predictions = {
+            "BTC": pd.DataFrame({
+                "date": pd.date_range("2026-01-01", periods=6, freq="h"),
+                "close": [100.0, 103.0, 101.0, 105.0, 104.0, 108.0],
+                "prediction": [1, 1, 1, 1, 1, 1],
+                "confidence": [0.60] * 6,
+                "is_oos": [True] * 6,
+            }),
+            "ETH": pd.DataFrame({
+                "date": pd.date_range("2026-01-01 01:00", periods=6, freq="h"),
+                "close": [200.0, 198.0, 201.0, 197.0, 202.0, 204.0],
+                "prediction": [1, 1, 1, 1, 1, 1],
+                "confidence": [0.60] * 6,
+                "is_oos": [True] * 6,
+            }),
+        }
+
+    def test_uses_same_period_and_strategy_configuration(self):
+        runner = lambda asset, interval, asset_class: self.predictions[asset]
+
+        with patch("backtesting.strategy.simulate_trades", wraps=__import__(
+            "backtesting.strategy", fromlist=["simulate_trades"]
+        ).simulate_trades) as simulate:
+            evaluated = evaluate_trading_performance(self.models, prediction_runner=runner)
+
+        assert simulate.call_count == 2
+        assert all(call.kwargs == STANDARD_TRADING_CONFIG for call in simulate.call_args_list)
+        assert all(model["trading_evaluation_start"] == pd.Timestamp("2026-01-01 01:00") for model in evaluated)
+        assert all(model["trading_evaluation_end"] == pd.Timestamp("2026-01-01 05:00") for model in evaluated)
+        assert all(len(call.args[0]) == 5 for call in simulate.call_args_list)
+
+    def test_calculates_known_trading_metric_values(self):
+        evaluated = evaluate_trading_performance(
+            [self.models[0]],
+            prediction_runner=lambda asset, interval, asset_class: self.predictions[asset],
+        )
+
+        assert evaluated[0]["total_return_pct"] == pytest.approx(0.04)
+        assert evaluated[0]["max_drawdown_pct"] == pytest.approx(0.02)
+        assert evaluated[0]["sharpe_ratio"] == pytest.approx(50.43)
+        assert evaluated[0]["return_volatility"] == pytest.approx(0.000206)
+
+    def test_unavailable_predictions_return_none_metrics(self):
+        evaluated = evaluate_trading_performance(
+            self.models,
+            prediction_runner=lambda asset, interval, asset_class: None,
+        )
+
+        for model in evaluated:
+            assert model["total_return_pct"] is None
+            assert model["max_drawdown_pct"] is None
+            assert model["sharpe_ratio"] is None
+            assert model["return_volatility"] is None
+
+    def test_does_not_modify_source_models(self):
+        evaluate_trading_performance(
+            self.models,
+            prediction_runner=lambda asset, interval, asset_class: self.predictions[asset],
+        )
+
+        assert all("total_return_pct" not in model for model in self.models)
+
+
 class TestModelRankingUI:
     def setup_method(self):
         self.models = [
