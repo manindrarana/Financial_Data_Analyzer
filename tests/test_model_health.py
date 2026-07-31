@@ -22,6 +22,7 @@ from dashboard.model_health import (
     STATUS_COLORS,
     STATUS_ORDER,
     CLASSIFICATION_RANKING_OBJECTIVES,
+    RANKING_OBJECTIVES,
     STANDARD_TRADING_CONFIG,
     evaluate_trading_performance,
     rank_models,
@@ -632,7 +633,7 @@ class TestModelRankingUI:
         assert [row["Brier Score"] for row in table.data] == ["0.075", "0.275", "N/A"]
         assert [row["Rank"] for row in table.data] == [1, 2, "N/A"]
 
-    def test_layout_shows_all_classification_objectives(self):
+    def test_layout_shows_all_ranking_objectives(self):
         from dashboard import app as dashboard_app
 
         with patch.object(dashboard_app, "run_prediction", side_effect=self._run_prediction):
@@ -652,11 +653,41 @@ class TestModelRankingUI:
         )
         assert dropdown.value == "oos_accuracy"
         assert dropdown.options == [
-            {"label": "OOS Accuracy", "value": "oos_accuracy"},
-            {"label": "Baseline Improvement", "value": "baseline_gap"},
-            {"label": "Balanced Accuracy", "value": "balanced_accuracy"},
-            {"label": "Brier Score", "value": "brier_score"},
+            {"label": details["label"], "value": objective}
+            for objective, details in RANKING_OBJECTIVES.items()
         ]
+
+    @pytest.mark.parametrize(
+        "objective, expected_assets, expected_values",
+        [
+            ("total_return_pct", ["BTC", "ETH", "SOL"], ["4.25%", "-1.50%", "N/A"]),
+            ("max_drawdown_pct", ["ETH", "BTC", "SOL"], ["1.25%", "3.50%", "N/A"]),
+            ("sharpe_ratio", ["BTC", "ETH", "SOL"], ["1.400", "-0.200", "N/A"]),
+            ("return_volatility", ["ETH", "BTC", "SOL"], ["0.8%", "1.2%", "N/A"]),
+        ],
+    )
+    def test_trading_objectives_rank_and_format_known_values(
+        self, objective, expected_assets, expected_values
+    ):
+        from dashboard import app as dashboard_app
+
+        evaluated = [
+            {**self.models[0], "total_return_pct": 4.25, "max_drawdown_pct": 3.50,
+             "sharpe_ratio": 1.40, "return_volatility": 0.012},
+            {**self.models[1], "total_return_pct": -1.50, "max_drawdown_pct": 1.25,
+             "sharpe_ratio": -0.20, "return_volatility": 0.008},
+            {**self.models[2], "total_return_pct": None, "max_drawdown_pct": None,
+             "sharpe_ratio": None, "return_volatility": None},
+        ]
+
+        with patch.object(dashboard_app, "run_prediction", side_effect=self._run_prediction):
+            with patch.object(dashboard_app, "evaluate_trading_performance", return_value=evaluated):
+                table = dashboard_app.build_model_ranking_table(self.models, objective)
+
+        label = RANKING_OBJECTIVES[objective]["label"]
+        assert [row["Asset"] for row in table.data] == expected_assets
+        assert [row["Rank"] for row in table.data] == [1, 2, "N/A"]
+        assert [row[label] for row in table.data] == expected_values
 
     def test_callback_uses_selected_objective_and_current_models(self):
         from dashboard import app as dashboard_app
