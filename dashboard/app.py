@@ -2126,6 +2126,17 @@ def render_model_insights():
             children=html.Div(id="ch-chart-container"),
         ),
         html.Hr(className="my-4"),
+        html.H3("Baseline Statistical Significance", className="text-light mb-2"),
+        html.P(
+            "Tests whether the selected model's accuracy difference from its strongest simple baseline is statistically meaningful.",
+            className="text-muted small mb-3",
+        ),
+        dcc.Loading(
+            id="baseline-significance-loading",
+            type="circle",
+            children=html.Div(id="baseline-significance-container"),
+        ),
+        html.Hr(className="my-4"),
         html.H3("Probability Calibration", className="text-light mb-2"),
         html.P(
             "Compares predicted confidence with actual correctness to show whether the confidence can be treated as a probability.",
