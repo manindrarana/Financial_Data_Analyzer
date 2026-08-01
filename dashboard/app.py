@@ -3,6 +3,7 @@ Financial Data Analyzer — Plotly Dash Dashboard
 Multi-tab web UI reading directly from DuckDB gold tables.
 """
 
+import math
 import os
 import sys
 from datetime import datetime, timezone
@@ -1921,7 +1922,7 @@ def _exact_mcnemar_p_value(model_only, baseline_only):
         return 1.0
     smaller = min(model_only, baseline_only)
     probability = sum(
-        np.math.comb(discordant, successes)
+        math.comb(discordant, successes)
         for successes in range(smaller + 1)
     ) / (2**discordant)
     return min(1.0, 2 * probability)
