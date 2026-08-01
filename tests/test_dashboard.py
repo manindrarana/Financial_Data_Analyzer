@@ -227,7 +227,7 @@ class TestBaselineStatisticalSignificance:
         total = len(actual)
         return pd.DataFrame({
             "date": pd.date_range("2026-01-01", periods=total, freq="h"),
-            "close": list(range(100, 100 + total)),
+            "close": [100.0] * total,
             "prediction": predictions,
             "confidence": [0.60] * total,
             "actual_direction": actual,
