@@ -3,6 +3,7 @@ Financial Data Analyzer — Plotly Dash Dashboard
 Multi-tab web UI reading directly from DuckDB gold tables.
 """
 
+import math
 import os
 import sys
 from datetime import datetime, timezone
@@ -1884,8 +1885,114 @@ def update_model_ranking(objective):
     return build_model_ranking_table(get_model_health(), objective or "oos_accuracy")
 
 
+def _wilson_accuracy_interval(correct, total):
+    if total <= 0:
+        return None
+    z = 1.959963984540054
+    proportion = correct / total
+    denominator = 1 + z**2 / total
+    centre = (proportion + z**2 / (2 * total)) / denominator
+    margin = z * np.sqrt((proportion * (1 - proportion) + z**2 / (4 * total)) / total) / denominator
+    return max(0.0, centre - margin), min(1.0, centre + margin)
+
+
+def _paired_bootstrap_interval(model_correct, baseline_correct, block_size=10, iterations=2000, seed=42):
+    values = np.asarray(model_correct, dtype=float) - np.asarray(baseline_correct, dtype=float)
+    total = len(values)
+    if total < 2:
+        return None
+    block_size = min(block_size, total)
+    starts = np.arange(total)
+    rng = np.random.default_rng(seed)
+    bootstrap = np.empty(iterations)
+    blocks_needed = int(np.ceil(total / block_size))
+    for index in range(iterations):
+        sampled_starts = rng.choice(starts, size=blocks_needed, replace=True)
+        sampled = np.concatenate([
+            values[(start + np.arange(block_size)) % total]
+            for start in sampled_starts
+        ])[:total]
+        bootstrap[index] = sampled.mean()
+    return tuple(np.quantile(bootstrap, [0.025, 0.975]))
+
+
+def _exact_mcnemar_p_value(model_only, baseline_only):
+    discordant = model_only + baseline_only
+    if discordant == 0:
+        return 1.0
+    smaller = min(model_only, baseline_only)
+    probability = sum(
+        math.comb(discordant, successes)
+        for successes in range(smaller + 1)
+    ) / (2**discordant)
+    return min(1.0, 2 * probability)
+
+
+def build_baseline_significance(results):
+    """Compare a selected model with its strongest paired baseline."""
+    required = {"prediction", "actual_direction", "close", "date"}
+    if results is None or results.empty or not required.issubset(results.columns):
+        return {"status": "missing"}
+
+    scored = results[results["actual_direction"].notna()].copy()
+    if "is_oos" in scored.columns:
+        scored = scored[scored["is_oos"]].copy()
+    if scored.empty:
+        return {"status": "missing"}
+
+    sma20 = scored["close"].rolling(window=20).mean()
+    sma50 = scored["close"].rolling(window=50).mean()
+    rules = {
+        "Always Up": pd.Series(1, index=scored.index),
+        "Always Down": pd.Series(0, index=scored.index),
+        "Last Candle Direction": (scored["close"].diff() > 0).astype(int).shift(1),
+        "SMA 20 > SMA 50 Rule": (sma20 > sma50).where(sma20.notna() & sma50.notna()),
+    }
+    model_prediction = scored["prediction"]
+    paired_scores = {}
+    paired_values = {}
+    for name, baseline_prediction in rules.items():
+        valid = model_prediction.notna() & baseline_prediction.notna()
+        if valid.any():
+            actual = scored.loc[valid, "actual_direction"].astype(int)
+            model_correct = (model_prediction[valid].astype(int) == actual).to_numpy()
+            baseline_correct = (baseline_prediction[valid].astype(int) == actual).to_numpy()
+            paired_scores[name] = float(baseline_correct.mean())
+            paired_values[name] = (
+                model_correct,
+                baseline_correct,
+                pd.to_datetime(scored.loc[valid, "date"]),
+            )
+
+    if not paired_scores:
+        return {"status": "insufficient"}
+    best_name = max(paired_scores, key=paired_scores.get)
+    model_correct, baseline_correct, dates = paired_values[best_name]
+    total = len(model_correct)
+    if total < 2:
+        return {"status": "insufficient", "baseline_name": best_name, "sample_size": total}
+
+    model_accuracy = float(model_correct.mean())
+    baseline_accuracy = float(baseline_correct.mean())
+    model_only = int(np.sum(model_correct & ~baseline_correct))
+    baseline_only = int(np.sum(~model_correct & baseline_correct))
+    return {
+        "status": "ok",
+        "baseline_name": best_name,
+        "model_accuracy": model_accuracy,
+        "baseline_accuracy": baseline_accuracy,
+        "model_interval": _wilson_accuracy_interval(int(model_correct.sum()), total),
+        "baseline_interval": _wilson_accuracy_interval(int(baseline_correct.sum()), total),
+        "difference": model_accuracy - baseline_accuracy,
+        "difference_interval": _paired_bootstrap_interval(model_correct, baseline_correct),
+        "mcnemar_p_value": _exact_mcnemar_p_value(model_only, baseline_only),
+        "sample_size": total,
+        "start_date": dates.min(),
+        "end_date": dates.max(),
+    }
+
+
 def render_model_insights():
-    """Interactive model insights — feature importance, accuracy chart, confusion matrix."""
     return html.Div([
         html.H3("Feature Importance", className="text-light mb-2"),
         html.P(
@@ -2018,6 +2125,17 @@ def render_model_insights():
             id="ch-loading",
             type="circle",
             children=html.Div(id="ch-chart-container"),
+        ),
+        html.Hr(className="my-4"),
+        html.H3("Baseline Statistical Significance", className="text-light mb-2"),
+        html.P(
+            "Tests whether the selected model's accuracy difference from its strongest simple baseline is statistically meaningful.",
+            className="text-muted small mb-3",
+        ),
+        dcc.Loading(
+            id="baseline-significance-loading",
+            type="circle",
+            children=html.Div(id="baseline-significance-container"),
         ),
         html.Hr(className="my-4"),
         html.H3("Probability Calibration", className="text-light mb-2"),
@@ -3899,6 +4017,93 @@ def build_confidence_threshold_table(asset_class, asset_symbol, interval):
         ])),
         html.Tbody(table_rows),
     ], bordered=True, hover=True, size="sm", striped=True, responsive=True)
+
+
+@app.callback(
+    dash.Output("baseline-significance-container", "children"),
+    dash.Input("ch-class-dropdown", "value"),
+    dash.Input("ch-asset-dropdown", "value"),
+    dash.Input("ch-interval-dropdown", "value"),
+)
+def build_baseline_significance_section(asset_class, asset_symbol, interval):
+    if not asset_symbol or not interval:
+        return dbc.Alert("Select an asset and interval.", color="info")
+
+    try:
+        predictions = run_prediction(asset_symbol, interval, asset_class)
+    except FileNotFoundError:
+        return dbc.Alert(
+            f"No trained model for {asset_symbol} @ {interval}. Train one first.",
+            color="warning",
+        )
+
+    result = build_baseline_significance(predictions)
+    if result["status"] == "missing":
+        return dbc.Alert("No known out-of-sample predictions are available.", color="warning")
+    if result["status"] == "insufficient":
+        return dbc.Alert(
+            "At least two paired out-of-sample predictions are required.",
+            color="warning",
+        )
+
+    model_low, model_high = result["model_interval"]
+    baseline_low, baseline_high = result["baseline_interval"]
+    difference_low, difference_high = result["difference_interval"]
+    significant = (
+        result["mcnemar_p_value"] < 0.05
+        and (difference_low > 0 or difference_high < 0)
+    )
+    conclusion = "Statistically significant" if significant else "Not statistically significant"
+    conclusion_color = "success" if significant else "warning"
+    date_format = "%Y-%m-%d %H:%M UTC"
+
+    summary = pd.DataFrame([
+        {
+            "Comparison": "XGBoost",
+            "Accuracy": f"{result['model_accuracy']:.1%}",
+            "95% Confidence Interval": f"{model_low:.1%} to {model_high:.1%}",
+        },
+        {
+            "Comparison": result["baseline_name"],
+            "Accuracy": f"{result['baseline_accuracy']:.1%}",
+            "95% Confidence Interval": f"{baseline_low:.1%} to {baseline_high:.1%}",
+        },
+    ])
+
+    return html.Div([
+        dbc.Alert(conclusion, color=conclusion_color, className="mb-3"),
+        dbc.Row([
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(f"{result['difference']:+.1%}", className="card-title text-info text-center"),
+                html.P("Accuracy Difference", className="card-text text-muted small text-center mb-0"),
+            ]), color="dark", outline=True), width=3),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(f"{difference_low:+.1%} to {difference_high:+.1%}", className="card-title text-info text-center"),
+                html.P("95% Bootstrap CI", className="card-text text-muted small text-center mb-0"),
+            ]), color="dark", outline=True), width=3),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(f"{result['mcnemar_p_value']:.4f}", className="card-title text-info text-center"),
+                html.P("McNemar p-value", className="card-text text-muted small text-center mb-0"),
+            ]), color="dark", outline=True), width=3),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(str(result["sample_size"]), className="card-title text-info text-center"),
+                html.P("Paired OOS Rows", className="card-text text-muted small text-center mb-0"),
+            ]), color="dark", outline=True), width=3),
+        ], className="mb-3"),
+        html.P(
+            f"Best baseline: {result['baseline_name']} | "
+            f"Period: {result['start_date'].strftime(date_format)} to {result['end_date'].strftime(date_format)}",
+            className="text-muted small",
+        ),
+        dbc.Table.from_dataframe(
+            summary,
+            striped=True,
+            bordered=True,
+            hover=True,
+            color="dark",
+            className="mb-0",
+        ),
+    ])
 
 
 @app.callback(
