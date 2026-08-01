@@ -221,6 +221,78 @@ class TestPredictionCards:
         assert xgboost_row["Rows Tested"] == 2
 
 
+class TestBaselineStatisticalSignificance:
+    @staticmethod
+    def _prediction_rows(predictions, actual):
+        total = len(actual)
+        return pd.DataFrame({
+            "date": pd.date_range("2026-01-01", periods=total, freq="h"),
+            "close": list(range(100, 100 + total)),
+            "prediction": predictions,
+            "confidence": [0.60] * total,
+            "actual_direction": actual,
+            "is_oos": [True] * total,
+        })
+
+    def test_significant_model_improvement_values(self):
+        from dashboard import app as dashboard_app
+
+        actual = [0, 1] * 50
+        result = dashboard_app.build_baseline_significance(
+            self._prediction_rows(actual, actual)
+        )
+
+        assert result["status"] == "ok"
+        assert result["baseline_name"] == "Always Up"
+        assert result["model_accuracy"] == pytest.approx(1.0)
+        assert result["baseline_accuracy"] == pytest.approx(0.5)
+        assert result["difference"] == pytest.approx(0.5)
+        assert result["difference_interval"][0] > 0
+        assert result["mcnemar_p_value"] < 0.05
+        assert result["sample_size"] == 100
+        assert result["start_date"] == pd.Timestamp("2026-01-01 00:00:00")
+        assert result["end_date"] == pd.Timestamp("2026-01-05 03:00:00")
+
+    def test_non_significant_equal_accuracy_values(self):
+        from dashboard import app as dashboard_app
+
+        actual = [0, 1] * 50
+        result = dashboard_app.build_baseline_significance(
+            self._prediction_rows([1] * 100, actual)
+        )
+
+        assert result["status"] == "ok"
+        assert result["baseline_name"] == "Always Up"
+        assert result["model_accuracy"] == pytest.approx(0.5)
+        assert result["baseline_accuracy"] == pytest.approx(0.5)
+        assert result["difference"] == pytest.approx(0.0)
+        assert result["difference_interval"] == pytest.approx((0.0, 0.0))
+        assert result["mcnemar_p_value"] == pytest.approx(1.0)
+
+    def test_missing_known_oos_data_message(self):
+        from dashboard import app as dashboard_app
+
+        rows = self._prediction_rows([1, 0], [1, 0])
+        rows["actual_direction"] = [float("nan"), float("nan")]
+        with patch.object(dashboard_app, "run_prediction", return_value=rows):
+            content = dashboard_app.build_baseline_significance_section(
+                "crypto", "BTC", "1h"
+            )
+
+        assert "No known out-of-sample predictions are available." in _collect_text(content)
+
+    def test_insufficient_paired_data_message(self):
+        from dashboard import app as dashboard_app
+
+        rows = self._prediction_rows([1], [1])
+        with patch.object(dashboard_app, "run_prediction", return_value=rows):
+            content = dashboard_app.build_baseline_significance_section(
+                "crypto", "BTC", "1h"
+            )
+
+        assert "At least two paired out-of-sample predictions are required." in _collect_text(content)
+
+
 class TestFeatureImportance:
     def test_missing_model_shows_warning(self):
         from dashboard import app as dashboard_app
