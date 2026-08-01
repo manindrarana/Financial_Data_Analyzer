@@ -1884,8 +1884,101 @@ def update_model_ranking(objective):
     return build_model_ranking_table(get_model_health(), objective or "oos_accuracy")
 
 
+def _wilson_accuracy_interval(correct, total, confidence=0.95):
+    if total <= 0:
+        return None
+    from scipy.stats import norm
+
+    z = float(norm.ppf(1 - (1 - confidence) / 2))
+    proportion = correct / total
+    denominator = 1 + z**2 / total
+    centre = (proportion + z**2 / (2 * total)) / denominator
+    margin = z * np.sqrt((proportion * (1 - proportion) + z**2 / (4 * total)) / total) / denominator
+    return max(0.0, centre - margin), min(1.0, centre + margin)
+
+
+def _paired_bootstrap_interval(model_correct, baseline_correct, block_size=10, iterations=2000, seed=42):
+    values = np.asarray(model_correct, dtype=float) - np.asarray(baseline_correct, dtype=float)
+    if len(values) < 2:
+        return None
+    rng = np.random.default_rng(seed)
+    blocks = [values[start:start + block_size] for start in range(0, len(values), block_size)]
+    bootstrap = np.empty(iterations)
+    for index in range(iterations):
+        sampled = rng.integers(0, len(blocks), size=len(blocks))
+        bootstrap[index] = np.concatenate([blocks[item] for item in sampled]).mean()
+    return tuple(np.quantile(bootstrap, [0.025, 0.975]))
+
+
+def build_baseline_significance(results):
+    """Compare a selected model with its strongest paired baseline."""
+    required = {"prediction", "actual_direction", "close", "date"}
+    if results is None or results.empty or not required.issubset(results.columns):
+        return {"status": "missing"}
+
+    scored = results[results["actual_direction"].notna()].copy()
+    if "is_oos" in scored.columns:
+        oos = scored[scored["is_oos"]].copy()
+        if not oos.empty:
+            scored = oos
+    if scored.empty:
+        return {"status": "missing"}
+
+    sma20 = scored["close"].rolling(window=20).mean()
+    sma50 = scored["close"].rolling(window=50).mean()
+    rules = {
+        "Always Up": pd.Series(1, index=scored.index),
+        "Always Down": pd.Series(0, index=scored.index),
+        "Last Candle Direction": (scored["close"].diff() > 0).astype(int).shift(1),
+        "SMA 20 > SMA 50 Rule": (sma20 > sma50).where(sma20.notna() & sma50.notna()),
+    }
+    model_prediction = scored["prediction"]
+    paired_scores = {}
+    paired_values = {}
+    for name, baseline_prediction in rules.items():
+        valid = model_prediction.notna() & baseline_prediction.notna()
+        if valid.any():
+            model_correct = (model_prediction[valid].astype(int) == scored.loc[valid, "actual_direction"].astype(int)).to_numpy()
+            baseline_correct = (baseline_prediction[valid].astype(int) == scored.loc[valid, "actual_direction"].astype(int)).to_numpy()
+            paired_scores[name] = float(baseline_correct.mean())
+            paired_values[name] = (model_correct, baseline_correct)
+
+    if not paired_scores:
+        return {"status": "insufficient"}
+    best_name = max(paired_scores, key=paired_scores.get)
+    model_correct, baseline_correct = paired_values[best_name]
+    total = len(model_correct)
+    if total < 2:
+        return {"status": "insufficient", "baseline_name": best_name, "sample_size": total}
+
+    model_accuracy = float(model_correct.mean())
+    baseline_accuracy = float(baseline_correct.mean())
+    discordant = int(np.sum(model_correct != baseline_correct))
+    model_only = int(np.sum(model_correct & ~baseline_correct))
+    baseline_only = int(np.sum(~model_correct & baseline_correct))
+    if discordant:
+        from scipy.stats import binomtest
+        mcnemar_p_value = float(binomtest(min(model_only, baseline_only), discordant, 0.5, alternative="two-sided").pvalue)
+    else:
+        mcnemar_p_value = 1.0
+    dates = pd.to_datetime(scored.loc[scored.index[:len(model_correct)], "date"])
+    return {
+        "status": "ok",
+        "baseline_name": best_name,
+        "model_accuracy": model_accuracy,
+        "baseline_accuracy": baseline_accuracy,
+        "model_interval": _wilson_accuracy_interval(int(model_correct.sum()), total),
+        "baseline_interval": _wilson_accuracy_interval(int(baseline_correct.sum()), total),
+        "difference": model_accuracy - baseline_accuracy,
+        "difference_interval": _paired_bootstrap_interval(model_correct, baseline_correct),
+        "mcnemar_p_value": mcnemar_p_value,
+        "sample_size": total,
+        "start_date": dates.min(),
+        "end_date": dates.max(),
+    }
+
+
 def render_model_insights():
-    """Interactive model insights — feature importance, accuracy chart, confusion matrix."""
     return html.Div([
         html.H3("Feature Importance", className="text-light mb-2"),
         html.P(
