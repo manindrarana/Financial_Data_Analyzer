@@ -4019,6 +4019,93 @@ def build_confidence_threshold_table(asset_class, asset_symbol, interval):
 
 
 @app.callback(
+    dash.Output("baseline-significance-container", "children"),
+    dash.Input("ch-class-dropdown", "value"),
+    dash.Input("ch-asset-dropdown", "value"),
+    dash.Input("ch-interval-dropdown", "value"),
+)
+def build_baseline_significance_section(asset_class, asset_symbol, interval):
+    if not asset_symbol or not interval:
+        return dbc.Alert("Select an asset and interval.", color="info")
+
+    try:
+        predictions = run_prediction(asset_symbol, interval, asset_class)
+    except FileNotFoundError:
+        return dbc.Alert(
+            f"No trained model for {asset_symbol} @ {interval}. Train one first.",
+            color="warning",
+        )
+
+    result = build_baseline_significance(predictions)
+    if result["status"] == "missing":
+        return dbc.Alert("No known out-of-sample predictions are available.", color="warning")
+    if result["status"] == "insufficient":
+        return dbc.Alert(
+            "At least two paired out-of-sample predictions are required.",
+            color="warning",
+        )
+
+    model_low, model_high = result["model_interval"]
+    baseline_low, baseline_high = result["baseline_interval"]
+    difference_low, difference_high = result["difference_interval"]
+    significant = (
+        result["mcnemar_p_value"] < 0.05
+        and (difference_low > 0 or difference_high < 0)
+    )
+    conclusion = "Statistically significant" if significant else "Not statistically significant"
+    conclusion_color = "success" if significant else "warning"
+    date_format = "%Y-%m-%d %H:%M UTC"
+
+    summary = pd.DataFrame([
+        {
+            "Comparison": "XGBoost",
+            "Accuracy": f"{result['model_accuracy']:.1%}",
+            "95% Confidence Interval": f"{model_low:.1%} to {model_high:.1%}",
+        },
+        {
+            "Comparison": result["baseline_name"],
+            "Accuracy": f"{result['baseline_accuracy']:.1%}",
+            "95% Confidence Interval": f"{baseline_low:.1%} to {baseline_high:.1%}",
+        },
+    ])
+
+    return html.Div([
+        dbc.Alert(conclusion, color=conclusion_color, className="mb-3"),
+        dbc.Row([
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(f"{result['difference']:+.1%}", className="card-title text-info text-center"),
+                html.P("Accuracy Difference", className="card-text text-muted small text-center mb-0"),
+            ]), color="dark", outline=True), width=3),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(f"{difference_low:+.1%} to {difference_high:+.1%}", className="card-title text-info text-center"),
+                html.P("95% Bootstrap CI", className="card-text text-muted small text-center mb-0"),
+            ]), color="dark", outline=True), width=3),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(f"{result['mcnemar_p_value']:.4f}", className="card-title text-info text-center"),
+                html.P("McNemar p-value", className="card-text text-muted small text-center mb-0"),
+            ]), color="dark", outline=True), width=3),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(str(result["sample_size"]), className="card-title text-info text-center"),
+                html.P("Paired OOS Rows", className="card-text text-muted small text-center mb-0"),
+            ]), color="dark", outline=True), width=3),
+        ], className="mb-3"),
+        html.P(
+            f"Best baseline: {result['baseline_name']} | "
+            f"Period: {result['start_date'].strftime(date_format)} to {result['end_date'].strftime(date_format)}",
+            className="text-muted small",
+        ),
+        dbc.Table.from_dataframe(
+            summary,
+            striped=True,
+            bordered=True,
+            hover=True,
+            color="dark",
+            className="mb-0",
+        ),
+    ])
+
+
+@app.callback(
     dash.Output("calibration-container", "children"),
     dash.Input("ch-class-dropdown", "value"),
     dash.Input("ch-asset-dropdown", "value"),
