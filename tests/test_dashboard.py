@@ -21,6 +21,11 @@ from dashboard.predictor import (
 def _collect_text(component):
     if isinstance(component, str):
         return [component]
+    if isinstance(component, list):
+        values = []
+        for child in component:
+            values.extend(_collect_text(child))
+        return values
     children = getattr(component, "children", None)
     if children is None:
         return []
@@ -30,6 +35,141 @@ def _collect_text(component):
             values.extend(_collect_text(child))
         return values
     return _collect_text(children)
+
+
+class TestPriceChartInfoBar:
+    def test_shows_candle_change_amount_and_percentage(self):
+        from dashboard import app as dashboard_app
+
+        hover_data = {
+            "points": [{
+                "open": 100.0,
+                "high": 112.0,
+                "low": 98.0,
+                "close": 110.0,
+                "customdata": [2500.0],
+                "x": "2026-01-01T10:00:00",
+            }]
+        }
+
+        result = dashboard_app.update_chart_info_bar(hover_data, {})
+        text = "".join(_collect_text(result))
+
+        assert "Change: +10.0000 (+10.00%)" in text
+
+    def test_shows_negative_change_amount_and_percentage(self):
+        from dashboard import app as dashboard_app
+
+        hover_data = {
+            "points": [{
+                "open": 200.0,
+                "high": 204.0,
+                "low": 178.0,
+                "close": 180.0,
+                "customdata": [1500.0],
+                "x": "2026-01-01T11:00:00",
+            }]
+        }
+
+        result = dashboard_app.update_chart_info_bar(hover_data, {})
+        text = "".join(_collect_text(result))
+
+        assert "Change: -20.0000 (-10.00%)" in text
+
+    def test_shows_candle_range_amount_and_percentage(self):
+        from dashboard import app as dashboard_app
+
+        hover_data = {
+            "points": [{
+                "open": 100.0,
+                "high": 115.0,
+                "low": 95.0,
+                "close": 108.0,
+                "customdata": [2000.0],
+                "x": "2026-01-01T12:00:00",
+            }]
+        }
+
+        result = dashboard_app.update_chart_info_bar(hover_data, {})
+        text = "".join(_collect_text(result))
+
+        assert "Range: 20.0000 (20.00%)" in text
+
+    def test_shows_candle_volume(self):
+        from dashboard import app as dashboard_app
+
+        hover_data = {
+            "points": [{
+                "open": 100.0,
+                "high": 105.0,
+                "low": 98.0,
+                "close": 102.0,
+                "customdata": [12345.0],
+                "x": "2026-01-01T13:00:00",
+            }]
+        }
+
+        result = dashboard_app.update_chart_info_bar(hover_data, {})
+        text = "".join(_collect_text(result))
+
+        assert "Volume: 12,345" in text
+
+    def test_calculates_turnover_from_close_and_volume(self):
+        from dashboard import app as dashboard_app
+
+        hover_data = {
+            "points": [{
+                "open": 100.0,
+                "high": 105.0,
+                "low": 98.0,
+                "close": 102.0,
+                "customdata": [12345.0],
+                "x": "2026-01-01T14:00:00",
+            }]
+        }
+
+        result = dashboard_app.update_chart_info_bar(hover_data, {})
+        text = "".join(_collect_text(result))
+
+        assert "Turnover: 1,259,190.00" in text
+
+    def test_uses_green_for_positive_change(self):
+        from dashboard import app as dashboard_app
+
+        hover_data = {
+            "points": [{
+                "open": 100.0,
+                "high": 105.0,
+                "low": 98.0,
+                "close": 102.0,
+                "customdata": [1000.0],
+                "x": "2026-01-01T15:00:00",
+            }]
+        }
+
+        result = dashboard_app.update_chart_info_bar(hover_data, {})
+        change_span = result[8]
+
+        assert change_span.style["color"] == "#26a69a"
+
+    def test_uses_red_for_negative_change(self):
+        from dashboard import app as dashboard_app
+
+        hover_data = {
+            "points": [{
+                "open": 100.0,
+                "high": 103.0,
+                "low": 94.0,
+                "close": 96.0,
+                "customdata": [1000.0],
+                "x": "2026-01-01T16:00:00",
+            }]
+        }
+
+        result = dashboard_app.update_chart_info_bar(hover_data, {})
+        change_span = result[8]
+
+        assert change_span.style["color"] == "#ef5350"
 
 
 class TestIntervalMinutes:

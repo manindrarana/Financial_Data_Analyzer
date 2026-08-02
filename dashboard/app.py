@@ -2912,13 +2912,37 @@ def update_chart_info_bar(hover_data, indicator_data):
     for pt in hover_data["points"]:
         if "open" in pt:
             o, h, l, c = pt["open"], pt["high"], pt["low"], pt["close"]
-            v = pt.get("hovertext") or None
+            customdata = pt.get("customdata")
+            if isinstance(customdata, (list, tuple)) and customdata:
+                v = customdata[0]
+            elif customdata is not None:
+                v = customdata
+            else:
+                v = pt.get("hovertext") or None
         if hovered_x is None and pt.get("x"):
             hovered_x = pt["x"]
     parts = []
     if o is not None:
-        vol_txt = f"  V: {v:,.0f}" if v is not None else ""
-        parts.append(f"O: {o:.4f}  H: {h:.4f}  L: {l:.4f}  C: {c:.4f}{vol_txt}")
+        change = c - o
+        change_pct = (change / o * 100) if o else 0
+        candle_range = h - l
+        range_pct = (candle_range / o * 100) if o else 0
+        movement_color = "#26a69a" if change >= 0 else "#ef5350"
+        turnover = c * v if v is not None else None
+        parts.extend([
+            html.Span(f"O: {o:.4f}"),
+            html.Span(f"H: {h:.4f}"),
+            html.Span(f"L: {l:.4f}"),
+            html.Span(f"C: {c:.4f}"),
+            html.Span(
+                f"Change: {change:+.4f} ({change_pct:+.2f}%)",
+                style={"color": movement_color},
+            ),
+            html.Span(f"Range: {candle_range:.4f} ({range_pct:.2f}%)"),
+        ])
+        if v is not None:
+            parts.append(html.Span(f"Volume: {v:,.0f}"))
+            parts.append(html.Span(f"Turnover: {turnover:,.2f}"))
     if hovered_x and indicator_data:
         dt_str = pd.to_datetime(hovered_x).strftime("%Y-%m-%dT%H:%M:%S")
         ind_vals = indicator_data.get(dt_str, {})
@@ -2930,8 +2954,13 @@ def update_chart_info_bar(hover_data, indicator_data):
         for name in ORDERED_NAMES:
             val = ind_vals.get(name)
             if val is not None:
-                parts.append(f"{name}: {val:.4f}")
-    return "  |  ".join(parts) if parts else ""
+                parts.append(html.Span(f"{name}: {val:.4f}"))
+    children = []
+    for index, part in enumerate(parts):
+        if index:
+            children.append(html.Span("  |  "))
+        children.append(part)
+    return children if children else ""
 
 
 @app.callback(
