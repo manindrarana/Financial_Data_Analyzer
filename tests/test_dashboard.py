@@ -95,6 +95,25 @@ class TestPriceChartInfoBar:
 
         assert "Range: 20.0000 (20.00%)" in text
 
+    def test_shows_candle_volume(self):
+        from dashboard import app as dashboard_app
+
+        hover_data = {
+            "points": [{
+                "open": 100.0,
+                "high": 105.0,
+                "low": 98.0,
+                "close": 102.0,
+                "customdata": [12345.0],
+                "x": "2026-01-01T13:00:00",
+            }]
+        }
+
+        result = dashboard_app.update_chart_info_bar(hover_data, {})
+        text = "".join(_collect_text(result))
+
+        assert "Volume: 12,345" in text
+
 
 class TestIntervalMinutes:
     def test_1h_is_60(self):
