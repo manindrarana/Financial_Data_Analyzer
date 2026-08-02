@@ -152,6 +152,25 @@ class TestPriceChartInfoBar:
 
         assert change_span.style["color"] == "#26a69a"
 
+    def test_uses_red_for_negative_change(self):
+        from dashboard import app as dashboard_app
+
+        hover_data = {
+            "points": [{
+                "open": 100.0,
+                "high": 103.0,
+                "low": 94.0,
+                "close": 96.0,
+                "customdata": [1000.0],
+                "x": "2026-01-01T16:00:00",
+            }]
+        }
+
+        result = dashboard_app.update_chart_info_bar(hover_data, {})
+        change_span = result[8]
+
+        assert change_span.style["color"] == "#ef5350"
+
 
 class TestIntervalMinutes:
     def test_1h_is_60(self):
