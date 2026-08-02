@@ -21,6 +21,11 @@ from dashboard.predictor import (
 def _collect_text(component):
     if isinstance(component, str):
         return [component]
+    if isinstance(component, list):
+        values = []
+        for child in component:
+            values.extend(_collect_text(child))
+        return values
     children = getattr(component, "children", None)
     if children is None:
         return []
