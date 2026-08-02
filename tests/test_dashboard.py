@@ -32,6 +32,27 @@ def _collect_text(component):
     return _collect_text(children)
 
 
+class TestPriceChartInfoBar:
+    def test_shows_candle_change_amount_and_percentage(self):
+        from dashboard import app as dashboard_app
+
+        hover_data = {
+            "points": [{
+                "open": 100.0,
+                "high": 112.0,
+                "low": 98.0,
+                "close": 110.0,
+                "customdata": [2500.0],
+                "x": "2026-01-01T10:00:00",
+            }]
+        }
+
+        result = dashboard_app.update_chart_info_bar(hover_data, {})
+        text = "".join(_collect_text(result))
+
+        assert "Change: +10.0000 (+10.00%)" in text
+
+
 class TestIntervalMinutes:
     def test_1h_is_60(self):
         assert _INTERVAL_MINUTES["1h"] == 60
