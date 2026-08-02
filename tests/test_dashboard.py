@@ -57,6 +57,25 @@ class TestPriceChartInfoBar:
 
         assert "Change: +10.0000 (+10.00%)" in text
 
+    def test_shows_negative_change_amount_and_percentage(self):
+        from dashboard import app as dashboard_app
+
+        hover_data = {
+            "points": [{
+                "open": 200.0,
+                "high": 204.0,
+                "low": 178.0,
+                "close": 180.0,
+                "customdata": [1500.0],
+                "x": "2026-01-01T11:00:00",
+            }]
+        }
+
+        result = dashboard_app.update_chart_info_bar(hover_data, {})
+        text = "".join(_collect_text(result))
+
+        assert "Change: -20.0000 (-10.00%)" in text
+
 
 class TestIntervalMinutes:
     def test_1h_is_60(self):
