@@ -76,6 +76,25 @@ class TestPriceChartInfoBar:
 
         assert "Change: -20.0000 (-10.00%)" in text
 
+    def test_shows_candle_range_amount_and_percentage(self):
+        from dashboard import app as dashboard_app
+
+        hover_data = {
+            "points": [{
+                "open": 100.0,
+                "high": 115.0,
+                "low": 95.0,
+                "close": 108.0,
+                "customdata": [2000.0],
+                "x": "2026-01-01T12:00:00",
+            }]
+        }
+
+        result = dashboard_app.update_chart_info_bar(hover_data, {})
+        text = "".join(_collect_text(result))
+
+        assert "Range: 20.0000 (20.00%)" in text
+
 
 class TestIntervalMinutes:
     def test_1h_is_60(self):
