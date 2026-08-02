@@ -133,6 +133,25 @@ class TestPriceChartInfoBar:
 
         assert "Turnover: 1,259,190.00" in text
 
+    def test_uses_green_for_positive_change(self):
+        from dashboard import app as dashboard_app
+
+        hover_data = {
+            "points": [{
+                "open": 100.0,
+                "high": 105.0,
+                "low": 98.0,
+                "close": 102.0,
+                "customdata": [1000.0],
+                "x": "2026-01-01T15:00:00",
+            }]
+        }
+
+        result = dashboard_app.update_chart_info_bar(hover_data, {})
+        change_span = result[8]
+
+        assert change_span.style["color"] == "#26a69a"
+
 
 class TestIntervalMinutes:
     def test_1h_is_60(self):
