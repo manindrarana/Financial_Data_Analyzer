@@ -662,3 +662,18 @@ class TestPortfolioBacktest:
         )
         assert benchmark["equity"].tolist() == [10000.0, 15000.0, 10000.0]
         assert benchmark["return_pct"] == 0.0
+
+    def test_strategy_metrics_include_known_annualized_volatility(self):
+        trades = pd.DataFrame({
+            "pnl": [0.0],
+            "total_cost": [0.0],
+        })
+        equity = pd.DataFrame({
+            "date": [datetime(2024, 1, 1), datetime(2024, 1, 2), datetime(2024, 1, 3)],
+            "equity": [10000.0, 10100.0, 10000.0],
+            "drawdown_pct": [0.0, 0.0, 0.99],
+        })
+        metrics = compute_metrics(
+            trades, equity, initial_capital=10000, interval="1d", asset_class="stock",
+        )
+        assert metrics["volatility_pct"] == 22.34

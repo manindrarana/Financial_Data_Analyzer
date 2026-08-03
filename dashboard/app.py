@@ -858,6 +858,7 @@ def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None):
 
     return html.Div([
         metric_cards,
+        benchmark_cards,
         exit_html,
         dbc.Row(dbc.Col(dcc.Graph(figure=fig_equity, config={"displayModeBar": True, "responsive": True}), width=12)),
         dbc.Row(dbc.Col(dcc.Graph(figure=fig_trades, config={"displayModeBar": True, "responsive": True}), width=12)),
