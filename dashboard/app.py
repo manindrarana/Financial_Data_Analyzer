@@ -662,6 +662,7 @@ def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None):
             buy_hold_dates = bh["date"]
             buy_hold_equity = equity_df["equity"].iloc[0] * bh["close"] / bh["close"].iloc[0]
 
+    benchmark_metrics = buy_hold_df if isinstance(buy_hold_df, dict) else {}
     metric_cards = dbc.Row(
         [
             dbc.Col(dbc.Card(dbc.CardBody([
@@ -929,6 +930,8 @@ def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, p
                 predictions_dict=predictions_dict,
                 initial_capital=float(capital),
                 transaction_cost_pct=float(txn_cost) / 100 if txn_cost else 0.0,
+                interval=interval,
+                asset_class=asset_class,
             )
         else:
             if bt_mode == "pretrained":
