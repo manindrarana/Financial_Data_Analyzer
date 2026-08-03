@@ -701,6 +701,10 @@ def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None):
                 html.P("Sharpe Ratio", className="card-text text-muted small"),
             ]), color="dark", outline=True), width=2),
             dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(f"{metrics.get('volatility_pct', 0):.2f}%", className="card-title text-info"),
+                html.P("Volatility", className="card-text text-muted small"),
+            ]), color="dark", outline=True), width=2),
+            dbc.Col(dbc.Card(dbc.CardBody([
                 html.H5(f"{metrics.get('max_drawdown_pct', 0):.1f}%", className="card-title text-danger"),
                 html.P("Max Drawdown", className="card-text text-muted small"),
             ]), color="dark", outline=True), width=2),
@@ -1013,8 +1017,15 @@ def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, p
         )
 
         set_progress(dbc.Alert("Rendering results...", color="success"))
-        buy_hold_df = predictions_df if bt_mode != "portfolio" else buy_hold_data
-        return _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=buy_hold_df)
+        if bt_mode != "portfolio":
+            buy_hold_data = compute_portfolio_buy_and_hold(
+                predictions_dict={asset: predictions_df},
+                initial_capital=float(capital),
+                transaction_cost_pct=float(txn_cost) / 100 if txn_cost else 0.0,
+                interval=interval,
+                asset_class=asset_class,
+            )
+        return _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=buy_hold_data)
 
     except Exception as e:
         return dbc.Alert(f"Backtest failed: {e}", color="danger")
