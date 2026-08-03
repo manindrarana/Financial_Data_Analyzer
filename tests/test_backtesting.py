@@ -619,3 +619,20 @@ class TestPortfolioBacktest:
         assert benchmark["equity"].tolist() == [9990.0, 10979.0]
         assert benchmark["return_pct"] == 9.79
         assert benchmark["total_cost"] == 21.0
+
+    def test_portfolio_buy_and_hold_uses_common_date_range(self):
+        preds = {
+            "BTC": pd.DataFrame({
+                "date": [datetime(2024, 1, 1), datetime(2024, 1, 2), datetime(2024, 1, 3)],
+                "close": [100.0, 110.0, 120.0],
+            }),
+            "ETH": pd.DataFrame({
+                "date": [datetime(2024, 1, 2), datetime(2024, 1, 3)],
+                "close": [200.0, 220.0],
+            }),
+        }
+        benchmark = compute_portfolio_buy_and_hold(
+            preds, initial_capital=10000, transaction_cost_pct=0.0,
+        )
+        assert benchmark["dates"].tolist() == [datetime(2024, 1, 2), datetime(2024, 1, 3)]
+        assert benchmark["equity"].tolist() == [10000.0, 10500.0]
