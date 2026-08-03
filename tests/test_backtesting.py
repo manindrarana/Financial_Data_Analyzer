@@ -601,3 +601,21 @@ class TestPortfolioBacktest:
         )
         assert benchmark["equity"].tolist() == [10000.0, 11000.0]
         assert benchmark["return_pct"] == 10.0
+
+    def test_portfolio_buy_and_hold_applies_entry_and_exit_costs(self):
+        preds = {
+            "BTC": pd.DataFrame({
+                "date": [datetime(2024, 1, 1), datetime(2024, 1, 2)],
+                "close": [100.0, 120.0],
+            }),
+            "ETH": pd.DataFrame({
+                "date": [datetime(2024, 1, 1), datetime(2024, 1, 2)],
+                "close": [100.0, 100.0],
+            }),
+        }
+        benchmark = compute_portfolio_buy_and_hold(
+            preds, initial_capital=10000, transaction_cost_pct=0.001,
+        )
+        assert benchmark["equity"].tolist() == [9990.0, 10979.0]
+        assert benchmark["return_pct"] == 9.79
+        assert benchmark["total_cost"] == 21.0
