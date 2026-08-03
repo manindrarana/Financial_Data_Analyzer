@@ -895,7 +895,7 @@ def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, p
             set_progress(dbc.Alert("Loading data & training walk-forward model...", color="info"))
 
         from backtesting.walk_forward import run_walk_forward, run_walk_forward_pretrained, run_portfolio_backtest
-        from backtesting.strategy import run_strategy, run_portfolio_strategy
+        from backtesting.strategy import run_strategy, run_portfolio_strategy, compute_portfolio_buy_and_hold
         from backtesting.metrics import run_metrics
 
         if bt_mode == "portfolio":
@@ -923,6 +923,11 @@ def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, p
                 transaction_cost_pct=float(txn_cost) / 100 if txn_cost else 0.0,
                 allow_short=bool(allow_short),
                 max_positions=int(max_positions),
+            )
+            buy_hold_data = compute_portfolio_buy_and_hold(
+                predictions_dict=predictions_dict,
+                initial_capital=float(capital),
+                transaction_cost_pct=float(txn_cost) / 100 if txn_cost else 0.0,
             )
         else:
             if bt_mode == "pretrained":
