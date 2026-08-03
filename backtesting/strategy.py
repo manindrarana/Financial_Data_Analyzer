@@ -259,6 +259,77 @@ def run_strategy(
     return trades_df, equity_df
 
 
+def compute_portfolio_buy_and_hold(
+    predictions_dict,
+    initial_capital=10000,
+    transaction_cost_pct=0.001,
+    interval=None,
+    asset_class=None,
+):
+    if not predictions_dict:
+        return {"equity": pd.Series(dtype=float), "dates": pd.Series(dtype="datetime64[ns]"), "return_pct": 0.0, "total_cost": 0.0}
+
+    prices = []
+    for asset, df in predictions_dict.items():
+        if df.empty or "date" not in df.columns or "close" not in df.columns:
+            continue
+        asset_prices = df[["date", "close"]].copy()
+        asset_prices["date"] = pd.to_datetime(asset_prices["date"])
+        asset_prices = asset_prices.dropna(subset=["date", "close"])
+        asset_prices = asset_prices[asset_prices["close"] > 0]
+        asset_prices = asset_prices.sort_values("date").drop_duplicates("date")
+        asset_prices[asset] = asset_prices["close"]
+        prices.append(asset_prices[["date", asset]])
+
+    if not prices:
+        return {"equity": pd.Series(dtype=float), "dates": pd.Series(dtype="datetime64[ns]"), "return_pct": 0.0, "total_cost": 0.0}
+
+    start_date = max(frame["date"].min() for frame in prices)
+    end_date = min(frame["date"].max() for frame in prices)
+    merged = prices[0]
+    for frame in prices[1:]:
+        merged = merged.merge(frame, on="date", how="outer")
+    merged = merged[(merged["date"] >= start_date) & (merged["date"] <= end_date)]
+    merged = merged.sort_values("date").ffill().dropna().reset_index(drop=True)
+
+    if merged.empty:
+        return {"equity": pd.Series(dtype=float), "dates": pd.Series(dtype="datetime64[ns]"), "return_pct": 0.0, "total_cost": 0.0}
+
+    assets = [asset for asset in predictions_dict if asset in merged.columns]
+    allocation = initial_capital / len(assets)
+    first_prices = merged.iloc[0][assets]
+    last_prices = merged.iloc[-1][assets]
+    entry_cost = initial_capital * transaction_cost_pct
+    exit_cost = sum(allocation * last_prices[asset] / first_prices[asset] for asset in assets) * transaction_cost_pct
+    units = allocation / first_prices
+    equity = merged[assets].mul(units, axis="columns").sum(axis=1).astype(float) - entry_cost
+    equity.iloc[-1] -= exit_cost
+    benchmark_returns = equity.pct_change().dropna()
+    running_peak = equity.cummax()
+    drawdown_pct = ((running_peak - equity) / running_peak * 100).max()
+    from backtesting.metrics import _infer_periods_per_year, CRYPTO_ANNUALIZATION_FACTORS, STOCK_ANNUALIZATION_FACTORS
+    factors = CRYPTO_ANNUALIZATION_FACTORS if asset_class == "crypto" else STOCK_ANNUALIZATION_FACTORS
+    periods_per_year = factors.get(interval) if interval else None
+    if periods_per_year is None:
+        periods_per_year = _infer_periods_per_year(
+            pd.DataFrame({"date": merged["date"]}), asset_class=asset_class,
+        )
+    volatility_pct = benchmark_returns.std() * (periods_per_year ** 0.5) * 100 if len(benchmark_returns) > 1 else 0.0
+    sharpe_ratio = (
+        benchmark_returns.mean() / benchmark_returns.std() * (periods_per_year ** 0.5)
+        if len(benchmark_returns) > 1 and benchmark_returns.std() > 0 else 0.0
+    )
+    return {
+        "dates": merged["date"],
+        "equity": equity.round(2),
+        "return_pct": round((equity.iloc[-1] / initial_capital - 1) * 100, 2),
+        "max_drawdown_pct": round(float(drawdown_pct), 2),
+        "sharpe_ratio": round(float(sharpe_ratio), 2),
+        "volatility_pct": round(float(volatility_pct), 2),
+        "total_cost": round(entry_cost + exit_cost, 6),
+    }
+
+
 def simulate_portfolio_trades(
     predictions_dict,
     confidence_threshold=0.52,

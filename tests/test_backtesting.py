@@ -7,7 +7,7 @@ import pytest
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
-from backtesting.strategy import simulate_trades, simulate_portfolio_trades
+from backtesting.strategy import simulate_trades, simulate_portfolio_trades, compute_portfolio_buy_and_hold
 from backtesting.metrics import (
     compute_metrics,
     ANNUALIZATION_FACTORS,
@@ -584,3 +584,111 @@ class TestPortfolioBacktest:
         assert btc_trade["pnl"] == round(btc_size * (104.0 - 100.0), 4)
         assert eth_trade["pnl"] == round(eth_size * (208.0 - 200.0), 4)
         assert eth_trade["pnl"] == btc_trade["pnl"]
+
+    def test_portfolio_buy_and_hold_equal_allocation_without_rebalancing(self):
+        preds = {
+            "BTC": pd.DataFrame({
+                "date": [datetime(2024, 1, 1), datetime(2024, 1, 2)],
+                "close": [100.0, 120.0],
+            }),
+            "ETH": pd.DataFrame({
+                "date": [datetime(2024, 1, 1), datetime(2024, 1, 2)],
+                "close": [100.0, 100.0],
+            }),
+        }
+        benchmark = compute_portfolio_buy_and_hold(
+            preds, initial_capital=10000, transaction_cost_pct=0.0,
+        )
+        assert benchmark["equity"].tolist() == [10000.0, 11000.0]
+        assert benchmark["return_pct"] == 10.0
+
+    def test_portfolio_buy_and_hold_applies_entry_and_exit_costs(self):
+        preds = {
+            "BTC": pd.DataFrame({
+                "date": [datetime(2024, 1, 1), datetime(2024, 1, 2)],
+                "close": [100.0, 120.0],
+            }),
+            "ETH": pd.DataFrame({
+                "date": [datetime(2024, 1, 1), datetime(2024, 1, 2)],
+                "close": [100.0, 100.0],
+            }),
+        }
+        benchmark = compute_portfolio_buy_and_hold(
+            preds, initial_capital=10000, transaction_cost_pct=0.001,
+        )
+        assert benchmark["equity"].tolist() == [9990.0, 10979.0]
+        assert benchmark["return_pct"] == 9.79
+        assert benchmark["total_cost"] == 21.0
+
+    def test_portfolio_buy_and_hold_uses_common_date_range(self):
+        preds = {
+            "BTC": pd.DataFrame({
+                "date": [datetime(2024, 1, 1), datetime(2024, 1, 2), datetime(2024, 1, 3)],
+                "close": [100.0, 110.0, 120.0],
+            }),
+            "ETH": pd.DataFrame({
+                "date": [datetime(2024, 1, 2), datetime(2024, 1, 3)],
+                "close": [200.0, 220.0],
+            }),
+        }
+        benchmark = compute_portfolio_buy_and_hold(
+            preds, initial_capital=10000, transaction_cost_pct=0.0,
+        )
+        assert benchmark["dates"].tolist() == [datetime(2024, 1, 2), datetime(2024, 1, 3)]
+        assert benchmark["equity"].tolist() == [10000.0, 10954.55]
+
+    def test_portfolio_buy_and_hold_empty_input(self):
+        benchmark = compute_portfolio_buy_and_hold(
+            {}, initial_capital=10000, transaction_cost_pct=0.001,
+        )
+        assert benchmark["dates"].empty
+        assert benchmark["equity"].empty
+        assert benchmark["return_pct"] == 0.0
+        assert benchmark["total_cost"] == 0.0
+
+    def test_portfolio_buy_and_hold_keeps_fixed_asset_quantities(self):
+        preds = {
+            "BTC": pd.DataFrame({
+                "date": [datetime(2024, 1, 1), datetime(2024, 1, 2), datetime(2024, 1, 3)],
+                "close": [100.0, 200.0, 100.0],
+            }),
+            "ETH": pd.DataFrame({
+                "date": [datetime(2024, 1, 1), datetime(2024, 1, 2), datetime(2024, 1, 3)],
+                "close": [100.0, 100.0, 100.0],
+            }),
+        }
+        benchmark = compute_portfolio_buy_and_hold(
+            preds, initial_capital=10000, transaction_cost_pct=0.0,
+        )
+        assert benchmark["equity"].tolist() == [10000.0, 15000.0, 10000.0]
+        assert benchmark["return_pct"] == 0.0
+
+    def test_strategy_metrics_include_known_annualized_volatility(self):
+        trades = pd.DataFrame({
+            "pnl": [0.0],
+            "total_cost": [0.0],
+        })
+        equity = pd.DataFrame({
+            "date": [datetime(2024, 1, 1), datetime(2024, 1, 2), datetime(2024, 1, 3)],
+            "equity": [10000.0, 10100.0, 10000.0],
+            "drawdown_pct": [0.0, 0.0, 0.99],
+        })
+        metrics = compute_metrics(
+            trades, equity, initial_capital=10000, interval="1d", asset_class="stock",
+        )
+        assert metrics["volatility_pct"] == 22.34
+
+    def test_strategy_volatility_uses_crypto_annualization(self):
+        trades = pd.DataFrame({
+            "pnl": [0.0],
+            "total_cost": [0.0],
+        })
+        equity = pd.DataFrame({
+            "date": [datetime(2024, 1, 1), datetime(2024, 1, 2), datetime(2024, 1, 3)],
+            "equity": [10000.0, 10100.0, 10000.0],
+            "drawdown_pct": [0.0, 0.0, 0.99],
+        })
+        metrics = compute_metrics(
+            trades, equity, initial_capital=10000, interval="1d", asset_class="crypto",
+        )
+        assert metrics["volatility_pct"] == 26.88

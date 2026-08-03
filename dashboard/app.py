@@ -646,14 +646,46 @@ def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None):
         return dbc.Alert("No trades executed — try relaxing the confidence threshold or date range.", color="warning")
 
     buy_hold_return_pct = 0.0
-    if buy_hold_df is not None and not buy_hold_df.empty:
+    buy_hold_equity = None
+    buy_hold_dates = None
+    if isinstance(buy_hold_df, dict):
+        buy_hold_return_pct = buy_hold_df.get("return_pct", 0.0)
+        buy_hold_equity = buy_hold_df.get("equity")
+        buy_hold_dates = buy_hold_df.get("dates")
+    elif buy_hold_df is not None and not buy_hold_df.empty:
         bh = buy_hold_df[["date", "close"]].copy()
         bh["date"] = pd.to_datetime(bh["date"])
         bh = bh.sort_values("date")
         bh = bh[bh["date"] >= pd.to_datetime(equity_df["date"].min())]
         if not bh.empty and bh["close"].iloc[0] > 0:
             buy_hold_return_pct = (bh["close"].iloc[-1] / bh["close"].iloc[0] - 1) * 100
+            buy_hold_dates = bh["date"]
+            buy_hold_equity = equity_df["equity"].iloc[0] * bh["close"] / bh["close"].iloc[0]
 
+    benchmark_metrics = buy_hold_df if isinstance(buy_hold_df, dict) else {}
+    benchmark_cards = None
+    if benchmark_metrics:
+        benchmark_cards = dbc.Row(
+            [
+                dbc.Col(dbc.Card(dbc.CardBody([
+                    html.H5(f"{benchmark_metrics.get('max_drawdown_pct', 0):.2f}%", className="card-title text-warning"),
+                    html.P("Buy & Hold Max Drawdown", className="card-text text-muted small"),
+                ]), color="dark", outline=True), width=3),
+                dbc.Col(dbc.Card(dbc.CardBody([
+                    html.H5(f"{benchmark_metrics.get('sharpe_ratio', 0):.2f}", className="card-title text-warning"),
+                    html.P("Buy & Hold Sharpe", className="card-text text-muted small"),
+                ]), color="dark", outline=True), width=3),
+                dbc.Col(dbc.Card(dbc.CardBody([
+                    html.H5(f"{benchmark_metrics.get('volatility_pct', 0):.2f}%", className="card-title text-warning"),
+                    html.P("Buy & Hold Volatility", className="card-text text-muted small"),
+                ]), color="dark", outline=True), width=3),
+                dbc.Col(dbc.Card(dbc.CardBody([
+                    html.H5(f"${benchmark_metrics.get('total_cost', 0):,.2f}", className="card-title text-warning"),
+                    html.P("Buy & Hold Total Cost", className="card-text text-muted small"),
+                ]), color="dark", outline=True), width=3),
+            ],
+            className="mb-3",
+        )
     metric_cards = dbc.Row(
         [
             dbc.Col(dbc.Card(dbc.CardBody([
@@ -667,6 +699,10 @@ def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None):
             dbc.Col(dbc.Card(dbc.CardBody([
                 html.H5(f"{metrics.get('sharpe_ratio', 0):.2f}", className="card-title text-info"),
                 html.P("Sharpe Ratio", className="card-text text-muted small"),
+            ]), color="dark", outline=True), width=2),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(f"{metrics.get('volatility_pct', 0):.2f}%", className="card-title text-info"),
+                html.P("Volatility", className="card-text text-muted small"),
             ]), color="dark", outline=True), width=2),
             dbc.Col(dbc.Card(dbc.CardBody([
                 html.H5(f"{metrics.get('max_drawdown_pct', 0):.1f}%", className="card-title text-danger"),
@@ -712,19 +748,12 @@ def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None):
         line=dict(color="#17a2b8", width=1.5),
         fill="tozeroy", fillcolor="rgba(23,162,184,0.1)",
     ))
-    if buy_hold_df is not None and not buy_hold_df.empty:
-        bh = buy_hold_df[["date", "close"]].copy()
-        bh["date"] = pd.to_datetime(bh["date"])
-        bh = bh.sort_values("date")
-        bh = bh[bh["date"] >= equity_df["date"].min()]
-        if not bh.empty and bh["close"].iloc[0] > 0:
-            initial_capital = equity_df["equity"].iloc[0]
-            bh["buy_hold"] = initial_capital * bh["close"] / bh["close"].iloc[0]
-            fig_equity.add_trace(go.Scatter(
-                x=bh["date"], y=bh["buy_hold"],
-                mode="lines", name="Buy & Hold",
-                line=dict(color="#f7931a", width=1.5, dash="dash"),
-            ))
+    if buy_hold_equity is not None and buy_hold_dates is not None:
+        fig_equity.add_trace(go.Scatter(
+            x=pd.to_datetime(buy_hold_dates), y=buy_hold_equity,
+            mode="lines", name="Buy & Hold",
+            line=dict(color="#f7931a", width=1.5, dash="dash"),
+        ))
     fig_equity.update_layout(
         template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         height=400, title="Equity Curve", hovermode="x unified",
@@ -833,6 +862,7 @@ def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None):
 
     return html.Div([
         metric_cards,
+        benchmark_cards,
         exit_html,
         dbc.Row(dbc.Col(dcc.Graph(figure=fig_equity, config={"displayModeBar": True, "responsive": True}), width=12)),
         dbc.Row(dbc.Col(dcc.Graph(figure=fig_trades, config={"displayModeBar": True, "responsive": True}), width=12)),
@@ -895,7 +925,7 @@ def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, p
             set_progress(dbc.Alert("Loading data & training walk-forward model...", color="info"))
 
         from backtesting.walk_forward import run_walk_forward, run_walk_forward_pretrained, run_portfolio_backtest
-        from backtesting.strategy import run_strategy, run_portfolio_strategy
+        from backtesting.strategy import run_strategy, run_portfolio_strategy, compute_portfolio_buy_and_hold
         from backtesting.metrics import run_metrics
 
         if bt_mode == "portfolio":
@@ -923,6 +953,13 @@ def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, p
                 transaction_cost_pct=float(txn_cost) / 100 if txn_cost else 0.0,
                 allow_short=bool(allow_short),
                 max_positions=int(max_positions),
+            )
+            buy_hold_data = compute_portfolio_buy_and_hold(
+                predictions_dict=predictions_dict,
+                initial_capital=float(capital),
+                transaction_cost_pct=float(txn_cost) / 100 if txn_cost else 0.0,
+                interval=interval,
+                asset_class=asset_class,
             )
         else:
             if bt_mode == "pretrained":
@@ -980,8 +1017,15 @@ def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, p
         )
 
         set_progress(dbc.Alert("Rendering results...", color="success"))
-        buy_hold_df = predictions_df if bt_mode != "portfolio" else None
-        return _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=buy_hold_df)
+        if bt_mode != "portfolio":
+            buy_hold_data = compute_portfolio_buy_and_hold(
+                predictions_dict={asset: predictions_df},
+                initial_capital=float(capital),
+                transaction_cost_pct=float(txn_cost) / 100 if txn_cost else 0.0,
+                interval=interval,
+                asset_class=asset_class,
+            )
+        return _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=buy_hold_data)
 
     except Exception as e:
         return dbc.Alert(f"Backtest failed: {e}", color="danger")
