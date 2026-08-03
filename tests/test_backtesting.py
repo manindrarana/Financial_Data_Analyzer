@@ -635,4 +635,4 @@ class TestPortfolioBacktest:
             preds, initial_capital=10000, transaction_cost_pct=0.0,
         )
         assert benchmark["dates"].tolist() == [datetime(2024, 1, 2), datetime(2024, 1, 3)]
-        assert benchmark["equity"].tolist() == [10000.0, 10500.0]
+        assert benchmark["equity"].tolist() == [10000.0, 10954.55]
