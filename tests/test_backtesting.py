@@ -636,3 +636,12 @@ class TestPortfolioBacktest:
         )
         assert benchmark["dates"].tolist() == [datetime(2024, 1, 2), datetime(2024, 1, 3)]
         assert benchmark["equity"].tolist() == [10000.0, 10954.55]
+
+    def test_portfolio_buy_and_hold_empty_input(self):
+        benchmark = compute_portfolio_buy_and_hold(
+            {}, initial_capital=10000, transaction_cost_pct=0.001,
+        )
+        assert benchmark["dates"].empty
+        assert benchmark["equity"].empty
+        assert benchmark["return_pct"] == 0.0
+        assert benchmark["total_cost"] == 0.0
