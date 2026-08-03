@@ -720,19 +720,12 @@ def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None):
         line=dict(color="#17a2b8", width=1.5),
         fill="tozeroy", fillcolor="rgba(23,162,184,0.1)",
     ))
-    if buy_hold_df is not None and not buy_hold_df.empty:
-        bh = buy_hold_df[["date", "close"]].copy()
-        bh["date"] = pd.to_datetime(bh["date"])
-        bh = bh.sort_values("date")
-        bh = bh[bh["date"] >= equity_df["date"].min()]
-        if not bh.empty and bh["close"].iloc[0] > 0:
-            initial_capital = equity_df["equity"].iloc[0]
-            bh["buy_hold"] = initial_capital * bh["close"] / bh["close"].iloc[0]
-            fig_equity.add_trace(go.Scatter(
-                x=bh["date"], y=bh["buy_hold"],
-                mode="lines", name="Buy & Hold",
-                line=dict(color="#f7931a", width=1.5, dash="dash"),
-            ))
+    if buy_hold_equity is not None and buy_hold_dates is not None:
+        fig_equity.add_trace(go.Scatter(
+            x=pd.to_datetime(buy_hold_dates), y=buy_hold_equity,
+            mode="lines", name="Buy & Hold",
+            line=dict(color="#f7931a", width=1.5, dash="dash"),
+        ))
     fig_equity.update_layout(
         template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         height=400, title="Equity Curve", hovermode="x unified",
