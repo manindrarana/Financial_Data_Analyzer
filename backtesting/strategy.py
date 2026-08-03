@@ -300,7 +300,7 @@ def compute_portfolio_buy_and_hold(
     entry_cost = initial_capital * transaction_cost_pct
     exit_cost = sum(allocation * last_prices[asset] / first_prices[asset] for asset in assets) * transaction_cost_pct
     units = allocation / first_prices
-    equity = merged[assets].mul(units, axis="index").sum(axis=1) - entry_cost
+    equity = merged[assets].mul(units, axis="columns").sum(axis=1) - entry_cost
     equity.iloc[-1] -= exit_cost
     return {
         "dates": merged["date"],
