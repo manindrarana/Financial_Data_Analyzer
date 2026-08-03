@@ -663,6 +663,29 @@ def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None):
             buy_hold_equity = equity_df["equity"].iloc[0] * bh["close"] / bh["close"].iloc[0]
 
     benchmark_metrics = buy_hold_df if isinstance(buy_hold_df, dict) else {}
+    benchmark_cards = None
+    if benchmark_metrics:
+        benchmark_cards = dbc.Row(
+            [
+                dbc.Col(dbc.Card(dbc.CardBody([
+                    html.H5(f"{benchmark_metrics.get('max_drawdown_pct', 0):.2f}%", className="card-title text-warning"),
+                    html.P("Buy & Hold Max Drawdown", className="card-text text-muted small"),
+                ]), color="dark", outline=True), width=3),
+                dbc.Col(dbc.Card(dbc.CardBody([
+                    html.H5(f"{benchmark_metrics.get('sharpe_ratio', 0):.2f}", className="card-title text-warning"),
+                    html.P("Buy & Hold Sharpe", className="card-text text-muted small"),
+                ]), color="dark", outline=True), width=3),
+                dbc.Col(dbc.Card(dbc.CardBody([
+                    html.H5(f"{benchmark_metrics.get('volatility_pct', 0):.2f}%", className="card-title text-warning"),
+                    html.P("Buy & Hold Volatility", className="card-text text-muted small"),
+                ]), color="dark", outline=True), width=3),
+                dbc.Col(dbc.Card(dbc.CardBody([
+                    html.H5(f"${benchmark_metrics.get('total_cost', 0):,.2f}", className="card-title text-warning"),
+                    html.P("Buy & Hold Total Cost", className="card-text text-muted small"),
+                ]), color="dark", outline=True), width=3),
+            ],
+            className="mb-3",
+        )
     metric_cards = dbc.Row(
         [
             dbc.Col(dbc.Card(dbc.CardBody([
