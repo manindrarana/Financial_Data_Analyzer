@@ -7,7 +7,7 @@ import pytest
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
-from backtesting.strategy import simulate_trades, simulate_portfolio_trades
+from backtesting.strategy import simulate_trades, simulate_portfolio_trades, compute_portfolio_buy_and_hold
 from backtesting.metrics import (
     compute_metrics,
     ANNUALIZATION_FACTORS,
@@ -584,3 +584,20 @@ class TestPortfolioBacktest:
         assert btc_trade["pnl"] == round(btc_size * (104.0 - 100.0), 4)
         assert eth_trade["pnl"] == round(eth_size * (208.0 - 200.0), 4)
         assert eth_trade["pnl"] == btc_trade["pnl"]
+
+    def test_portfolio_buy_and_hold_equal_allocation_without_rebalancing(self):
+        preds = {
+            "BTC": pd.DataFrame({
+                "date": [datetime(2024, 1, 1), datetime(2024, 1, 2)],
+                "close": [100.0, 120.0],
+            }),
+            "ETH": pd.DataFrame({
+                "date": [datetime(2024, 1, 1), datetime(2024, 1, 2)],
+                "close": [100.0, 100.0],
+            }),
+        }
+        benchmark = compute_portfolio_buy_and_hold(
+            preds, initial_capital=10000, transaction_cost_pct=0.0,
+        )
+        assert benchmark["equity"].tolist() == [10000.0, 11000.0]
+        assert benchmark["return_pct"] == 10.0
