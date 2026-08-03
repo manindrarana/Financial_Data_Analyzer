@@ -68,6 +68,7 @@ def compute_metrics(trades_df, equity_df, initial_capital=10000, interval=None, 
             "total_pnl": 0.0,
             "total_cost": 0.0,
             "sharpe_ratio": 0.0,
+            "volatility_pct": 0.0,
             "max_drawdown_pct": 0.0,
             "win_rate": 0.0,
             "profit_factor": 0.0,
@@ -115,8 +116,10 @@ def compute_metrics(trades_df, equity_df, initial_capital=10000, interval=None, 
 
     if len(period_returns) > 1 and period_returns.std() > 0:
         sharpe_ratio = (period_returns.mean() / period_returns.std()) * np.sqrt(periods_per_year)
+        volatility_pct = period_returns.std() * np.sqrt(periods_per_year) * 100
     else:
         sharpe_ratio = 0.0
+        volatility_pct = 0.0
 
     exit_reasons = {}
     if not trades_df.empty and "exit_reason" in trades_df.columns:
@@ -169,6 +172,7 @@ def compute_metrics(trades_df, equity_df, initial_capital=10000, interval=None, 
         "total_pnl": round(total_pnl, 2),
         "total_cost": round(total_cost, 2),
         "sharpe_ratio": round(sharpe_ratio, 2),
+        "volatility_pct": round(volatility_pct, 2),
         "max_drawdown_pct": round(max_drawdown_pct, 2),
         "win_rate": round(win_rate * 100, 1),
         "profit_factor": round(profit_factor, 2),
