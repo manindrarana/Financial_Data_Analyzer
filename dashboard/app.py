@@ -646,13 +646,21 @@ def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None):
         return dbc.Alert("No trades executed — try relaxing the confidence threshold or date range.", color="warning")
 
     buy_hold_return_pct = 0.0
-    if buy_hold_df is not None and not buy_hold_df.empty:
+    buy_hold_equity = None
+    buy_hold_dates = None
+    if isinstance(buy_hold_df, dict):
+        buy_hold_return_pct = buy_hold_df.get("return_pct", 0.0)
+        buy_hold_equity = buy_hold_df.get("equity")
+        buy_hold_dates = buy_hold_df.get("dates")
+    elif buy_hold_df is not None and not buy_hold_df.empty:
         bh = buy_hold_df[["date", "close"]].copy()
         bh["date"] = pd.to_datetime(bh["date"])
         bh = bh.sort_values("date")
         bh = bh[bh["date"] >= pd.to_datetime(equity_df["date"].min())]
         if not bh.empty and bh["close"].iloc[0] > 0:
             buy_hold_return_pct = (bh["close"].iloc[-1] / bh["close"].iloc[0] - 1) * 100
+            buy_hold_dates = bh["date"]
+            buy_hold_equity = equity_df["equity"].iloc[0] * bh["close"] / bh["close"].iloc[0]
 
     metric_cards = dbc.Row(
         [
@@ -985,7 +993,7 @@ def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, p
         )
 
         set_progress(dbc.Alert("Rendering results...", color="success"))
-        buy_hold_df = predictions_df if bt_mode != "portfolio" else None
+        buy_hold_df = predictions_df if bt_mode != "portfolio" else buy_hold_data
         return _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=buy_hold_df)
 
     except Exception as e:
