@@ -729,6 +729,16 @@ class TestModelFamilyComparison:
         assert "52.28%" in text
         assert "11,102 identical unseen rows" in text
 
+    def test_missing_result_file_shows_clear_alert(self, tmp_path):
+        from dashboard import app as dashboard_app
+
+        with patch.object(dashboard_app, "_project_root", str(tmp_path)):
+            result = dashboard_app.build_model_family_comparison()
+
+        text = " ".join(_collect_text(result))
+        assert "No model family comparison results are available" in text
+        assert "Run the BTC 1h comparison experiment first" in text
+
 
 class TestConfusionMatrix:
     def _fake_predictions(self):
