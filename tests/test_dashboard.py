@@ -739,6 +739,30 @@ class TestModelFamilyComparison:
         assert "No model family comparison results are available" in text
         assert "Run the BTC 1h comparison experiment first" in text
 
+    def test_displays_saved_conclusion(self, tmp_path):
+        from dashboard import app as dashboard_app
+
+        result_file = tmp_path / "scripts" / "results" / "btc_1h_model_family_comparison.json"
+        result_file.parent.mkdir(parents=True)
+        result_file.write_text(
+            __import__("json").dumps({
+                "test_rows": 100,
+                "test_start_date": "2025-01-01T00:00:00",
+                "test_end_date": "2025-01-05T03:00:00",
+                "models": {
+                    "xgboost": {"accuracy": 0.52, "balanced_accuracy": 0.52, "precision": 0.52, "recall": 0.52, "f1_score": 0.52},
+                },
+                "conclusion": "The available data is the main limitation.",
+            }),
+            encoding="utf-8",
+        )
+
+        with patch.object(dashboard_app, "_project_root", str(tmp_path)):
+            result = dashboard_app.build_model_family_comparison()
+
+        text = " ".join(_collect_text(result))
+        assert "The available data is the main limitation." in text
+
 
 class TestConfusionMatrix:
     def _fake_predictions(self):
