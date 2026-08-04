@@ -2323,6 +2323,69 @@ def build_accuracy_chart():
 
     return dcc.Graph(figure=fig, config={"displayModeBar": False})
 
+
+def build_model_family_comparison():
+    result_path = os.path.join(
+        _project_root,
+        "scripts",
+        "results",
+        "btc_1h_model_family_comparison.json",
+    )
+    if not os.path.exists(result_path):
+        return dbc.Alert(
+            "No model family comparison results are available. Run the BTC 1h comparison experiment first.",
+            color="info",
+        )
+
+    try:
+        with open(result_path, encoding="utf-8") as result_file:
+            result = json.load(result_file)
+    except (OSError, json.JSONDecodeError) as error:
+        return dbc.Alert(f"Could not load model family comparison: {error}", color="danger")
+
+    model_labels = {
+        "xgboost": "XGBoost",
+        "logistic_regression": "Logistic Regression",
+        "random_forest": "Random Forest",
+    }
+    rows = []
+    for model_name, label in model_labels.items():
+        metrics = result.get("models", {}).get(model_name)
+        if not metrics:
+            continue
+        rows.append({
+            "Model": label,
+            "Accuracy": f"{metrics['accuracy'] * 100:.2f}%",
+            "Balanced Accuracy": f"{metrics['balanced_accuracy'] * 100:.2f}%",
+            "Precision": f"{metrics['precision'] * 100:.2f}%",
+            "Recall": f"{metrics['recall'] * 100:.2f}%",
+            "F1 Score": f"{metrics['f1_score'] * 100:.2f}%",
+        })
+
+    if not rows:
+        return dbc.Alert("The model family comparison result has no model metrics.", color="warning")
+
+    comparison_table = dbc.Table.from_dataframe(
+        pd.DataFrame(rows),
+        striped=True,
+        bordered=True,
+        hover=True,
+        responsive=True,
+        color="dark",
+        className="mb-3",
+    )
+    period = (
+        f"{result.get('test_rows', 0):,} identical unseen rows from "
+        f"{str(result.get('test_start_date', ''))[:10]} to "
+        f"{str(result.get('test_end_date', ''))[:10]}."
+    )
+    return html.Div([
+        html.P(period, className="text-muted small mb-2"),
+        comparison_table,
+        dbc.Alert(result.get("conclusion", ""), color="info", className="mb-0"),
+    ])
+
+
 PRICE_RANGE_MAP = {
     "1d": 1, "3d": 3, "7d": 7, "30d": 30,
     "90d": 90, "180d": 180, "365d": 365,
