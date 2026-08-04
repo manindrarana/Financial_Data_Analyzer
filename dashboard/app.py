@@ -6,6 +6,7 @@ Multi-tab web UI reading directly from DuckDB gold tables.
 import math
 import os
 import sys
+import json
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -2128,6 +2129,13 @@ def render_model_insights():
             className="text-muted small mb-3",
         ),
         build_accuracy_chart(),
+        html.Hr(className="my-4"),
+        html.H3("Model Family Comparison", className="text-light mb-2"),
+        html.P(
+            "Compares XGBoost, logistic regression, and random forest using the same BTC 1h training and unseen test data.",
+            className="text-muted small mb-3",
+        ),
+        build_model_family_comparison(),
         html.Hr(className="my-4"),
         html.H3("Prediction Confidence", className="text-light mb-2"),
         html.P(
