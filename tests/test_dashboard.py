@@ -643,55 +643,6 @@ class TestAccuracyChart:
         assert "Train Rows: %{customdata[0]}" in fig.data[1].hovertemplate
         assert "Test Rows: %{customdata[1]}" in fig.data[1].hovertemplate
 
-
-class TestModelFamilyComparison:
-    def test_displays_known_model_metrics(self, tmp_path):
-        from dashboard import app as dashboard_app
-
-        result_data = {
-            "test_rows": 11102,
-            "test_start_date": "2025-04-27T21:00:00",
-            "test_end_date": "2026-08-03T10:00:00",
-            "models": {
-                "xgboost": {
-                    "accuracy": 0.5251306071,
-                    "balanced_accuracy": 0.5251528181,
-                    "precision": 0.5233327677,
-                    "recall": 0.5559762034,
-                    "f1_score": 0.5391608392,
-                },
-                "logistic_regression": {
-                    "accuracy": 0.5284633399,
-                    "balanced_accuracy": 0.5284657563,
-                    "precision": 0.5279169649,
-                    "recall": 0.5318190013,
-                    "f1_score": 0.5298607993,
-                },
-                "random_forest": {
-                    "accuracy": 0.5227886867,
-                    "balanced_accuracy": 0.5228141419,
-                    "precision": 0.5209490156,
-                    "recall": 0.5581395349,
-                    "f1_score": 0.5389033943,
-                },
-            },
-            "conclusion": "The models perform similarly.",
-        }
-        result_file = tmp_path / "btc_1h_model_family_comparison.json"
-        result_file.write_text(__import__("json").dumps(result_data), encoding="utf-8")
-
-        with patch.object(dashboard_app, "_project_root", str(tmp_path)):
-            expected_path = tmp_path / "scripts" / "results"
-            expected_path.mkdir(parents=True)
-            result_file.replace(expected_path / result_file.name)
-            result = dashboard_app.build_model_family_comparison()
-
-        text = " ".join(_collect_text(result))
-        assert "52.51%" in text
-        assert "52.85%" in text
-        assert "52.28%" in text
-        assert "11,102 identical unseen rows" in text
-
     def test_customdata_has_train_and_test_rows(self):
         from dashboard import app as dashboard_app
 
@@ -730,6 +681,53 @@ class TestModelFamilyComparison:
         assert crypto_y == sorted(crypto_y)
         stock_y = list(fig.data[1].y)
         assert stock_y == sorted(stock_y)
+
+
+class TestModelFamilyComparison:
+    def test_displays_known_model_metrics(self, tmp_path):
+        from dashboard import app as dashboard_app
+
+        result_data = {
+            "test_rows": 11102,
+            "test_start_date": "2025-04-27T21:00:00",
+            "test_end_date": "2026-08-03T10:00:00",
+            "models": {
+                "xgboost": {
+                    "accuracy": 0.5251306071,
+                    "balanced_accuracy": 0.5251528181,
+                    "precision": 0.5233327677,
+                    "recall": 0.5559762034,
+                    "f1_score": 0.5391608392,
+                },
+                "logistic_regression": {
+                    "accuracy": 0.5284633399,
+                    "balanced_accuracy": 0.5284657563,
+                    "precision": 0.5279169649,
+                    "recall": 0.5318190013,
+                    "f1_score": 0.5298607993,
+                },
+                "random_forest": {
+                    "accuracy": 0.5227886867,
+                    "balanced_accuracy": 0.5228141419,
+                    "precision": 0.5209490156,
+                    "recall": 0.5581395349,
+                    "f1_score": 0.5389033943,
+                },
+            },
+            "conclusion": "The models perform similarly.",
+        }
+        result_file = tmp_path / "scripts" / "results" / "btc_1h_model_family_comparison.json"
+        result_file.parent.mkdir(parents=True)
+        result_file.write_text(__import__("json").dumps(result_data), encoding="utf-8")
+
+        with patch.object(dashboard_app, "_project_root", str(tmp_path)):
+            result = dashboard_app.build_model_family_comparison()
+
+        text = " ".join(_collect_text(result))
+        assert "52.51%" in text
+        assert "52.85%" in text
+        assert "52.28%" in text
+        assert "11,102 identical unseen rows" in text
 
 
 class TestConfusionMatrix:
