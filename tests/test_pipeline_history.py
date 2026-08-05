@@ -197,6 +197,25 @@ class TestGetRunSummary:
         assert summary["last_status"] == "running"
         assert summary["last_error"] is None
 
+    def test_skipped_runs_are_counted_but_excluded_from_success_rate(self):
+        rows = [
+            {"run_id": "run_1", "start_time": "2026-07-20 10:00:00", "status": "success", "trigger": "cron"},
+            {"run_id": "run_2", "start_time": "2026-07-20 11:00:00", "status": "failed", "trigger": "cron"},
+            {"run_id": "run_3", "start_time": "2026-07-20 12:00:00", "status": "skipped", "trigger": "cron",
+             "error_message": "Pipeline run skipped because another run is active (PID 1234)."},
+        ]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = _make_db_with_runs(tmpdir, rows)
+            with patch("dashboard.pipeline_history.DB_PATH", db_path):
+                summary = get_run_summary()
+        assert summary["total"] == 3
+        assert summary["success"] == 1
+        assert summary["failed"] == 1
+        assert summary["skipped"] == 1
+        assert summary["success_rate"] == 50.0
+        assert summary["last_status"] == "skipped"
+        assert "PID 1234" in summary["last_error"]
+
     def test_last_error_captured_when_last_run_failed(self):
         rows = [
             {"run_id": "run_1", "start_time": "2026-07-20 10:00:00", "status": "success", "trigger": "cron"},
