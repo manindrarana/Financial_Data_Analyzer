@@ -459,7 +459,9 @@ def run_pipeline():
         try:
             existing_pid = int(LOCK_FILE.read_text().strip())
             os.kill(existing_pid, 0)
-            logger.warning(f"Another pipeline run is active (PID {existing_pid}). Exiting.")
+            skip_message = f"Pipeline run skipped because another run is active (PID {existing_pid})."
+            logger.warning(skip_message)
+            _start_pipeline_run(status="skipped", error_message=skip_message)
             return
         except (ValueError, ProcessLookupError, OSError):
             logger.info("Stale lock file found — removing and acquiring lock")
