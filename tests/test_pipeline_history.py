@@ -394,7 +394,7 @@ class TestRenderPipelineHistory:
         col_names = [c["name"] for c in table.columns]
         assert "run_id" in col_names
         assert "status" in col_names
-        assert "duration_seconds" in col_names
+        assert "duration_mins" in col_names
         assert "models_retrained" in col_names
         assert len(table.data) == 1
         assert table.data[0]["run_id"] == "run_1"
