@@ -197,6 +197,25 @@ class TestGetRunSummary:
         assert summary["last_status"] == "running"
         assert summary["last_error"] is None
 
+    def test_skipped_runs_are_counted_but_excluded_from_success_rate(self):
+        rows = [
+            {"run_id": "run_1", "start_time": "2026-07-20 10:00:00", "status": "success", "trigger": "cron"},
+            {"run_id": "run_2", "start_time": "2026-07-20 11:00:00", "status": "failed", "trigger": "cron"},
+            {"run_id": "run_3", "start_time": "2026-07-20 12:00:00", "status": "skipped", "trigger": "cron",
+             "error_message": "Pipeline run skipped because another run is active (PID 1234)."},
+        ]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = _make_db_with_runs(tmpdir, rows)
+            with patch("dashboard.pipeline_history.DB_PATH", db_path):
+                summary = get_run_summary()
+        assert summary["total"] == 3
+        assert summary["success"] == 1
+        assert summary["failed"] == 1
+        assert summary["skipped"] == 1
+        assert summary["success_rate"] == 50.0
+        assert summary["last_status"] == "skipped"
+        assert "PID 1234" in summary["last_error"]
+
     def test_last_error_captured_when_last_run_failed(self):
         rows = [
             {"run_id": "run_1", "start_time": "2026-07-20 10:00:00", "status": "success", "trigger": "cron"},
@@ -308,6 +327,44 @@ class TestRenderPipelineHistory:
         assert "Last failure" in " ".join(text)
         assert "fact_price_history has 0 rows" in " ".join(text)
 
+    def test_renders_skipped_count_message_row_and_color(self):
+        from dashboard import app as dashboard_app
+
+        reason = "Pipeline run skipped because another run is active (PID 1234)."
+        summary = {
+            "total": 3, "success": 2, "failed": 0, "running": 0,
+            "skipped": 1, "success_rate": 100.0, "last_status": "skipped",
+            "last_error": reason,
+        }
+        runs_df = pd.DataFrame([
+            {"run_id": "run_3", "start_time": "2026-08-05 12:00:00",
+             "end_time": "2026-08-05 12:00:00", "duration_seconds": 0.0,
+             "status": "skipped", "trigger": "cron", "error_message": reason,
+             "models_retrained": None, "rows_fetched": None,
+             "rows_cleaned": None, "validator_failures": 0,
+             "checkpoint_resumed": False},
+        ])
+
+        with patch("dashboard.app.get_run_summary", return_value=summary):
+            with patch("dashboard.app.get_pipeline_runs", return_value=runs_df):
+                content = dashboard_app.render_pipeline_history()
+
+        text = _collect_text(content)
+        assert "Skipped" in text
+        assert "1" in text
+        assert "Last skipped run" in " ".join(text)
+        assert "PID 1234" in " ".join(text)
+
+        table = next(
+            node for node in _walk_components(content)
+            if hasattr(node, "columns") and isinstance(node.columns, list)
+        )
+        assert table.data[0]["status"] == "skipped"
+        assert {
+            "if": {"filter_query": "{status} = 'skipped'"},
+            "color": "#3498db",
+        } in table.style_data_conditional
+
     def test_table_has_correct_columns(self):
         from dashboard import app as dashboard_app
 
@@ -337,7 +394,7 @@ class TestRenderPipelineHistory:
         col_names = [c["name"] for c in table.columns]
         assert "run_id" in col_names
         assert "status" in col_names
-        assert "duration_seconds" in col_names
+        assert "duration_mins" in col_names
         assert "models_retrained" in col_names
         assert len(table.data) == 1
         assert table.data[0]["run_id"] == "run_1"

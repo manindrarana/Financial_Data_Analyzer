@@ -50,7 +50,8 @@ def get_run_summary() -> dict:
     if not os.path.exists(DB_PATH):
         return {
             "total": 0, "success": 0, "failed": 0, "running": 0,
-            "success_rate": 0.0, "last_status": "none", "last_error": None,
+            "skipped": 0, "success_rate": 0.0, "last_status": "none",
+            "last_error": None,
         }
 
     conn = duckdb.connect(DB_PATH, read_only=True)
@@ -60,13 +61,15 @@ def get_run_summary() -> dict:
         except Exception:
             return {
                 "total": 0, "success": 0, "failed": 0, "running": 0,
-                "success_rate": 0.0, "last_status": "none", "last_error": None,
+                "skipped": 0, "success_rate": 0.0, "last_status": "none",
+                "last_error": None,
             }
 
         if total == 0:
             return {
                 "total": 0, "success": 0, "failed": 0, "running": 0,
-                "success_rate": 0.0, "last_status": "none", "last_error": None,
+                "skipped": 0, "success_rate": 0.0, "last_status": "none",
+                "last_error": None,
             }
 
         success = conn.execute(
@@ -77,6 +80,9 @@ def get_run_summary() -> dict:
         ).fetchone()[0]
         running = conn.execute(
             "SELECT COUNT(*) FROM pipeline_runs WHERE status = 'running'"
+        ).fetchone()[0]
+        skipped = conn.execute(
+            "SELECT COUNT(*) FROM pipeline_runs WHERE status = 'skipped'"
         ).fetchone()[0]
 
         last_row = conn.execute(
@@ -98,6 +104,7 @@ def get_run_summary() -> dict:
             "success": success,
             "failed": failed,
             "running": running,
+            "skipped": skipped,
             "success_rate": round(success_rate, 1),
             "last_status": last_status,
             "last_error": last_error,

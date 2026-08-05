@@ -81,10 +81,12 @@ def _init_pipeline_runs_table():
         conn.close()
 
 
-def _start_pipeline_run() -> str:
+def _start_pipeline_run(status="running", error_message=None) -> str:
     _init_pipeline_runs_table()
     run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{os.getpid()}"
     start_time = datetime.now()
+    end_time = start_time if status == "skipped" else None
+    duration_seconds = 0.0 if status == "skipped" else None
     trigger = "manual"
     if "--once" in sys.argv or "--now" in sys.argv:
         trigger = "--once"
@@ -99,9 +101,12 @@ def _start_pipeline_run() -> str:
                 (run_id, start_time, end_time, duration_seconds, status,
                  trigger, error_message, models_retrained, rows_fetched,
                  rows_cleaned, validator_failures, checkpoint_resumed)
-            VALUES (?, ?, NULL, NULL, 'running', ?, NULL, NULL, NULL, NULL, NULL, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, 0, ?)
             """,
-            [run_id, start_time, trigger, checkpoint_resumed],
+            [
+                run_id, start_time, end_time, duration_seconds, status,
+                trigger, error_message, checkpoint_resumed,
+            ],
         )
     finally:
         conn.close()
@@ -454,7 +459,9 @@ def run_pipeline():
         try:
             existing_pid = int(LOCK_FILE.read_text().strip())
             os.kill(existing_pid, 0)
-            logger.warning(f"Another pipeline run is active (PID {existing_pid}). Exiting.")
+            skip_message = f"Pipeline run skipped because another run is active (PID {existing_pid})."
+            logger.warning(skip_message)
+            _start_pipeline_run(status="skipped", error_message=skip_message)
             return
         except (ValueError, ProcessLookupError, OSError):
             logger.info("Stale lock file found — removing and acquiring lock")

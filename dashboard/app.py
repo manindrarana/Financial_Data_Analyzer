@@ -2433,6 +2433,7 @@ def render_pipeline_history():
         "success": "success",
         "failed": "danger",
         "running": "warning",
+        "skipped": "info",
     }
 
     summary_cards = dbc.Row(
@@ -2440,36 +2441,46 @@ def render_pipeline_history():
             dbc.Col(dbc.Card(dbc.CardBody([
                 html.H5(str(summary["total"]), className="card-title text-info text-center"),
                 html.P("Total Runs", className="card-text text-muted small text-center"),
-            ]), color="dark", outline=True), width=2),
+            ]), color="dark", outline=True), width=True),
             dbc.Col(dbc.Card(dbc.CardBody([
                 html.H5(f"{summary['success_rate']}%", className="card-title text-success text-center"),
                 html.P("Success Rate", className="card-text text-muted small text-center"),
-            ]), color="dark", outline=True), width=2),
+            ]), color="dark", outline=True), width=True),
             dbc.Col(dbc.Card(dbc.CardBody([
                 html.H5(str(summary["success"]), className="card-title text-success text-center"),
                 html.P("Successful", className="card-text text-muted small text-center"),
-            ]), color="dark", outline=True), width=2),
+            ]), color="dark", outline=True), width=True),
             dbc.Col(dbc.Card(dbc.CardBody([
                 html.H5(str(summary["failed"]), className="card-title text-danger text-center"),
                 html.P("Failed", className="card-text text-muted small text-center"),
-            ]), color="dark", outline=True), width=2),
+            ]), color="dark", outline=True), width=True),
             dbc.Col(dbc.Card(dbc.CardBody([
                 html.H5(str(summary["running"]), className="card-title text-warning text-center"),
                 html.P("Running", className="card-text text-muted small text-center"),
-            ]), color="dark", outline=True), width=2),
+            ]), color="dark", outline=True), width=True),
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.H5(str(summary.get("skipped", 0)), className="card-title text-info text-center"),
+                html.P("Skipped", className="card-text text-muted small text-center"),
+            ]), color="dark", outline=True), width=True),
             dbc.Col(dbc.Card(dbc.CardBody([
                 html.H5(summary["last_status"], className=f"card-title text-{status_color_map.get(summary['last_status'], 'muted')} text-center"),
                 html.P("Last Run Status", className="card-text text-muted small text-center"),
-            ]), color="dark", outline=True), width=2),
+            ]), color="dark", outline=True), width=True),
         ],
         className="mb-3",
     )
 
-    last_error_block = None
-    if summary["last_error"]:
-        last_error_block = dbc.Alert(
+    last_message_block = None
+    if summary["last_status"] == "failed" and summary["last_error"]:
+        last_message_block = dbc.Alert(
             f"Last failure: {summary['last_error']}",
             color="danger",
+            className="mb-3",
+        )
+    elif summary["last_status"] == "skipped" and summary["last_error"]:
+        last_message_block = dbc.Alert(
+            f"Last skipped run: {summary['last_error']}",
+            color="info",
             className="mb-3",
         )
 
@@ -2522,6 +2533,10 @@ def render_pipeline_history():
                     "if": {"filter_query": "{status} = 'running'"},
                     "color": "#f1c40f",
                 },
+                {
+                    "if": {"filter_query": "{status} = 'skipped'"},
+                    "color": "#3498db",
+                },
             ],
             page_size=15,
             sort_action="native",
@@ -2536,7 +2551,7 @@ def render_pipeline_history():
                     className="text-muted small mb-3",
                 ),
                 summary_cards,
-                last_error_block,
+                last_message_block,
                 table_block,
             ]
         )
