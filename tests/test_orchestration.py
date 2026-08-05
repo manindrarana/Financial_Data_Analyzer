@@ -24,11 +24,12 @@ import pytest
 import os
 import json
 import tempfile
+import duckdb
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 from orchestration.orchestration import (
     _load_checkpoint, _save_checkpoint, _clear_checkpoint,
-    _should_run, _mark_done, CHECKPOINT_FILE, LOCK_FILE,
+    _should_run, _mark_done, _start_pipeline_run, CHECKPOINT_FILE, LOCK_FILE,
     STEP_VALIDATORS,
 )
 
