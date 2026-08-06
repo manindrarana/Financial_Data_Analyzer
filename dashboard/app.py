@@ -2031,8 +2031,9 @@ def calculate_performance_stability(predictions, trading_window_days):
         equity = equity.dropna(subset=["date", "equity"]).sort_values("date")
         equity = equity.drop_duplicates(subset="date", keep="last").set_index("date")
         window = f"{trading_window_days}D"
+        initial_capital = STANDARD_TRADING_CONFIG["initial_capital"]
         rolling_return = equity["equity"].rolling(window, min_periods=2).apply(
-            lambda values: (values[-1] / values[0] - 1) * 100,
+            lambda values: (values[-1] - values[0]) / initial_capital * 100,
             raw=True,
         )
         rolling_drawdown = equity["equity"].rolling(window, min_periods=2).apply(
