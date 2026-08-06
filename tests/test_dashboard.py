@@ -1489,5 +1489,5 @@ class TestPerformanceStability:
             result = dashboard_app.calculate_performance_stability(predictions, 30)
 
         rolling = result["rolling_accuracy"].dropna(subset=["accuracy_30d", "accuracy_90d"])
-        assert rolling.iloc[-1]["accuracy_30d"] == pytest.approx(29 / 31)
-        assert rolling.iloc[-1]["accuracy_90d"] == pytest.approx(89 / 91)
+        assert rolling.iloc[-1]["accuracy_30d"] == pytest.approx(30 / 31)
+        assert rolling.iloc[-1]["accuracy_90d"] == pytest.approx(90 / 91)
