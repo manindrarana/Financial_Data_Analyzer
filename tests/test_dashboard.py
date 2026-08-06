@@ -1563,3 +1563,23 @@ class TestPerformanceStability:
             "Rolling 90-day drawdown",
         ]
         assert [trace.y[0] for trace in trading_fig.data] == pytest.approx([4.25, 1.75])
+
+    def test_missing_oos_data_shows_warning(self):
+        from dashboard import app as dashboard_app
+
+        predictions = pd.DataFrame({
+            "date": pd.to_datetime(["2024-01-01", "2024-01-02"]),
+            "close": [100, 101],
+            "prediction": [1, 0],
+            "confidence": [0.60, 0.60],
+            "actual_direction": [1, 0],
+            "is_oos": [False, False],
+        })
+
+        with patch.object(dashboard_app, "run_prediction", return_value=predictions):
+            result = dashboard_app.build_performance_stability("crypto", "BTC", "1h", 30)
+
+        assert any(
+            "No valid out-of-sample data" in value
+            for value in _collect_text(result)
+        )
