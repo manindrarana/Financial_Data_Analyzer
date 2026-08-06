@@ -2037,7 +2037,7 @@ def calculate_performance_stability(predictions, trading_window_days):
             raw=True,
         )
         rolling_drawdown = equity["equity"].rolling(window, min_periods=2).apply(
-            lambda values: float(np.max((np.maximum.accumulate(values) - values) / np.maximum.accumulate(values)) * 100),
+            lambda values: float(np.max(np.maximum.accumulate(values) - values) / initial_capital * 100),
             raw=True,
         )
         full_window_start = equity.index.min() + pd.Timedelta(days=trading_window_days)

@@ -1515,7 +1515,7 @@ class TestPerformanceStability:
 
         rolling = result["rolling_trading"].dropna()
         assert rolling.iloc[-1]["rolling_return"] == pytest.approx(-0.1)
-        assert rolling.iloc[-1]["rolling_drawdown"] == pytest.approx(25.0)
+        assert rolling.iloc[-1]["rolling_drawdown"] == pytest.approx(0.3)
 
     def test_callback_uses_selected_window_and_displays_exact_values(self):
         from dashboard import app as dashboard_app
