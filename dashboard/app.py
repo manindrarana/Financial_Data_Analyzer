@@ -2294,6 +2294,32 @@ def render_model_insights():
             children=html.Div(id="cte-table-container"),
         ),
         html.Hr(className="my-4"),
+        html.H3("Performance Stability Over Time", className="text-light mb-2"),
+        html.P(
+            "Tracks classification accuracy and trading performance across time to reveal model deterioration.",
+            className="text-muted small mb-3",
+        ),
+        dbc.Row([
+            dbc.Col([
+                html.Label("Trading Window", className="text-muted small mb-1"),
+                dcc.Dropdown(
+                    id="stability-window-dropdown",
+                    options=[
+                        {"label": "30 days", "value": 30},
+                        {"label": "90 days", "value": 90},
+                    ],
+                    value=30,
+                    clearable=False,
+                    style={"color": "#000"},
+                ),
+            ], width=3),
+        ], className="mb-3"),
+        dcc.Loading(
+            id="stability-loading",
+            type="circle",
+            children=html.Div(id="stability-chart-container"),
+        ),
+        html.Hr(className="my-4"),
         html.H3("Confidence Timeline", className="text-light mb-2"),
         html.P(
             "Plots each prediction over time so you can see when the model was confident and whether it was right.",
