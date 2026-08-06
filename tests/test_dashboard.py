@@ -1471,3 +1471,23 @@ class TestPerformanceStability:
         assert monthly["count"].tolist() == [3, 2]
         assert quarterly["accuracy"].tolist() == pytest.approx([3 / 5])
         assert quarterly["count"].tolist() == [5]
+
+    def test_rolling_accuracy_uses_30_and_90_day_windows(self):
+        from dashboard import app as dashboard_app
+
+        dates = pd.date_range("2024-01-01", periods=91, freq="1D")
+        predictions = pd.DataFrame({
+            "date": dates,
+            "close": range(100, 191),
+            "prediction": [1] * 89 + [0, 0],
+            "confidence": [0.60] * 91,
+            "actual_direction": [1] * 89 + [0, 1],
+            "is_oos": [True] * 91,
+        })
+
+        with patch("backtesting.strategy.simulate_trades", return_value=(pd.DataFrame(), pd.DataFrame())):
+            result = dashboard_app.calculate_performance_stability(predictions, 30)
+
+        rolling = result["rolling_accuracy"].dropna(subset=["accuracy_30d", "accuracy_90d"])
+        assert rolling.iloc[-1]["accuracy_30d"] == pytest.approx(29 / 31)
+        assert rolling.iloc[-1]["accuracy_90d"] == pytest.approx(89 / 91)
