@@ -1444,3 +1444,30 @@ class TestConfidenceThresholdEvaluation:
             result = dashboard_app.build_confidence_threshold_table("crypto", "BTC", "1h")
 
         assert any("No prediction data" in value for value in _collect_text(result))
+
+
+class TestPerformanceStability:
+    def test_monthly_and_quarterly_accuracy_use_known_oos_outcomes(self):
+        from dashboard import app as dashboard_app
+
+        predictions = pd.DataFrame({
+            "date": pd.to_datetime([
+                "2024-01-05", "2024-01-15", "2024-01-25",
+                "2024-02-05", "2024-02-15", "2024-02-20", "2024-02-25",
+            ]),
+            "close": [100, 101, 102, 103, 104, 105, 106],
+            "prediction": [1, 0, 1, 0, 1, 1, 0],
+            "confidence": [0.60] * 7,
+            "actual_direction": [1, 1, 1, 0, 0, 0, float("nan")],
+            "is_oos": [True, True, True, True, True, False, True],
+        })
+
+        with patch("backtesting.strategy.simulate_trades", return_value=(pd.DataFrame(), pd.DataFrame())):
+            result = dashboard_app.calculate_performance_stability(predictions, 30)
+
+        monthly = result["monthly_accuracy"]
+        quarterly = result["quarterly_accuracy"]
+        assert monthly["accuracy"].tolist() == pytest.approx([2 / 3, 1 / 2])
+        assert monthly["count"].tolist() == [3, 2]
+        assert quarterly["accuracy"].tolist() == pytest.approx([3 / 5])
+        assert quarterly["count"].tolist() == [5]
