@@ -2008,9 +2008,10 @@ def calculate_performance_stability(predictions, trading_window_days):
     scored["correct"] = (scored["prediction"].astype(int) == scored["actual_direction"].astype(int)).astype(float)
 
     def aggregate_accuracy(period):
-        grouped = scored.groupby(scored["date"].dt.to_period(period))["correct"].agg(["mean", "count"])
+        period_groups = scored["date"].dt.tz_localize(None).dt.to_period(period)
+        grouped = scored.groupby(period_groups)["correct"].agg(["mean", "count"])
         grouped = grouped.rename(columns={"mean": "accuracy"}).reset_index(drop=True)
-        grouped["date"] = scored.groupby(scored["date"].dt.to_period(period))["date"].max().to_numpy()
+        grouped["date"] = scored.groupby(period_groups)["date"].max().to_numpy()
         return grouped[["date", "accuracy", "count"]]
 
     indexed_correct = scored.set_index("date")["correct"]
