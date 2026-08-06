@@ -1973,6 +1973,90 @@ def _exact_mcnemar_p_value(model_only, baseline_only):
     return min(1.0, 2 * probability)
 
 
+def calculate_performance_stability(predictions, trading_window_days):
+    from backtesting.strategy import simulate_trades
+    from dashboard.model_health import STANDARD_TRADING_CONFIG
+
+    empty_accuracy = pd.DataFrame(columns=["date", "accuracy", "count"])
+    empty_rolling = pd.DataFrame(columns=["date", "accuracy_30d", "accuracy_90d"])
+    empty_trading = pd.DataFrame(columns=["date", "rolling_return", "rolling_drawdown"])
+    empty_result = {
+        "monthly_accuracy": empty_accuracy,
+        "quarterly_accuracy": empty_accuracy.copy(),
+        "rolling_accuracy": empty_rolling,
+        "rolling_trading": empty_trading,
+    }
+    required = {"date", "prediction", "actual_direction", "close", "confidence"}
+    if predictions is None or predictions.empty or not required.issubset(predictions.columns):
+        return empty_result
+    if trading_window_days not in (30, 90):
+        raise ValueError("Trading window must be 30 or 90 days.")
+
+    scored = predictions[predictions["actual_direction"].notna()].copy()
+    if "is_oos" in scored.columns:
+        scored = scored[scored["is_oos"]].copy()
+    scored["date"] = pd.to_datetime(scored["date"], errors="coerce", utc=True)
+    scored["prediction"] = pd.to_numeric(scored["prediction"], errors="coerce")
+    scored["actual_direction"] = pd.to_numeric(scored["actual_direction"], errors="coerce")
+    scored["close"] = pd.to_numeric(scored["close"], errors="coerce")
+    scored["confidence"] = pd.to_numeric(scored["confidence"], errors="coerce")
+    scored = scored.dropna(subset=["date", "prediction", "actual_direction", "close", "confidence"])
+    scored = scored.sort_values("date").drop_duplicates(subset="date", keep="last")
+    if scored.empty:
+        return empty_result
+
+    scored["correct"] = (scored["prediction"].astype(int) == scored["actual_direction"].astype(int)).astype(float)
+
+    def aggregate_accuracy(period):
+        period_groups = scored["date"].dt.tz_localize(None).dt.to_period(period)
+        grouped = scored.groupby(period_groups)["correct"].agg(["mean", "count"])
+        grouped = grouped.rename(columns={"mean": "accuracy"}).reset_index(drop=True)
+        grouped["date"] = scored.groupby(period_groups)["date"].max().to_numpy()
+        return grouped[["date", "accuracy", "count"]]
+
+    indexed_correct = scored.set_index("date")["correct"]
+    rolling_accuracy = pd.DataFrame(index=scored["date"])
+    for days in (30, 90):
+        values = indexed_correct.rolling(f"{days}D", min_periods=2).mean()
+        values.loc[values.index < values.index.min() + pd.Timedelta(days=days)] = np.nan
+        rolling_accuracy[f"accuracy_{days}d"] = values.to_numpy()
+    rolling_accuracy = rolling_accuracy.reset_index()
+
+    _, equity = simulate_trades(scored, **STANDARD_TRADING_CONFIG)
+    rolling_trading = empty_trading
+    if not equity.empty:
+        equity = equity.copy()
+        equity["date"] = pd.to_datetime(equity["date"], errors="coerce", utc=True)
+        equity["equity"] = pd.to_numeric(equity["equity"], errors="coerce")
+        equity = equity.dropna(subset=["date", "equity"]).sort_values("date")
+        equity = equity.drop_duplicates(subset="date", keep="last").set_index("date")
+        window = f"{trading_window_days}D"
+        initial_capital = STANDARD_TRADING_CONFIG["initial_capital"]
+        rolling_return = equity["equity"].rolling(window, min_periods=2).apply(
+            lambda values: (values[-1] - values[0]) / initial_capital * 100,
+            raw=True,
+        )
+        rolling_drawdown = equity["equity"].rolling(window, min_periods=2).apply(
+            lambda values: float(np.max(np.maximum.accumulate(values) - values) / initial_capital * 100),
+            raw=True,
+        )
+        full_window_start = equity.index.min() + pd.Timedelta(days=trading_window_days)
+        rolling_return.loc[rolling_return.index < full_window_start] = np.nan
+        rolling_drawdown.loc[rolling_drawdown.index < full_window_start] = np.nan
+        rolling_trading = pd.DataFrame({
+            "date": equity.index,
+            "rolling_return": rolling_return.to_numpy(),
+            "rolling_drawdown": rolling_drawdown.to_numpy(),
+        })
+
+    return {
+        "monthly_accuracy": aggregate_accuracy("M"),
+        "quarterly_accuracy": aggregate_accuracy("Q"),
+        "rolling_accuracy": rolling_accuracy,
+        "rolling_trading": rolling_trading,
+    }
+
+
 def build_baseline_significance(results):
     """Compare a selected model with its strongest paired baseline."""
     required = {"prediction", "actual_direction", "close", "date"}
@@ -2210,6 +2294,32 @@ def render_model_insights():
             id="cte-loading",
             type="circle",
             children=html.Div(id="cte-table-container"),
+        ),
+        html.Hr(className="my-4"),
+        html.H3("Performance Stability Over Time", className="text-light mb-2"),
+        html.P(
+            "Tracks classification accuracy and trading performance across time to reveal model deterioration.",
+            className="text-muted small mb-3",
+        ),
+        dbc.Row([
+            dbc.Col([
+                html.Label("Trading Window", className="text-muted small mb-1"),
+                dcc.Dropdown(
+                    id="stability-window-dropdown",
+                    options=[
+                        {"label": "30 days", "value": 30},
+                        {"label": "90 days", "value": 90},
+                    ],
+                    value=30,
+                    clearable=False,
+                    style={"color": "#000"},
+                ),
+            ], width=3),
+        ], className="mb-3"),
+        dcc.Loading(
+            id="stability-loading",
+            type="circle",
+            children=html.Div(id="stability-chart-container"),
         ),
         html.Hr(className="my-4"),
         html.H3("Confidence Timeline", className="text-light mb-2"),
@@ -4446,6 +4556,125 @@ def build_confidence_histogram(asset_class, asset_symbol, interval):
     )
 
     return dcc.Graph(figure=fig, config={"displayModeBar": False})
+
+
+@app.callback(
+    dash.Output("stability-chart-container", "children"),
+    dash.Input("ch-class-dropdown", "value"),
+    dash.Input("ch-asset-dropdown", "value"),
+    dash.Input("ch-interval-dropdown", "value"),
+    dash.Input("stability-window-dropdown", "value"),
+)
+def build_performance_stability(asset_class, asset_symbol, interval, trading_window_days):
+    if not asset_symbol or not interval:
+        return dbc.Alert("Select an asset and interval.", color="info")
+
+    try:
+        predictions = run_prediction(asset_symbol, interval, asset_class)
+    except FileNotFoundError:
+        return dbc.Alert(
+            f"No trained model for {asset_symbol} @ {interval}. Train one first.",
+            color="warning",
+        )
+
+    stability = calculate_performance_stability(predictions, trading_window_days)
+    monthly = stability["monthly_accuracy"]
+    quarterly = stability["quarterly_accuracy"]
+    rolling_accuracy = stability["rolling_accuracy"]
+    rolling_trading = stability["rolling_trading"]
+    if monthly.empty and quarterly.empty and rolling_trading.empty:
+        return dbc.Alert("No valid out-of-sample data is available for stability analysis.", color="warning")
+
+    accuracy_fig = go.Figure()
+    if not monthly.empty:
+        accuracy_fig.add_trace(go.Scatter(
+            x=monthly["date"],
+            y=monthly["accuracy"],
+            mode="lines+markers",
+            name="Monthly accuracy",
+            customdata=monthly["count"],
+            hovertemplate="Period end: %{x}<br>Accuracy: %{y:.1%}<br>Predictions: %{customdata}<extra></extra>",
+        ))
+    if not quarterly.empty:
+        accuracy_fig.add_trace(go.Scatter(
+            x=quarterly["date"],
+            y=quarterly["accuracy"],
+            mode="lines+markers",
+            name="Quarterly accuracy",
+            customdata=quarterly["count"],
+            hovertemplate="Period end: %{x}<br>Accuracy: %{y:.1%}<br>Predictions: %{customdata}<extra></extra>",
+        ))
+    if not rolling_accuracy.empty:
+        accuracy_fig.add_trace(go.Scatter(
+            x=rolling_accuracy["date"],
+            y=rolling_accuracy["accuracy_30d"],
+            mode="lines",
+            name="Rolling 30-day accuracy",
+            line=dict(color="#3498db"),
+            hovertemplate="Date: %{x}<br>Accuracy: %{y:.1%}<extra></extra>",
+        ))
+        accuracy_fig.add_trace(go.Scatter(
+            x=rolling_accuracy["date"],
+            y=rolling_accuracy["accuracy_90d"],
+            mode="lines",
+            name="Rolling 90-day accuracy",
+            line=dict(color="#f39c12"),
+            hovertemplate="Date: %{x}<br>Accuracy: %{y:.1%}<extra></extra>",
+        ))
+    accuracy_fig.add_hline(y=0.5, line_dash="dash", line_color="#ffffff", annotation_text="50% baseline")
+    accuracy_fig.update_layout(
+        template="plotly_dark",
+        title=f"{asset_symbol} {interval} Classification Stability (out-of-sample)",
+        xaxis_title="Date",
+        yaxis=dict(title="Accuracy", tickformat=".0%", range=[0, 1]),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=430,
+        margin=dict(l=60, r=40, t=60, b=50),
+    )
+
+    trading_fig = go.Figure()
+    if not rolling_trading.empty:
+        trading_fig.add_trace(go.Scatter(
+            x=rolling_trading["date"],
+            y=rolling_trading["rolling_return"],
+            mode="lines",
+            name=f"Rolling {trading_window_days}-day return",
+            line=dict(color="#27ae60"),
+            hovertemplate="Date: %{x}<br>Return: %{y:.2f}%<extra></extra>",
+        ))
+        trading_fig.add_trace(go.Scatter(
+            x=rolling_trading["date"],
+            y=rolling_trading["rolling_drawdown"],
+            mode="lines",
+            name=f"Rolling {trading_window_days}-day drawdown",
+            line=dict(color="#c0392b"),
+            hovertemplate="Date: %{x}<br>Drawdown: %{y:.2f}%<extra></extra>",
+        ))
+    else:
+        trading_fig.add_annotation(
+            text=f"Not enough data for a {trading_window_days}-day trading window.",
+            x=0.5,
+            y=0.5,
+            xref="paper",
+            yref="paper",
+            showarrow=False,
+        )
+    trading_fig.update_layout(
+        template="plotly_dark",
+        title=f"{asset_symbol} {interval} Trading Stability ({trading_window_days}-day window)",
+        xaxis_title="Date",
+        yaxis_title="Percent",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=430,
+        margin=dict(l=60, r=40, t=60, b=50),
+    )
+
+    return dbc.Row([
+        dbc.Col(dcc.Graph(figure=accuracy_fig, config={"displayModeBar": False}), width=6),
+        dbc.Col(dcc.Graph(figure=trading_fig, config={"displayModeBar": False}), width=6),
+    ])
 
 
 @app.callback(

@@ -1444,3 +1444,142 @@ class TestConfidenceThresholdEvaluation:
             result = dashboard_app.build_confidence_threshold_table("crypto", "BTC", "1h")
 
         assert any("No prediction data" in value for value in _collect_text(result))
+
+
+class TestPerformanceStability:
+    def test_monthly_and_quarterly_accuracy_use_known_oos_outcomes(self):
+        from dashboard import app as dashboard_app
+
+        predictions = pd.DataFrame({
+            "date": pd.to_datetime([
+                "2024-01-05", "2024-01-15", "2024-01-25",
+                "2024-02-05", "2024-02-15", "2024-02-20", "2024-02-25",
+            ]),
+            "close": [100, 101, 102, 103, 104, 105, 106],
+            "prediction": [1, 0, 1, 0, 1, 1, 0],
+            "confidence": [0.60] * 7,
+            "actual_direction": [1, 1, 1, 0, 0, 0, float("nan")],
+            "is_oos": [True, True, True, True, True, False, True],
+        })
+
+        with patch("backtesting.strategy.simulate_trades", return_value=(pd.DataFrame(), pd.DataFrame())):
+            result = dashboard_app.calculate_performance_stability(predictions, 30)
+
+        monthly = result["monthly_accuracy"]
+        quarterly = result["quarterly_accuracy"]
+        assert monthly["accuracy"].tolist() == pytest.approx([2 / 3, 1 / 2])
+        assert monthly["count"].tolist() == [3, 2]
+        assert quarterly["accuracy"].tolist() == pytest.approx([3 / 5])
+        assert quarterly["count"].tolist() == [5]
+
+    def test_rolling_accuracy_uses_30_and_90_day_windows(self):
+        from dashboard import app as dashboard_app
+
+        dates = pd.date_range("2024-01-01", periods=91, freq="1D")
+        predictions = pd.DataFrame({
+            "date": dates,
+            "close": range(100, 191),
+            "prediction": [1] * 89 + [0, 0],
+            "confidence": [0.60] * 91,
+            "actual_direction": [1] * 89 + [0, 1],
+            "is_oos": [True] * 91,
+        })
+
+        with patch("backtesting.strategy.simulate_trades", return_value=(pd.DataFrame(), pd.DataFrame())):
+            result = dashboard_app.calculate_performance_stability(predictions, 30)
+
+        rolling = result["rolling_accuracy"].dropna(subset=["accuracy_30d", "accuracy_90d"])
+        assert rolling.iloc[-1]["accuracy_30d"] == pytest.approx(29 / 30)
+        assert rolling.iloc[-1]["accuracy_90d"] == pytest.approx(89 / 90)
+
+    def test_rolling_trading_return_and_drawdown_use_selected_window(self):
+        from dashboard import app as dashboard_app
+
+        dates = pd.date_range("2024-01-01", periods=31, freq="1D")
+        predictions = pd.DataFrame({
+            "date": dates,
+            "close": [100] * 31,
+            "prediction": [1] * 31,
+            "confidence": [0.60] * 31,
+            "actual_direction": [1] * 31,
+            "is_oos": [True] * 31,
+        })
+        equity = pd.DataFrame({
+            "date": dates,
+            "equity": [10000, 100, 120] + [120] * 27 + [90],
+            "drawdown_pct": [0.0] * 31,
+        })
+
+        with patch("backtesting.strategy.simulate_trades", return_value=(pd.DataFrame(), equity)):
+            result = dashboard_app.calculate_performance_stability(predictions, 30)
+
+        rolling = result["rolling_trading"].dropna()
+        assert rolling.iloc[-1]["rolling_return"] == pytest.approx(-0.1)
+        assert rolling.iloc[-1]["rolling_drawdown"] == pytest.approx(0.3)
+
+    def test_callback_uses_selected_window_and_displays_exact_values(self):
+        from dashboard import app as dashboard_app
+
+        stability = {
+            "monthly_accuracy": pd.DataFrame({
+                "date": pd.to_datetime(["2024-01-31"]),
+                "accuracy": [0.60],
+                "count": [10],
+            }),
+            "quarterly_accuracy": pd.DataFrame({
+                "date": pd.to_datetime(["2024-03-31"]),
+                "accuracy": [0.55],
+                "count": [20],
+            }),
+            "rolling_accuracy": pd.DataFrame({
+                "date": pd.to_datetime(["2024-03-31"]),
+                "accuracy_30d": [0.58],
+                "accuracy_90d": [0.53],
+            }),
+            "rolling_trading": pd.DataFrame({
+                "date": pd.to_datetime(["2024-03-31"]),
+                "rolling_return": [4.25],
+                "rolling_drawdown": [1.75],
+            }),
+        }
+
+        with patch.object(dashboard_app, "run_prediction", return_value=pd.DataFrame({"date": ["2024-01-01"]})), \
+             patch.object(dashboard_app, "calculate_performance_stability", return_value=stability) as calculate:
+            result = dashboard_app.build_performance_stability("crypto", "BTC", "1h", 90)
+
+        calculate.assert_called_once()
+        assert calculate.call_args.args[1] == 90
+        accuracy_fig = result.children[0].children.figure
+        trading_fig = result.children[1].children.figure
+        assert [trace.name for trace in accuracy_fig.data] == [
+            "Monthly accuracy",
+            "Quarterly accuracy",
+            "Rolling 30-day accuracy",
+            "Rolling 90-day accuracy",
+        ]
+        assert [trace.y[0] for trace in accuracy_fig.data] == pytest.approx([0.60, 0.55, 0.58, 0.53])
+        assert [trace.name for trace in trading_fig.data] == [
+            "Rolling 90-day return",
+            "Rolling 90-day drawdown",
+        ]
+        assert [trace.y[0] for trace in trading_fig.data] == pytest.approx([4.25, 1.75])
+
+    def test_missing_oos_data_shows_warning(self):
+        from dashboard import app as dashboard_app
+
+        predictions = pd.DataFrame({
+            "date": pd.to_datetime(["2024-01-01", "2024-01-02"]),
+            "close": [100, 101],
+            "prediction": [1, 0],
+            "confidence": [0.60, 0.60],
+            "actual_direction": [1, 0],
+            "is_oos": [False, False],
+        })
+
+        with patch.object(dashboard_app, "run_prediction", return_value=predictions):
+            result = dashboard_app.build_performance_stability("crypto", "BTC", "1h", 30)
+
+        assert any(
+            "No valid out-of-sample data" in value
+            for value in _collect_text(result)
+        )
