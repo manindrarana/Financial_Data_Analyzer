@@ -1973,6 +1973,88 @@ def _exact_mcnemar_p_value(model_only, baseline_only):
     return min(1.0, 2 * probability)
 
 
+def calculate_performance_stability(predictions, trading_window_days):
+    from backtesting.strategy import simulate_trades
+    from dashboard.model_health import STANDARD_TRADING_CONFIG
+
+    empty_accuracy = pd.DataFrame(columns=["date", "accuracy", "count"])
+    empty_rolling = pd.DataFrame(columns=["date", "accuracy_30d", "accuracy_90d"])
+    empty_trading = pd.DataFrame(columns=["date", "rolling_return", "rolling_drawdown"])
+    empty_result = {
+        "monthly_accuracy": empty_accuracy,
+        "quarterly_accuracy": empty_accuracy.copy(),
+        "rolling_accuracy": empty_rolling,
+        "rolling_trading": empty_trading,
+    }
+    required = {"date", "prediction", "actual_direction", "close", "confidence"}
+    if predictions is None or predictions.empty or not required.issubset(predictions.columns):
+        return empty_result
+    if trading_window_days not in (30, 90):
+        raise ValueError("Trading window must be 30 or 90 days.")
+
+    scored = predictions[predictions["actual_direction"].notna()].copy()
+    if "is_oos" in scored.columns:
+        scored = scored[scored["is_oos"]].copy()
+    scored["date"] = pd.to_datetime(scored["date"], errors="coerce", utc=True)
+    scored["prediction"] = pd.to_numeric(scored["prediction"], errors="coerce")
+    scored["actual_direction"] = pd.to_numeric(scored["actual_direction"], errors="coerce")
+    scored["close"] = pd.to_numeric(scored["close"], errors="coerce")
+    scored["confidence"] = pd.to_numeric(scored["confidence"], errors="coerce")
+    scored = scored.dropna(subset=["date", "prediction", "actual_direction", "close", "confidence"])
+    scored = scored.sort_values("date").drop_duplicates(subset="date", keep="last")
+    if scored.empty:
+        return empty_result
+
+    scored["correct"] = (scored["prediction"].astype(int) == scored["actual_direction"].astype(int)).astype(float)
+
+    def aggregate_accuracy(period):
+        grouped = scored.groupby(scored["date"].dt.to_period(period))["correct"].agg(["mean", "count"])
+        grouped = grouped.rename(columns={"mean": "accuracy"}).reset_index(drop=True)
+        grouped["date"] = scored.groupby(scored["date"].dt.to_period(period))["date"].max().to_numpy()
+        return grouped[["date", "accuracy", "count"]]
+
+    indexed_correct = scored.set_index("date")["correct"]
+    rolling_accuracy = pd.DataFrame(index=scored["date"])
+    for days in (30, 90):
+        values = indexed_correct.rolling(f"{days}D", min_periods=2).mean()
+        values.loc[values.index < values.index.min() + pd.Timedelta(days=days)] = np.nan
+        rolling_accuracy[f"accuracy_{days}d"] = values.to_numpy()
+    rolling_accuracy = rolling_accuracy.reset_index()
+
+    _, equity = simulate_trades(scored, **STANDARD_TRADING_CONFIG)
+    rolling_trading = empty_trading
+    if not equity.empty:
+        equity = equity.copy()
+        equity["date"] = pd.to_datetime(equity["date"], errors="coerce", utc=True)
+        equity["equity"] = pd.to_numeric(equity["equity"], errors="coerce")
+        equity = equity.dropna(subset=["date", "equity"]).sort_values("date")
+        equity = equity.drop_duplicates(subset="date", keep="last").set_index("date")
+        window = f"{trading_window_days}D"
+        rolling_return = equity["equity"].rolling(window, min_periods=2).apply(
+            lambda values: (values[-1] / values[0] - 1) * 100,
+            raw=True,
+        )
+        rolling_drawdown = equity["equity"].rolling(window, min_periods=2).apply(
+            lambda values: float(np.max((np.maximum.accumulate(values) - values) / np.maximum.accumulate(values)) * 100),
+            raw=True,
+        )
+        full_window_start = equity.index.min() + pd.Timedelta(days=trading_window_days)
+        rolling_return.loc[rolling_return.index < full_window_start] = np.nan
+        rolling_drawdown.loc[rolling_drawdown.index < full_window_start] = np.nan
+        rolling_trading = pd.DataFrame({
+            "date": equity.index,
+            "rolling_return": rolling_return.to_numpy(),
+            "rolling_drawdown": rolling_drawdown.to_numpy(),
+        })
+
+    return {
+        "monthly_accuracy": aggregate_accuracy("M"),
+        "quarterly_accuracy": aggregate_accuracy("Q"),
+        "rolling_accuracy": rolling_accuracy,
+        "rolling_trading": rolling_trading,
+    }
+
+
 def build_baseline_significance(results):
     """Compare a selected model with its strongest paired baseline."""
     required = {"prediction", "actual_direction", "close", "date"}
