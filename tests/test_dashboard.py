@@ -1491,3 +1491,28 @@ class TestPerformanceStability:
         rolling = result["rolling_accuracy"].dropna(subset=["accuracy_30d", "accuracy_90d"])
         assert rolling.iloc[-1]["accuracy_30d"] == pytest.approx(29 / 30)
         assert rolling.iloc[-1]["accuracy_90d"] == pytest.approx(89 / 90)
+
+    def test_rolling_trading_return_and_drawdown_use_selected_window(self):
+        from dashboard import app as dashboard_app
+
+        dates = pd.date_range("2024-01-01", periods=31, freq="1D")
+        predictions = pd.DataFrame({
+            "date": dates,
+            "close": [100] * 31,
+            "prediction": [1] * 31,
+            "confidence": [0.60] * 31,
+            "actual_direction": [1] * 31,
+            "is_oos": [True] * 31,
+        })
+        equity = pd.DataFrame({
+            "date": dates,
+            "equity": [10000, 100, 120] + [120] * 27 + [90],
+            "drawdown_pct": [0.0] * 31,
+        })
+
+        with patch("backtesting.strategy.simulate_trades", return_value=(pd.DataFrame(), equity)):
+            result = dashboard_app.calculate_performance_stability(predictions, 30)
+
+        rolling = result["rolling_trading"].dropna()
+        assert rolling.iloc[-1]["rolling_return"] == pytest.approx(-10.0)
+        assert rolling.iloc[-1]["rolling_drawdown"] == pytest.approx(25.0)
