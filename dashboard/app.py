@@ -4557,6 +4557,125 @@ def build_confidence_histogram(asset_class, asset_symbol, interval):
 
 
 @app.callback(
+    dash.Output("stability-chart-container", "children"),
+    dash.Input("ch-class-dropdown", "value"),
+    dash.Input("ch-asset-dropdown", "value"),
+    dash.Input("ch-interval-dropdown", "value"),
+    dash.Input("stability-window-dropdown", "value"),
+)
+def build_performance_stability(asset_class, asset_symbol, interval, trading_window_days):
+    if not asset_symbol or not interval:
+        return dbc.Alert("Select an asset and interval.", color="info")
+
+    try:
+        predictions = run_prediction(asset_symbol, interval, asset_class)
+    except FileNotFoundError:
+        return dbc.Alert(
+            f"No trained model for {asset_symbol} @ {interval}. Train one first.",
+            color="warning",
+        )
+
+    stability = calculate_performance_stability(predictions, trading_window_days)
+    monthly = stability["monthly_accuracy"]
+    quarterly = stability["quarterly_accuracy"]
+    rolling_accuracy = stability["rolling_accuracy"]
+    rolling_trading = stability["rolling_trading"]
+    if monthly.empty and quarterly.empty and rolling_trading.empty:
+        return dbc.Alert("No valid out-of-sample data is available for stability analysis.", color="warning")
+
+    accuracy_fig = go.Figure()
+    if not monthly.empty:
+        accuracy_fig.add_trace(go.Scatter(
+            x=monthly["date"],
+            y=monthly["accuracy"],
+            mode="lines+markers",
+            name="Monthly accuracy",
+            customdata=monthly["count"],
+            hovertemplate="Period end: %{x}<br>Accuracy: %{y:.1%}<br>Predictions: %{customdata}<extra></extra>",
+        ))
+    if not quarterly.empty:
+        accuracy_fig.add_trace(go.Scatter(
+            x=quarterly["date"],
+            y=quarterly["accuracy"],
+            mode="lines+markers",
+            name="Quarterly accuracy",
+            customdata=quarterly["count"],
+            hovertemplate="Period end: %{x}<br>Accuracy: %{y:.1%}<br>Predictions: %{customdata}<extra></extra>",
+        ))
+    if not rolling_accuracy.empty:
+        accuracy_fig.add_trace(go.Scatter(
+            x=rolling_accuracy["date"],
+            y=rolling_accuracy["accuracy_30d"],
+            mode="lines",
+            name="Rolling 30-day accuracy",
+            line=dict(color="#3498db"),
+            hovertemplate="Date: %{x}<br>Accuracy: %{y:.1%}<extra></extra>",
+        ))
+        accuracy_fig.add_trace(go.Scatter(
+            x=rolling_accuracy["date"],
+            y=rolling_accuracy["accuracy_90d"],
+            mode="lines",
+            name="Rolling 90-day accuracy",
+            line=dict(color="#f39c12"),
+            hovertemplate="Date: %{x}<br>Accuracy: %{y:.1%}<extra></extra>",
+        ))
+    accuracy_fig.add_hline(y=0.5, line_dash="dash", line_color="#ffffff", annotation_text="50% baseline")
+    accuracy_fig.update_layout(
+        template="plotly_dark",
+        title=f"{asset_symbol} {interval} Classification Stability (out-of-sample)",
+        xaxis_title="Date",
+        yaxis=dict(title="Accuracy", tickformat=".0%", range=[0, 1]),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=430,
+        margin=dict(l=60, r=40, t=60, b=50),
+    )
+
+    trading_fig = go.Figure()
+    if not rolling_trading.empty:
+        trading_fig.add_trace(go.Scatter(
+            x=rolling_trading["date"],
+            y=rolling_trading["rolling_return"],
+            mode="lines",
+            name=f"Rolling {trading_window_days}-day return",
+            line=dict(color="#27ae60"),
+            hovertemplate="Date: %{x}<br>Return: %{y:.2f}%<extra></extra>",
+        ))
+        trading_fig.add_trace(go.Scatter(
+            x=rolling_trading["date"],
+            y=rolling_trading["rolling_drawdown"],
+            mode="lines",
+            name=f"Rolling {trading_window_days}-day drawdown",
+            line=dict(color="#c0392b"),
+            hovertemplate="Date: %{x}<br>Drawdown: %{y:.2f}%<extra></extra>",
+        ))
+    else:
+        trading_fig.add_annotation(
+            text=f"Not enough data for a {trading_window_days}-day trading window.",
+            x=0.5,
+            y=0.5,
+            xref="paper",
+            yref="paper",
+            showarrow=False,
+        )
+    trading_fig.update_layout(
+        template="plotly_dark",
+        title=f"{asset_symbol} {interval} Trading Stability ({trading_window_days}-day window)",
+        xaxis_title="Date",
+        yaxis_title="Percent",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=430,
+        margin=dict(l=60, r=40, t=60, b=50),
+    )
+
+    return dbc.Row([
+        dbc.Col(dcc.Graph(figure=accuracy_fig, config={"displayModeBar": False}), width=6),
+        dbc.Col(dcc.Graph(figure=trading_fig, config={"displayModeBar": False}), width=6),
+    ])
+
+
+@app.callback(
     dash.Output("ct-chart-container", "children"),
     dash.Input("ch-class-dropdown", "value"),
     dash.Input("ch-asset-dropdown", "value"),
