@@ -1516,3 +1516,50 @@ class TestPerformanceStability:
         rolling = result["rolling_trading"].dropna()
         assert rolling.iloc[-1]["rolling_return"] == pytest.approx(-10.0)
         assert rolling.iloc[-1]["rolling_drawdown"] == pytest.approx(25.0)
+
+    def test_callback_uses_selected_window_and_displays_exact_values(self):
+        from dashboard import app as dashboard_app
+
+        stability = {
+            "monthly_accuracy": pd.DataFrame({
+                "date": pd.to_datetime(["2024-01-31"]),
+                "accuracy": [0.60],
+                "count": [10],
+            }),
+            "quarterly_accuracy": pd.DataFrame({
+                "date": pd.to_datetime(["2024-03-31"]),
+                "accuracy": [0.55],
+                "count": [20],
+            }),
+            "rolling_accuracy": pd.DataFrame({
+                "date": pd.to_datetime(["2024-03-31"]),
+                "accuracy_30d": [0.58],
+                "accuracy_90d": [0.53],
+            }),
+            "rolling_trading": pd.DataFrame({
+                "date": pd.to_datetime(["2024-03-31"]),
+                "rolling_return": [4.25],
+                "rolling_drawdown": [1.75],
+            }),
+        }
+
+        with patch.object(dashboard_app, "run_prediction", return_value=pd.DataFrame({"date": ["2024-01-01"]})), \
+             patch.object(dashboard_app, "calculate_performance_stability", return_value=stability) as calculate:
+            result = dashboard_app.build_performance_stability("crypto", "BTC", "1h", 90)
+
+        calculate.assert_called_once()
+        assert calculate.call_args.args[1] == 90
+        accuracy_fig = result.children[0].children.figure
+        trading_fig = result.children[1].children.figure
+        assert [trace.name for trace in accuracy_fig.data] == [
+            "Monthly accuracy",
+            "Quarterly accuracy",
+            "Rolling 30-day accuracy",
+            "Rolling 90-day accuracy",
+        ]
+        assert [trace.y[0] for trace in accuracy_fig.data] == pytest.approx([0.60, 0.55, 0.58, 0.53])
+        assert [trace.name for trace in trading_fig.data] == [
+            "Rolling 90-day return",
+            "Rolling 90-day drawdown",
+        ]
+        assert [trace.y[0] for trace in trading_fig.data] == pytest.approx([4.25, 1.75])
