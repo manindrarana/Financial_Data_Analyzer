@@ -1,8 +1,23 @@
 import sys
 from unittest.mock import MagicMock
 
+
+def _prefect_decorator(*args, **kwargs):
+    def decorate(function):
+        function.fn = function
+        return function
+
+    if args and callable(args[0]):
+        return decorate(args[0])
+    return decorate
+
+
+mock_prefect = MagicMock()
+mock_prefect.task = _prefect_decorator
+mock_prefect.flow = _prefect_decorator
+mock_prefect.get_run_logger = MagicMock(return_value=MagicMock())
 sys.modules["dotenv"] = MagicMock()
-sys.modules["prefect"] = MagicMock()
+sys.modules["prefect"] = mock_prefect
 sys.modules["prefect.task"] = MagicMock()
 sys.modules["prefect.flow"] = MagicMock()
 
@@ -136,3 +151,52 @@ class TestLockFile:
 
     def test_checkpoint_file_path(self):
         assert CHECKPOINT_FILE.name == ".pipeline_checkpoint.json"
+
+
+class TestModelFamilyRefresh:
+    def test_refreshes_after_btc_1h_retraining(self):
+        import orchestration.orchestration as orch
+
+        trainer = MagicMock()
+        trainer.last_retrained_models = ["BTC_1h", "ETH_1h"]
+        with patch.object(orch, "PipelineModelTrainer", return_value=trainer):
+            with patch(
+                "scripts.compare_model_families.refresh_comparison"
+            ) as refresh:
+                result = orch.train_models.fn()
+
+        assert result == ["BTC_1h", "ETH_1h"]
+        refresh.assert_called_once_with()
+
+    def test_does_not_refresh_for_unrelated_retraining(self):
+        import orchestration.orchestration as orch
+
+        trainer = MagicMock()
+        trainer.last_retrained_models = ["ETH_1h"]
+        with patch.object(orch, "PipelineModelTrainer", return_value=trainer):
+            with patch(
+                "scripts.compare_model_families.refresh_comparison"
+            ) as refresh:
+                result = orch.train_models.fn()
+
+        assert result == ["ETH_1h"]
+        refresh.assert_not_called()
+
+    def test_comparison_failure_does_not_fail_retraining(self):
+        import orchestration.orchestration as orch
+
+        trainer = MagicMock()
+        trainer.last_retrained_models = ["BTC_1h"]
+        logger = MagicMock()
+        with patch.object(orch, "PipelineModelTrainer", return_value=trainer):
+            with patch.object(orch, "get_run_logger", return_value=logger):
+                with patch(
+                    "scripts.compare_model_families.refresh_comparison",
+                    side_effect=RuntimeError("comparison failed"),
+                ):
+                    result = orch.train_models.fn()
+
+        assert result == ["BTC_1h"]
+        logger.warning.assert_called_once_with(
+            "BTC 1h model family comparison failed: comparison failed"
+        )

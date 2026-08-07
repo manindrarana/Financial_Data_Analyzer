@@ -763,6 +763,33 @@ class TestModelFamilyComparison:
         text = " ".join(_collect_text(result))
         assert "The available data is the main limitation." in text
 
+    def test_displays_result_freshness(self, tmp_path):
+        from dashboard import app as dashboard_app
+
+        result_file = tmp_path / "scripts" / "results" / "btc_1h_model_family_comparison.json"
+        result_file.parent.mkdir(parents=True)
+        result_file.write_text(
+            __import__("json").dumps({
+                "generated_at": "2026-08-07T14:30:00+00:00",
+                "source_data_end_date": "2026-08-07T13:00:00",
+                "test_rows": 100,
+                "test_start_date": "2026-08-01T00:00:00",
+                "test_end_date": "2026-08-07T13:00:00",
+                "models": {
+                    "xgboost": {"accuracy": 0.52, "balanced_accuracy": 0.52, "precision": 0.52, "recall": 0.52, "f1_score": 0.52},
+                },
+                "conclusion": "The models perform similarly.",
+            }),
+            encoding="utf-8",
+        )
+
+        with patch.object(dashboard_app, "_project_root", str(tmp_path)):
+            result = dashboard_app.build_model_family_comparison()
+
+        text = " ".join(_collect_text(result))
+        assert "Generated: 2026-08-07 14:30 UTC" in text
+        assert "Source data through: 2026-08-07 13:00 UTC" in text
+
 
 class TestConfusionMatrix:
     def _fake_predictions(self):

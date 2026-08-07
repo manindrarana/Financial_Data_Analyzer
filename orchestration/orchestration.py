@@ -430,6 +430,16 @@ def train_models():
     trainer.run()
     retrained = list(trainer.last_retrained_models)
     trainer.close()
+
+    if "BTC_1h" in retrained:
+        try:
+            from scripts.compare_model_families import refresh_comparison
+
+            refresh_comparison()
+            logger.info("BTC 1h model family comparison refreshed")
+        except Exception as error:
+            logger.warning(f"BTC 1h model family comparison failed: {error}")
+
     return retrained
 
 

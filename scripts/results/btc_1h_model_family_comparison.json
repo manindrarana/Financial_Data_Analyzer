@@ -1,12 +1,14 @@
 {
   "asset": "BTC",
   "interval": "1h",
-  "train_rows": 44404,
-  "test_rows": 11102,
+  "generated_at": "2026-08-07T10:23:45.358885+00:00",
+  "source_data_end_date": "2026-08-07T09:00:00",
+  "train_rows": 44480,
+  "test_rows": 11120,
   "train_start_date": "2020-04-02T17:00:00",
-  "train_end_date": "2025-04-27T20:00:00",
-  "test_start_date": "2025-04-27T21:00:00",
-  "test_end_date": "2026-08-03T10:00:00",
+  "train_end_date": "2025-05-01T00:00:00",
+  "test_start_date": "2025-05-01T01:00:00",
+  "test_end_date": "2026-08-07T08:00:00",
   "features": [
     "rsi_14",
     "roc_10",
@@ -41,25 +43,25 @@
   ],
   "models": {
     "xgboost": {
-      "accuracy": 0.5251306070978202,
-      "balanced_accuracy": 0.5251528181482291,
-      "precision": 0.5233327676904802,
-      "recall": 0.5559762033531639,
-      "f1_score": 0.5391608391608391
+      "accuracy": 0.5260791366906474,
+      "balanced_accuracy": 0.5261717622226625,
+      "precision": 0.5231442518094597,
+      "recall": 0.5605049594229036,
+      "f1_score": 0.5411805676475709
     },
     "logistic_regression": {
-      "accuracy": 0.5284633399387497,
-      "balanced_accuracy": 0.5284657562565342,
-      "precision": 0.527916964924839,
-      "recall": 0.5318190012619434,
-      "f1_score": 0.5298607992815447
+      "accuracy": 0.5302158273381294,
+      "balanced_accuracy": 0.5302269648655316,
+      "precision": 0.5286351471900089,
+      "recall": 0.5343552750225429,
+      "f1_score": 0.5314798206278027
     },
     "random_forest": {
-      "accuracy": 0.522788686723113,
-      "balanced_accuracy": 0.5228141418793042,
-      "precision": 0.5209490156486623,
-      "recall": 0.5581395348837209,
-      "f1_score": 0.5389033942558746
+      "accuracy": 0.5232913669064748,
+      "balanced_accuracy": 0.5233880965763201,
+      "precision": 0.5204766700234978,
+      "recall": 0.5592425608656447,
+      "f1_score": 0.539163696427019
     }
   },
   "conclusion": "The models perform similarly, suggesting that the available data is the main limitation."

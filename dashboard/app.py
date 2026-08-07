@@ -2489,8 +2489,18 @@ def build_model_family_comparison():
         f"{str(result.get('test_start_date', ''))[:10]} to "
         f"{str(result.get('test_end_date', ''))[:10]}."
     )
+    freshness_parts = []
+    for label, field in (
+        ("Generated", "generated_at"),
+        ("Source data through", "source_data_end_date"),
+    ):
+        value = result.get(field)
+        if value:
+            timestamp = pd.to_datetime(value, utc=True)
+            freshness_parts.append(f"{label}: {timestamp.strftime('%Y-%m-%d %H:%M UTC')}")
     return html.Div([
-        html.P(period, className="text-muted small mb-2"),
+        html.P(period, className="text-muted small mb-1"),
+        html.P(" | ".join(freshness_parts), className="text-muted small mb-2") if freshness_parts else None,
         comparison_table,
         dbc.Alert(result.get("conclusion", ""), color="info", className="mb-0"),
     ])
