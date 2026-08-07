@@ -166,7 +166,7 @@ def main():
     payload = refresh_comparison()
 
     print("BTC 1h model family comparison")
-    for name, metrics in results.items():
+    for name, metrics in payload["models"].items():
         print(
             f"{name}: accuracy={metrics['accuracy']:.4f}, "
             f"balanced_accuracy={metrics['balanced_accuracy']:.4f}, "
