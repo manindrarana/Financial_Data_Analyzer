@@ -167,3 +167,17 @@ class TestModelFamilyRefresh:
 
         assert result == ["BTC_1h", "ETH_1h"]
         refresh.assert_called_once_with()
+
+    def test_does_not_refresh_for_unrelated_retraining(self):
+        import orchestration.orchestration as orch
+
+        trainer = MagicMock()
+        trainer.last_retrained_models = ["ETH_1h"]
+        with patch.object(orch, "PipelineModelTrainer", return_value=trainer):
+            with patch(
+                "scripts.compare_model_families.refresh_comparison"
+            ) as refresh:
+                result = orch.train_models.fn()
+
+        assert result == ["ETH_1h"]
+        refresh.assert_not_called()
