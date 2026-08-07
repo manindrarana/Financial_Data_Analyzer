@@ -181,3 +181,22 @@ class TestModelFamilyRefresh:
 
         assert result == ["ETH_1h"]
         refresh.assert_not_called()
+
+    def test_comparison_failure_does_not_fail_retraining(self):
+        import orchestration.orchestration as orch
+
+        trainer = MagicMock()
+        trainer.last_retrained_models = ["BTC_1h"]
+        logger = MagicMock()
+        with patch.object(orch, "PipelineModelTrainer", return_value=trainer):
+            with patch.object(orch, "get_run_logger", return_value=logger):
+                with patch(
+                    "scripts.compare_model_families.refresh_comparison",
+                    side_effect=RuntimeError("comparison failed"),
+                ):
+                    result = orch.train_models.fn()
+
+        assert result == ["BTC_1h"]
+        logger.warning.assert_called_once_with(
+            "BTC 1h model family comparison failed: comparison failed"
+        )
