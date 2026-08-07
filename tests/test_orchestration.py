@@ -1,8 +1,23 @@
 import sys
 from unittest.mock import MagicMock
 
+
+def _prefect_decorator(*args, **kwargs):
+    def decorate(function):
+        function.fn = function
+        return function
+
+    if args and callable(args[0]):
+        return decorate(args[0])
+    return decorate
+
+
+mock_prefect = MagicMock()
+mock_prefect.task = _prefect_decorator
+mock_prefect.flow = _prefect_decorator
+mock_prefect.get_run_logger = MagicMock(return_value=MagicMock())
 sys.modules["dotenv"] = MagicMock()
-sys.modules["prefect"] = MagicMock()
+sys.modules["prefect"] = mock_prefect
 sys.modules["prefect.task"] = MagicMock()
 sys.modules["prefect.flow"] = MagicMock()
 
