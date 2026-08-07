@@ -1,5 +1,6 @@
 import json
 import os
+from datetime import datetime, timezone
 
 import duckdb
 import pandas as pd
@@ -138,13 +139,15 @@ def save_results(payload, result_path=RESULT_PATH):
         json.dump(payload, result_file, indent=2)
 
 
-def main():
-    df = load_btc_1h_data()
+def refresh_comparison(db_path=DB_PATH, result_path=RESULT_PATH):
+    df = load_btc_1h_data(db_path)
     X_train, X_test, y_train, y_test, train_df, test_df, features = prepare_data(df)
     results = compare_models(X_train, X_test, y_train, y_test)
     payload = {
         "asset": "BTC",
         "interval": "1h",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "source_data_end_date": df["date"].max().isoformat(),
         "train_rows": len(X_train),
         "test_rows": len(X_test),
         "train_start_date": train_df["date"].min().isoformat(),
@@ -155,7 +158,12 @@ def main():
         "models": results,
         "conclusion": build_conclusion(results),
     }
-    save_results(payload)
+    save_results(payload, result_path)
+    return payload
+
+
+def main():
+    payload = refresh_comparison()
 
     print("BTC 1h model family comparison")
     for name, metrics in results.items():
