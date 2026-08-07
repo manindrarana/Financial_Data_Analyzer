@@ -136,3 +136,19 @@ class TestLockFile:
 
     def test_checkpoint_file_path(self):
         assert CHECKPOINT_FILE.name == ".pipeline_checkpoint.json"
+
+
+class TestModelFamilyRefresh:
+    def test_refreshes_after_btc_1h_retraining(self):
+        import orchestration.orchestration as orch
+
+        trainer = MagicMock()
+        trainer.last_retrained_models = ["BTC_1h", "ETH_1h"]
+        with patch.object(orch, "PipelineModelTrainer", return_value=trainer):
+            with patch(
+                "scripts.compare_model_families.refresh_comparison"
+            ) as refresh:
+                result = orch.train_models.fn()
+
+        assert result == ["BTC_1h", "ETH_1h"]
+        refresh.assert_called_once_with()
