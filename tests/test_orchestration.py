@@ -40,6 +40,7 @@ mock_src_ingestion.BybitClient = MagicMock()
 sys.modules["src.ingestion"] = mock_src_ingestion
 sys.modules["src.database"] = MagicMock()
 
+import orchestration.orchestration as orch
 from orchestration.orchestration import (
     CHECKPOINT_FILE,
     LOCK_FILE,
@@ -63,7 +64,6 @@ class TestCheckpoint:
         with tempfile.TemporaryDirectory() as tmpdir:
             orig = CHECKPOINT_FILE
             try:
-                monkey = CHECKPOINT_FILE.__class__
                 checkpoint_file = Path(os.path.join(tmpdir, "checkpoint.json"))
                 import orchestration.orchestration as orch
                 orch.CHECKPOINT_FILE = checkpoint_file
@@ -159,8 +159,6 @@ class TestLockFile:
 
 class TestModelFamilyRefresh:
     def test_refreshes_after_btc_1h_retraining(self):
-        import orchestration.orchestration as orch
-
         trainer = MagicMock()
         trainer.last_retrained_models = ["BTC_1h", "ETH_1h"]
         with patch.object(orch, "PipelineModelTrainer", return_value=trainer):
@@ -173,8 +171,6 @@ class TestModelFamilyRefresh:
         refresh.assert_called_once_with()
 
     def test_does_not_refresh_for_unrelated_retraining(self):
-        import orchestration.orchestration as orch
-
         trainer = MagicMock()
         trainer.last_retrained_models = ["ETH_1h"]
         with patch.object(orch, "PipelineModelTrainer", return_value=trainer):
@@ -187,8 +183,6 @@ class TestModelFamilyRefresh:
         refresh.assert_not_called()
 
     def test_comparison_failure_does_not_fail_retraining(self):
-        import orchestration.orchestration as orch
-
         trainer = MagicMock()
         trainer.last_retrained_models = ["BTC_1h"]
         logger = MagicMock()
