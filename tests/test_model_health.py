@@ -610,8 +610,6 @@ class TestModelRankingUI:
         return self.predictions[asset]
 
     def test_default_table_ranks_exact_oos_accuracy_values(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "run_prediction", side_effect=self._run_prediction):
             table = dashboard_app.build_model_ranking_table(self.models)
 
@@ -621,8 +619,6 @@ class TestModelRankingUI:
         assert [row["OOS Rows"] for row in table.data] == [4, 4, "N/A"]
 
     def test_brier_table_ranks_lower_exact_scores_first(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "run_prediction", side_effect=self._run_prediction):
             table = dashboard_app.build_model_ranking_table(self.models, "brier_score")
 
@@ -631,8 +627,6 @@ class TestModelRankingUI:
         assert [row["Rank"] for row in table.data] == [1, 2, "N/A"]
 
     def test_layout_shows_all_ranking_objectives(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "run_prediction", side_effect=self._run_prediction):
             with patch.object(dashboard_app, "get_model_health", return_value=self.models):
                 with patch.object(dashboard_app, "get_summary_counts", return_value={
@@ -666,8 +660,6 @@ class TestModelRankingUI:
     def test_trading_objectives_rank_and_format_known_values(
         self, objective, expected_assets, expected_values
     ):
-        from dashboard import app as dashboard_app
-
         evaluated = [
             {**self.models[0], "total_return_pct": 4.25, "max_drawdown_pct": 3.50,
              "sharpe_ratio": 1.40, "return_volatility": 0.012},
@@ -687,8 +679,6 @@ class TestModelRankingUI:
         assert [row[label] for row in table.data] == expected_values
 
     def test_callback_uses_selected_objective_and_current_models(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "get_model_health", return_value=self.models):
             with patch.object(dashboard_app, "run_prediction", side_effect=self._run_prediction):
                 table = dashboard_app.update_model_ranking("balanced_accuracy")
@@ -699,8 +689,6 @@ class TestModelRankingUI:
 
 class TestDashboardRenderModelHealth:
     def test_renders_tab_label(self):
-        from dashboard import app as dashboard_app
-
         tabs = dashboard_app.app.layout.children
         tab_labels = []
         for child in tabs:
@@ -716,8 +704,6 @@ class TestDashboardRenderModelHealth:
         assert any("Model Health" in label for label in tab_labels)
 
     def test_renders_summary_cards_with_data(self):
-        from dashboard import app as dashboard_app
-
         now = datetime.now(timezone.utc)
         models = [
             {"asset": "BTC", "interval": "1d", "asset_class": "crypto",
@@ -748,8 +734,6 @@ class TestDashboardRenderModelHealth:
         assert "Total Models" in text
 
     def test_renders_table_with_asset_data(self):
-        from dashboard import app as dashboard_app
-
         now = datetime.now(timezone.utc)
         models = [
             {"asset": "BTC", "interval": "1d", "asset_class": "crypto",
@@ -775,8 +759,6 @@ class TestDashboardRenderModelHealth:
         assert table_data[0]["Status"] == "healthy"
 
     def test_renders_no_models_message(self):
-        from dashboard import app as dashboard_app
-
         with patch("dashboard.app.get_model_health", return_value=[]):
             with patch("dashboard.app.get_summary_counts", return_value={
                 "total": 0, "healthy": 0, "stale": 0, "missing_model": 0, "missing_metadata": 0,
