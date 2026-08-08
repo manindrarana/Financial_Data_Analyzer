@@ -354,8 +354,6 @@ class TestStatusConstants:
 
 class TestModelQualityMetrics:
     def test_calculates_known_oos_metric_values(self):
-        from dashboard.app import _calculate_model_quality
-
         predictions = pd.DataFrame({
             "close": [100, 101, 100, 102, 103, 104],
             "prediction": [0, 1, 0, 1, 1, 0],
@@ -380,8 +378,6 @@ class TestModelQualityMetrics:
         assert metrics["brier_score"] == pytest.approx((0.64 + 0.09 + 0.36) / 3)
 
     def test_returns_unavailable_metrics_without_known_actuals(self):
-        from dashboard.app import _calculate_model_quality
-
         predictions = pd.DataFrame({
             "close": [100, 101],
             "prediction": [1, 0],
