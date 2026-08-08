@@ -1,16 +1,17 @@
+import json
+import os
 import sys
-from unittest.mock import MagicMock
+import tempfile
+from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock, patch
 
 sys.modules["dotenv"] = MagicMock()
 
-import pytest
-import os
-import json
-import tempfile
 import pandas as pd
-from datetime import datetime, timezone, timedelta
-from unittest.mock import patch, MagicMock
+import pytest
 
+from dashboard import app as dashboard_app
+from dashboard.app import _calculate_model_quality
 from dashboard.model_health import (
     _scan_models,
     _read_metadata,
