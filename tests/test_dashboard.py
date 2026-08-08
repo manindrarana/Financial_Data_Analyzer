@@ -1,13 +1,13 @@
+import os
 import sys
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 sys.modules["dotenv"] = MagicMock()
 
-import pytest
-import os
 import pandas as pd
-from unittest.mock import patch, MagicMock
+import pytest
 
+from dashboard import app as dashboard_app
 from dashboard.predictor import (
     _apply_probability_calibration,
     _calibration_params,
@@ -39,8 +39,6 @@ def _collect_text(component):
 
 class TestPriceChartInfoBar:
     def test_shows_candle_change_amount_and_percentage(self):
-        from dashboard import app as dashboard_app
-
         hover_data = {
             "points": [{
                 "open": 100.0,
@@ -58,8 +56,6 @@ class TestPriceChartInfoBar:
         assert "Change: +10.0000 (+10.00%)" in text
 
     def test_shows_negative_change_amount_and_percentage(self):
-        from dashboard import app as dashboard_app
-
         hover_data = {
             "points": [{
                 "open": 200.0,
@@ -77,8 +73,6 @@ class TestPriceChartInfoBar:
         assert "Change: -20.0000 (-10.00%)" in text
 
     def test_shows_candle_range_amount_and_percentage(self):
-        from dashboard import app as dashboard_app
-
         hover_data = {
             "points": [{
                 "open": 100.0,
@@ -96,8 +90,6 @@ class TestPriceChartInfoBar:
         assert "Range: 20.0000 (20.00%)" in text
 
     def test_shows_candle_volume(self):
-        from dashboard import app as dashboard_app
-
         hover_data = {
             "points": [{
                 "open": 100.0,
@@ -115,8 +107,6 @@ class TestPriceChartInfoBar:
         assert "Volume: 12,345" in text
 
     def test_calculates_turnover_from_close_and_volume(self):
-        from dashboard import app as dashboard_app
-
         hover_data = {
             "points": [{
                 "open": 100.0,
@@ -134,8 +124,6 @@ class TestPriceChartInfoBar:
         assert "Turnover: 1,259,190.00" in text
 
     def test_uses_green_for_positive_change(self):
-        from dashboard import app as dashboard_app
-
         hover_data = {
             "points": [{
                 "open": 100.0,
@@ -153,8 +141,6 @@ class TestPriceChartInfoBar:
         assert change_span.style["color"] == "#26a69a"
 
     def test_uses_red_for_negative_change(self):
-        from dashboard import app as dashboard_app
-
         hover_data = {
             "points": [{
                 "open": 100.0,
@@ -269,8 +255,6 @@ class TestFeatureTables:
 
 class TestPredictionCards:
     def test_next_prediction_card_uses_latest_prediction(self):
-        from dashboard import app as dashboard_app
-
         prediction_rows = pd.DataFrame({
             "date": pd.to_datetime(["2026-06-18 10:00", "2026-06-18 11:00"]),
             "close": [100.0, 101.0],
@@ -290,8 +274,6 @@ class TestPredictionCards:
         assert "Confidence: 87.3%" in text
 
     def test_model_comparison_table_shows_baselines(self):
-        from dashboard import app as dashboard_app
-
         prediction_rows = pd.DataFrame({
             "date": pd.to_datetime([
                 "2026-06-18 10:00", "2026-06-18 11:00", "2026-06-18 12:00",
@@ -333,8 +315,6 @@ class TestPredictionCards:
         assert "SMA 20 > SMA 50 Rule" in text
 
     def test_model_comparison_table_uses_only_oos_rows(self):
-        from dashboard import app as dashboard_app
-
         prediction_rows = pd.DataFrame({
             "date": pd.to_datetime([
                 "2026-06-18 10:00", "2026-06-18 11:00", "2026-06-18 12:00",
@@ -375,8 +355,6 @@ class TestBaselineStatisticalSignificance:
         })
 
     def test_significant_model_improvement_values(self):
-        from dashboard import app as dashboard_app
-
         actual = [0, 1] * 50
         result = dashboard_app.build_baseline_significance(
             self._prediction_rows(actual, actual)
@@ -394,8 +372,6 @@ class TestBaselineStatisticalSignificance:
         assert result["end_date"] == pd.Timestamp("2026-01-05 03:00:00")
 
     def test_non_significant_equal_accuracy_values(self):
-        from dashboard import app as dashboard_app
-
         actual = [0, 1] * 50
         result = dashboard_app.build_baseline_significance(
             self._prediction_rows([1] * 100, actual)
@@ -410,8 +386,6 @@ class TestBaselineStatisticalSignificance:
         assert result["mcnemar_p_value"] == pytest.approx(1.0)
 
     def test_missing_known_oos_data_message(self):
-        from dashboard import app as dashboard_app
-
         rows = self._prediction_rows([1, 0], [1, 0])
         rows["actual_direction"] = [float("nan"), float("nan")]
         with patch.object(dashboard_app, "run_prediction", return_value=rows):
@@ -422,8 +396,6 @@ class TestBaselineStatisticalSignificance:
         assert "No known out-of-sample predictions are available." in _collect_text(content)
 
     def test_insufficient_paired_data_message(self):
-        from dashboard import app as dashboard_app
-
         rows = self._prediction_rows([1], [1])
         with patch.object(dashboard_app, "run_prediction", return_value=rows):
             content = dashboard_app.build_baseline_significance_section(
@@ -435,8 +407,6 @@ class TestBaselineStatisticalSignificance:
 
 class TestFeatureImportance:
     def test_missing_model_shows_warning(self):
-        from dashboard import app as dashboard_app
-
         with patch("os.path.exists", return_value=False):
             result = dashboard_app.build_feature_importance_chart("crypto", "BTC", "1h")
 
@@ -444,8 +414,6 @@ class TestFeatureImportance:
         assert any("No trained model" in t for t in text)
 
     def test_chart_shows_top_features(self):
-        from dashboard import app as dashboard_app
-
         mock_booster = MagicMock()
         mock_booster.get_score.return_value = {
             "sma_7_dist": 15.2,
@@ -493,8 +461,6 @@ class TestFeatureImportance:
         assert len(bar.y) == 5
 
     def test_chart_limits_to_top_15(self):
-        from dashboard import app as dashboard_app
-
         fake_importance = {f"feature_{i}": float(100 - i) for i in range(20)}
         mock_booster = MagicMock()
         mock_booster.get_score.return_value = fake_importance
@@ -535,8 +501,6 @@ class TestFeatureImportance:
         assert "feature_19" not in list(bar.y)
 
     def test_title_includes_asset_and_interval(self):
-        from dashboard import app as dashboard_app
-
         mock_booster = MagicMock()
         mock_booster.get_score.return_value = {"rsi_14": 10.0}
         mock_model = MagicMock()
@@ -584,8 +548,6 @@ class TestAccuracyChart:
         ]
 
     def test_all_models_with_accuracy_appear_as_bars(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "get_model_health", return_value=self._fake_models()):
             result = dashboard_app.build_accuracy_chart()
 
@@ -597,8 +559,6 @@ class TestAccuracyChart:
         assert crypto_bars + stock_bars == 4
 
     def test_bars_colored_by_asset_class(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "get_model_health", return_value=self._fake_models()):
             result = dashboard_app.build_accuracy_chart()
 
@@ -607,8 +567,6 @@ class TestAccuracyChart:
         assert fig.data[1].marker.color == "#3498db"
 
     def test_crypto_and_stock_traces_separate(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "get_model_health", return_value=self._fake_models()):
             result = dashboard_app.build_accuracy_chart()
 
@@ -619,8 +577,6 @@ class TestAccuracyChart:
         assert "AAPL 1h" in list(fig.data[1].x)
 
     def test_baseline_and_ceiling_lines_visible(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "get_model_health", return_value=self._fake_models()):
             result = dashboard_app.build_accuracy_chart()
 
@@ -630,8 +586,6 @@ class TestAccuracyChart:
         assert 52.6 in y_values
 
     def test_hover_template_shows_values(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "get_model_health", return_value=self._fake_models()):
             result = dashboard_app.build_accuracy_chart()
 
@@ -644,8 +598,6 @@ class TestAccuracyChart:
         assert "Test Rows: %{customdata[1]}" in fig.data[1].hovertemplate
 
     def test_customdata_has_train_and_test_rows(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "get_model_health", return_value=self._fake_models()):
             result = dashboard_app.build_accuracy_chart()
 
@@ -658,8 +610,6 @@ class TestAccuracyChart:
         assert [900, 225] in stock_cd
 
     def test_no_accuracy_data_shows_alert(self):
-        from dashboard import app as dashboard_app
-
         fake_models = [
             {"asset": "BTC", "interval": "1h", "asset_class": "crypto", "test_accuracy": None, "status": "stale"},
             {"asset": "AAPL", "interval": "1h", "asset_class": "stocks", "test_accuracy": None, "status": "stale"},
@@ -671,8 +621,6 @@ class TestAccuracyChart:
         assert any("No accuracy data" in t for t in text)
 
     def test_bars_sorted_by_accuracy_ascending(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "get_model_health", return_value=self._fake_models()):
             result = dashboard_app.build_accuracy_chart()
 
@@ -685,8 +633,6 @@ class TestAccuracyChart:
 
 class TestModelFamilyComparison:
     def test_displays_known_model_metrics(self, tmp_path):
-        from dashboard import app as dashboard_app
-
         result_data = {
             "test_rows": 11102,
             "test_start_date": "2025-04-27T21:00:00",
@@ -730,8 +676,6 @@ class TestModelFamilyComparison:
         assert "11,102 identical unseen rows" in text
 
     def test_missing_result_file_shows_clear_alert(self, tmp_path):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "_project_root", str(tmp_path)):
             result = dashboard_app.build_model_family_comparison()
 
@@ -740,8 +684,6 @@ class TestModelFamilyComparison:
         assert "Run the BTC 1h comparison experiment first" in text
 
     def test_displays_saved_conclusion(self, tmp_path):
-        from dashboard import app as dashboard_app
-
         result_file = tmp_path / "scripts" / "results" / "btc_1h_model_family_comparison.json"
         result_file.parent.mkdir(parents=True)
         result_file.write_text(
@@ -764,8 +706,6 @@ class TestModelFamilyComparison:
         assert "The available data is the main limitation." in text
 
     def test_displays_result_freshness(self, tmp_path):
-        from dashboard import app as dashboard_app
-
         result_file = tmp_path / "scripts" / "results" / "btc_1h_model_family_comparison.json"
         result_file.parent.mkdir(parents=True)
         result_file.write_text(
@@ -803,8 +743,6 @@ class TestConfusionMatrix:
         })
 
     def test_correct_counts_tp_fp_tn_fn(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
             result = dashboard_app.build_confusion_matrix("crypto", "BTC", "1h")
 
@@ -816,8 +754,6 @@ class TestConfusionMatrix:
         assert "TP" in text[1][1] and "5 (50.0%)" in text[1][1]
 
     def test_correct_cells_green_wrong_cells_red(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
             result = dashboard_app.build_confusion_matrix("crypto", "BTC", "1h")
 
@@ -829,8 +765,6 @@ class TestConfusionMatrix:
         assert z[1][1] == 1
 
     def test_no_model_shows_warning(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "run_prediction", side_effect=FileNotFoundError):
             result = dashboard_app.build_confusion_matrix("crypto", "BTC", "1h")
 
@@ -838,8 +772,6 @@ class TestConfusionMatrix:
         assert any("No trained model" in t for t in text)
 
     def test_no_data_shows_warning(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "run_prediction", return_value=None):
             result = dashboard_app.build_confusion_matrix("crypto", "BTC", "1h")
 
@@ -847,8 +779,6 @@ class TestConfusionMatrix:
         assert any("No prediction data" in t for t in text)
 
     def test_title_includes_asset_interval_and_accuracy(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
             result = dashboard_app.build_confusion_matrix("crypto", "BTC", "1h")
 
@@ -859,8 +789,6 @@ class TestConfusionMatrix:
         assert "70.0%" in title
 
     def test_total_count_in_title(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
             result = dashboard_app.build_confusion_matrix("crypto", "BTC", "1h")
 
@@ -868,8 +796,6 @@ class TestConfusionMatrix:
         assert "n=10" in fig.layout.title.text
 
     def test_only_oos_data_used(self):
-        from dashboard import app as dashboard_app
-
         df = self._fake_predictions()
         df["is_oos"] = [True] * 5 + [False] * 5
         with patch.object(dashboard_app, "run_prediction", return_value=df):
@@ -884,8 +810,6 @@ class TestConfusionMatrix:
         assert "n=5" in fig.layout.title.text
 
     def test_works_for_stocks(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
             result = dashboard_app.build_confusion_matrix("stocks", "AAPL", "1h")
 
@@ -902,8 +826,6 @@ class TestExplorerFilterOptions:
         return mock
 
     def test_returns_distinct_assets_sorted(self):
-        from dashboard import app as dashboard_app
-
         mock_conn = MagicMock()
         mock_conn.execute.side_effect = [
             self._mock_result([("ETH",), ("BTC",), ("SOL",)]),
@@ -920,8 +842,6 @@ class TestExplorerFilterOptions:
         assert interval_val is None
 
     def test_returns_distinct_intervals(self):
-        from dashboard import app as dashboard_app
-
         mock_conn = MagicMock()
         mock_conn.execute.side_effect = [
             self._mock_result([("BTC",)]),
@@ -936,8 +856,6 @@ class TestExplorerFilterOptions:
         assert interval_labels == ["1d", "1h", "4h"]
 
     def test_returns_empty_options_on_db_error(self):
-        from dashboard import app as dashboard_app
-
         mock_conn = MagicMock()
         mock_conn.execute.side_effect = Exception("table not found")
         with patch("dashboard.app.duckdb.connect", return_value=mock_conn):
@@ -961,8 +879,6 @@ class TestExplorerTableQuery:
         })
 
     def test_no_filters_returns_all_rows(self):
-        from dashboard import app as dashboard_app
-
         mock_conn = MagicMock()
         mock_conn.execute.return_value.df.return_value = self._fake_df()
         captured = []
@@ -981,8 +897,6 @@ class TestExplorerTableQuery:
         assert "Showing 2 rows" in row_text
 
     def test_asset_filter_adds_where_clause(self):
-        from dashboard import app as dashboard_app
-
         mock_conn = MagicMock()
         mock_conn.execute.return_value.df.return_value = self._fake_df()
         captured = []
@@ -1001,8 +915,6 @@ class TestExplorerTableQuery:
         assert "interval" not in captured[0].split("ORDER BY")[0]
 
     def test_interval_filter_adds_where_clause(self):
-        from dashboard import app as dashboard_app
-
         mock_conn = MagicMock()
         mock_conn.execute.return_value.df.return_value = self._fake_df()
         captured = []
@@ -1020,8 +932,6 @@ class TestExplorerTableQuery:
         assert "WHERE interval = '1h'" in captured[0]
 
     def test_both_filters_combined_with_and(self):
-        from dashboard import app as dashboard_app
-
         mock_conn = MagicMock()
         mock_conn.execute.return_value.df.return_value = self._fake_df()
         captured = []
@@ -1039,8 +949,6 @@ class TestExplorerTableQuery:
         assert "WHERE asset_symbol = 'BTC' AND interval = '1h'" in captured[0]
 
     def test_empty_table_shows_warning(self):
-        from dashboard import app as dashboard_app
-
         mock_conn = MagicMock()
         mock_conn.execute.return_value.df.return_value = pd.DataFrame()
         with patch("dashboard.app.duckdb.connect", return_value=mock_conn):
@@ -1064,8 +972,6 @@ class TestConfidenceHistogram:
         })
 
     def test_split_by_correctness(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
             result = dashboard_app.build_confidence_histogram("crypto", "BTC", "1h")
 
@@ -1075,8 +981,6 @@ class TestConfidenceHistogram:
         assert any("Wrong" in n for n in names)
 
     def test_correct_trace_green_wrong_trace_red(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
             result = dashboard_app.build_confidence_histogram("crypto", "BTC", "1h")
 
@@ -1088,8 +992,6 @@ class TestConfidenceHistogram:
                 assert trace.marker.color == "#c0392b"
 
     def test_correct_counts_match_data(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
             result = dashboard_app.build_confidence_histogram("crypto", "BTC", "1h")
 
@@ -1103,8 +1005,6 @@ class TestConfidenceHistogram:
         assert f"Wrong ({expected_wrong})" == wrong_trace.name
 
     def test_title_includes_asset_interval_and_accuracy(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
             result = dashboard_app.build_confidence_histogram("crypto", "BTC", "1h")
 
@@ -1115,8 +1015,6 @@ class TestConfidenceHistogram:
         assert "n=10" in title
 
     def test_no_model_shows_warning(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "run_prediction", side_effect=FileNotFoundError):
             result = dashboard_app.build_confidence_histogram("crypto", "BTC", "1h")
 
@@ -1124,8 +1022,6 @@ class TestConfidenceHistogram:
         assert any("No trained model" in t for t in text)
 
     def test_no_data_shows_warning(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "run_prediction", return_value=None):
             result = dashboard_app.build_confidence_histogram("crypto", "BTC", "1h")
 
@@ -1133,8 +1029,6 @@ class TestConfidenceHistogram:
         assert any("No prediction data" in t for t in text)
 
     def test_only_oos_data_used(self):
-        from dashboard import app as dashboard_app
-
         df = self._fake_predictions()
         df["is_oos"] = [True] * 5 + [False] * 5
         with patch.object(dashboard_app, "run_prediction", return_value=df):
@@ -1145,8 +1039,6 @@ class TestConfidenceHistogram:
         assert "n=5" in title
 
     def test_works_for_stocks(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
             result = dashboard_app.build_confidence_histogram("stocks", "AAPL", "1h")
 
@@ -1156,8 +1048,6 @@ class TestConfidenceHistogram:
         assert "1h" in title
 
     def test_barmode_overlay(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
             result = dashboard_app.build_confidence_histogram("crypto", "BTC", "1h")
 
@@ -1177,8 +1067,6 @@ class TestConfidenceTimeline:
         })
 
     def test_split_by_correctness(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
             result = dashboard_app.build_confidence_timeline("crypto", "BTC", "1h")
 
@@ -1188,8 +1076,6 @@ class TestConfidenceTimeline:
         assert any("Wrong" in n for n in names)
 
     def test_correct_green_wrong_red(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
             result = dashboard_app.build_confidence_timeline("crypto", "BTC", "1h")
 
@@ -1201,8 +1087,6 @@ class TestConfidenceTimeline:
                 assert trace.marker.color == "#c0392b"
 
     def test_x_axis_is_date(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
             result = dashboard_app.build_confidence_timeline("crypto", "BTC", "1h")
 
@@ -1212,8 +1096,6 @@ class TestConfidenceTimeline:
         assert len(correct_trace.x) == 7
 
     def test_y_axis_is_confidence(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
             result = dashboard_app.build_confidence_timeline("crypto", "BTC", "1h")
 
@@ -1221,8 +1103,6 @@ class TestConfidenceTimeline:
         assert fig.layout.yaxis.title.text == "Confidence"
 
     def test_coin_flip_line_at_0_5(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
             result = dashboard_app.build_confidence_timeline("crypto", "BTC", "1h")
 
@@ -1231,8 +1111,6 @@ class TestConfidenceTimeline:
         assert any(s.y0 == 0.5 and s.y1 == 0.5 for s in shapes)
 
     def test_title_includes_asset_interval_and_n(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
             result = dashboard_app.build_confidence_timeline("crypto", "BTC", "1h")
 
@@ -1243,8 +1121,6 @@ class TestConfidenceTimeline:
         assert "n=10" in title
 
     def test_no_model_shows_warning(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "run_prediction", side_effect=FileNotFoundError):
             result = dashboard_app.build_confidence_timeline("crypto", "BTC", "1h")
 
@@ -1252,8 +1128,6 @@ class TestConfidenceTimeline:
         assert any("No trained model" in t for t in text)
 
     def test_no_data_shows_warning(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "run_prediction", return_value=None):
             result = dashboard_app.build_confidence_timeline("crypto", "BTC", "1h")
 
@@ -1261,8 +1135,6 @@ class TestConfidenceTimeline:
         assert any("No prediction data" in t for t in text)
 
     def test_only_oos_data_used(self):
-        from dashboard import app as dashboard_app
-
         df = self._fake_predictions()
         df["is_oos"] = [True] * 5 + [False] * 5
         with patch.object(dashboard_app, "run_prediction", return_value=df):
@@ -1273,8 +1145,6 @@ class TestConfidenceTimeline:
         assert "n=5" in title
 
     def test_works_for_stocks(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
             result = dashboard_app.build_confidence_timeline("stocks", "AAPL", "1h")
 
@@ -1286,8 +1156,6 @@ class TestConfidenceTimeline:
 
 class TestCalibrationMetrics:
     def test_calculates_ece_and_confidence_bins_from_oos_predictions(self):
-        from dashboard import app as dashboard_app
-
         predictions = pd.DataFrame({
             "prediction": [1, 0, 1, 0, 1],
             "confidence": [0.52, 0.54, 0.62, 0.68, 0.95],
@@ -1305,8 +1173,6 @@ class TestCalibrationMetrics:
         ]
 
     def test_returns_unavailable_metrics_without_known_outcomes(self):
-        from dashboard import app as dashboard_app
-
         predictions = pd.DataFrame({
             "prediction": [1, 0],
             "confidence": [0.6, 0.7],
@@ -1330,8 +1196,6 @@ class TestCalibrationReliability:
         })
 
     def test_displays_curve_scores_and_reliability_values(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "run_prediction", return_value=self._fake_predictions()):
             result = dashboard_app.build_calibration_reliability("crypto", "BTC", "1h")
 
@@ -1350,16 +1214,12 @@ class TestCalibrationReliability:
         assert "n=4" in fig.layout.title.text
 
     def test_no_model_shows_warning(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "run_prediction", side_effect=FileNotFoundError):
             result = dashboard_app.build_calibration_reliability("crypto", "BTC", "1h")
 
         assert any("No trained model" in value for value in _collect_text(result))
 
     def test_no_known_outcomes_shows_warning(self):
-        from dashboard import app as dashboard_app
-
         predictions = self._fake_predictions()
         predictions["actual_direction"] = float("nan")
         with patch.object(dashboard_app, "run_prediction", return_value=predictions):
@@ -1380,8 +1240,6 @@ class TestConfidenceThresholdEvaluation:
         })
 
     def test_threshold_accuracy_coverage_and_counts(self):
-        from dashboard import app as dashboard_app
-
         empty = pd.DataFrame()
         metrics = {
             "total_trades": 2,
@@ -1414,8 +1272,6 @@ class TestConfidenceThresholdEvaluation:
         assert rows[-1]["coverage"] == 20.0
 
     def test_only_oos_predictions_are_evaluated(self):
-        from dashboard import app as dashboard_app
-
         df = self._fake_predictions()
         df.loc[4, "is_oos"] = False
         empty = pd.DataFrame()
@@ -1434,8 +1290,6 @@ class TestConfidenceThresholdEvaluation:
         assert rows[-1]["coverage"] == 0.0
 
     def test_table_displays_headers_and_formatted_values(self):
-        from dashboard import app as dashboard_app
-
         rows = [{
             "threshold": 0.52,
             "accuracy": 54.4,
@@ -1457,16 +1311,12 @@ class TestConfidenceThresholdEvaluation:
             assert value in text
 
     def test_no_model_shows_warning(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "run_prediction", side_effect=FileNotFoundError):
             result = dashboard_app.build_confidence_threshold_table("crypto", "BTC", "1h")
 
         assert any("No trained model" in value for value in _collect_text(result))
 
     def test_no_data_shows_warning(self):
-        from dashboard import app as dashboard_app
-
         with patch.object(dashboard_app, "run_prediction", return_value=None):
             result = dashboard_app.build_confidence_threshold_table("crypto", "BTC", "1h")
 
@@ -1475,8 +1325,6 @@ class TestConfidenceThresholdEvaluation:
 
 class TestPerformanceStability:
     def test_monthly_and_quarterly_accuracy_use_known_oos_outcomes(self):
-        from dashboard import app as dashboard_app
-
         predictions = pd.DataFrame({
             "date": pd.to_datetime([
                 "2024-01-05", "2024-01-15", "2024-01-25",
@@ -1500,8 +1348,6 @@ class TestPerformanceStability:
         assert quarterly["count"].tolist() == [5]
 
     def test_rolling_accuracy_uses_30_and_90_day_windows(self):
-        from dashboard import app as dashboard_app
-
         dates = pd.date_range("2024-01-01", periods=91, freq="1D")
         predictions = pd.DataFrame({
             "date": dates,
@@ -1520,8 +1366,6 @@ class TestPerformanceStability:
         assert rolling.iloc[-1]["accuracy_90d"] == pytest.approx(89 / 90)
 
     def test_rolling_trading_return_and_drawdown_use_selected_window(self):
-        from dashboard import app as dashboard_app
-
         dates = pd.date_range("2024-01-01", periods=31, freq="1D")
         predictions = pd.DataFrame({
             "date": dates,
@@ -1545,8 +1389,6 @@ class TestPerformanceStability:
         assert rolling.iloc[-1]["rolling_drawdown"] == pytest.approx(0.3)
 
     def test_callback_uses_selected_window_and_displays_exact_values(self):
-        from dashboard import app as dashboard_app
-
         stability = {
             "monthly_accuracy": pd.DataFrame({
                 "date": pd.to_datetime(["2024-01-31"]),
@@ -1592,8 +1434,6 @@ class TestPerformanceStability:
         assert [trace.y[0] for trace in trading_fig.data] == pytest.approx([4.25, 1.75])
 
     def test_missing_oos_data_shows_warning(self):
-        from dashboard import app as dashboard_app
-
         predictions = pd.DataFrame({
             "date": pd.to_datetime(["2024-01-01", "2024-01-02"]),
             "close": [100, 101],
