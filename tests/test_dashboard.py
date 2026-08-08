@@ -1,12 +1,11 @@
+import os
 import sys
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 sys.modules["dotenv"] = MagicMock()
 
-import pytest
-import os
 import pandas as pd
-from unittest.mock import patch, MagicMock
+import pytest
 
 from dashboard.predictor import (
     _apply_probability_calibration,
