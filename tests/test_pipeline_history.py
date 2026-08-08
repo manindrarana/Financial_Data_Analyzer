@@ -254,8 +254,6 @@ class TestGetRunSummary:
 
 class TestRenderPipelineHistory:
     def test_renders_summary_cards_and_table(self):
-        from dashboard import app as dashboard_app
-
         summary = {
             "total": 10, "success": 8, "failed": 1, "running": 1,
             "success_rate": 88.9, "last_status": "success", "last_error": None,
@@ -280,8 +278,6 @@ class TestRenderPipelineHistory:
         assert "Last Run Status" in text
 
     def test_renders_empty_state_when_no_runs(self):
-        from dashboard import app as dashboard_app
-
         summary = {
             "total": 0, "success": 0, "failed": 0, "running": 0,
             "success_rate": 0.0, "last_status": "none", "last_error": None,
@@ -301,8 +297,6 @@ class TestRenderPipelineHistory:
         assert "No pipeline runs logged yet" in " ".join(text)
 
     def test_renders_last_failure_alert(self):
-        from dashboard import app as dashboard_app
-
         summary = {
             "total": 2, "success": 1, "failed": 1, "running": 0,
             "success_rate": 50.0, "last_status": "failed",
@@ -327,8 +321,6 @@ class TestRenderPipelineHistory:
         assert "fact_price_history has 0 rows" in " ".join(text)
 
     def test_renders_skipped_count_message_row_and_color(self):
-        from dashboard import app as dashboard_app
-
         reason = "Pipeline run skipped because another run is active (PID 1234)."
         summary = {
             "total": 3, "success": 2, "failed": 0, "running": 0,
@@ -365,8 +357,6 @@ class TestRenderPipelineHistory:
         } in table.style_data_conditional
 
     def test_table_has_correct_columns(self):
-        from dashboard import app as dashboard_app
-
         summary = {
             "total": 1, "success": 1, "failed": 0, "running": 0,
             "success_rate": 100.0, "last_status": "success", "last_error": None,
