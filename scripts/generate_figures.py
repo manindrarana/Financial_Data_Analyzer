@@ -2,14 +2,22 @@
 Generate thesis figures from project data.
 Outputs PNGs to obsidian_notes/latex/images/
 """
+import glob
+import json
 import os
 import sys
-import json
-import glob
-import numpy as np
-import pandas as pd
+
 import duckdb
 import matplotlib
+import numpy as np
+import pandas as pd
+import xgboost as xgb
+from matplotlib.patches import Patch
+
+from backtesting.strategy import simulate_trades
+from backtesting.walk_forward import run_walk_forward
+from src.models.feature_engineering import MODEL_FEATURES, make_stationary
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
@@ -301,16 +309,14 @@ def chart_per_asset_accuracy():
         colors.append("#3498db" if m.get("asset_class") == "crypto" else "#e67e22")
 
     fig, ax = plt.subplots(figsize=(16, 6))
-    bars = ax.bar(range(len(labels)), accuracies, color=colors, edgecolor="#1a1a2e")
+    ax.bar(range(len(labels)), accuracies, color=colors, edgecolor="#1a1a2e")
     ax.axhline(y=50, color="#ffc107", linestyle="--", linewidth=1, label="Random (50%)")
     ax.set_xticks(range(len(labels)))
     ax.set_xticklabels(labels, rotation=90, fontsize=7)
     ax.set_ylabel("Test Accuracy (%)")
     ax.set_title("Test Accuracy for All 45 Models")
     ax.set_ylim(40, 60)
-    ax.legend(loc="upper right")
 
-    from matplotlib.patches import Patch
     legend_elements = [
         Patch(facecolor="#3498db", label="Crypto"),
         Patch(facecolor="#e67e22", label="Stocks"),
@@ -322,8 +328,6 @@ def chart_per_asset_accuracy():
 
 
 def chart_feature_importance():
-    import xgboost as xgb
-
     model_path = os.path.join(MODELS_DIR, "crypto", "BTC_1h_xgboost_model.json")
     meta_path = os.path.join(MODELS_DIR, "crypto", "BTC_1h_xgboost_metadata.json")
 
@@ -348,7 +352,7 @@ def chart_feature_importance():
     feat_values = [x[1] for x in sorted_items]
 
     fig, ax = plt.subplots(figsize=(10, 6))
-    bars = ax.barh(range(len(feat_names)), feat_values, color="#3498db", edgecolor="#1a5276")
+    ax.barh(range(len(feat_names)), feat_values, color="#3498db", edgecolor="#1a5276")
     ax.set_yticks(range(len(feat_names)))
     ax.set_yticklabels(feat_names, fontsize=10)
     ax.invert_yaxis()
@@ -359,9 +363,6 @@ def chart_feature_importance():
 
 
 def chart_confidence_distribution():
-    import xgboost as xgb
-    from src.models.feature_engineering import make_stationary, MODEL_FEATURES
-
     conn = duckdb.connect(DB_PATH, read_only=True)
     df = conn.execute("""
         SELECT * FROM gold_crypto_features
@@ -392,9 +393,6 @@ def chart_confidence_distribution():
 
 
 def chart_backtest_equity_curve():
-    from backtesting.walk_forward import run_walk_forward
-    from backtesting.strategy import simulate_trades
-
     predictions_df, _ = run_walk_forward(
         asset="BTC",
         interval="1h",
@@ -405,7 +403,7 @@ def chart_backtest_equity_curve():
         asset_class="crypto",
     )
 
-    trades_df, equity_df = simulate_trades(
+    _, equity_df = simulate_trades(
         predictions_df,
         confidence_threshold=0.52,
         stop_loss_pct=0.02,
@@ -463,4 +461,3 @@ if __name__ == "__main__":
 
     print()
     print("Done. Figures saved to obsidian_notes/latex/images/")
-    print()
