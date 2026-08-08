@@ -7,6 +7,7 @@ sys.modules["dotenv"] = MagicMock()
 import pandas as pd
 import pytest
 
+from dashboard import app as dashboard_app
 from dashboard.predictor import (
     _apply_probability_calibration,
     _calibration_params,
