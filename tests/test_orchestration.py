@@ -1,5 +1,10 @@
+import os
 import sys
-from unittest.mock import MagicMock
+import tempfile
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import duckdb
 
 
 def _prefect_decorator(*args, **kwargs):
