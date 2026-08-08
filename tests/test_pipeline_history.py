@@ -1,15 +1,14 @@
+import os
 import sys
-from unittest.mock import MagicMock
+import tempfile
+from unittest.mock import MagicMock, patch
 
 sys.modules["dotenv"] = MagicMock()
 
-import pytest
-import os
-import tempfile
 import duckdb
 import pandas as pd
-from unittest.mock import patch, MagicMock
 
+from dashboard import app as dashboard_app
 from dashboard.pipeline_history import get_pipeline_runs, get_run_summary
 
 
