@@ -14,16 +14,17 @@ import pandas as pd
 import xgboost as xgb
 from matplotlib.patches import Patch
 
-from backtesting.strategy import simulate_trades
-from backtesting.walk_forward import run_walk_forward
-from src.models.feature_engineering import MODEL_FEATURES, make_stationary
-
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
+
+from backtesting.strategy import simulate_trades
+from backtesting.walk_forward import run_walk_forward
+from src.models.feature_engineering import MODEL_FEATURES, make_stationary
+
 DB_PATH = os.path.join(PROJECT_ROOT, "database", "financial_data.duckdb")
 MODELS_DIR = os.path.join(PROJECT_ROOT, "src", "models")
 OUTPUT_DIR = os.path.join(PROJECT_ROOT, "obsidian_notes", "latex", "images")
