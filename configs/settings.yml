@@ -44,6 +44,11 @@ ingestion:
 providers:
   yfinance:
     intervals: ["1h", "1d", "1wk", "1mo"]
+    requests_per_second: 1
+    max_retries: 3
+    retry_base_seconds: 2
+    retry_jitter_seconds: 1
+    error_retry_seconds: 5
 
   bybit:
     category: "linear"

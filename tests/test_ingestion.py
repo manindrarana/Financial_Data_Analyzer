@@ -105,6 +105,18 @@ class TestYahooGetLastFetchedDate:
 
 class TestYahooFetchData:
     @patch("src.ingestion.yahoo_finance.load_dotenv")
+    @patch("src.ingestion.yahoo_finance.LimiterSession")
+    def test_loads_configured_request_and_retry_settings(self, mock_limiter_session, mock_dotenv):
+        client = YahooFinanceClient()
+
+        assert client.requests_per_second == 1
+        assert client.max_retries == 3
+        assert client.retry_base_seconds == 2
+        assert client.retry_jitter_seconds == 1
+        assert client.error_retry_seconds == 5
+        mock_limiter_session.assert_called_once_with(per_second=1)
+
+    @patch("src.ingestion.yahoo_finance.load_dotenv")
     @patch("os.path.exists", return_value=False)
     @patch("time.sleep")
     @patch("src.ingestion.yahoo_finance.yf.download")
@@ -140,5 +152,36 @@ class TestYahooFetchData:
         result = client.fetch_data("AAPL")
 
         assert result is False
+        assert client._rate_limited is False
+        assert mock_download.call_count == client.max_retries * 2
+
+    @patch("src.ingestion.yahoo_finance.load_dotenv")
+    @patch("os.path.exists", return_value=False)
+    @patch("time.sleep")
+    @patch("src.ingestion.yahoo_finance.yf.download", return_value=pd.DataFrame())
+    def test_empty_download_does_not_mark_provider_rate_limited(self, mock_download, mock_sleep, mock_exists, mock_dotenv):
+        client = YahooFinanceClient()
+        client.config["providers"]["yfinance"]["intervals"] = ["1d"]
+
+        result = client.fetch_data("AAPL")
+
+        assert result is False
+        assert client._rate_limited is False
+        assert mock_download.call_count == client.max_retries
+
+    @patch("src.ingestion.yahoo_finance.load_dotenv")
+    @patch("os.path.exists", return_value=False)
+    @patch("time.sleep")
+    @patch("src.ingestion.yahoo_finance.yf.download")
+    def test_stops_remaining_intervals_after_explicit_rate_limit(self, mock_download, mock_sleep, mock_exists, mock_dotenv):
+        from yfinance.exceptions import YFRateLimitError
+
+        client = YahooFinanceClient()
+        client.config["providers"]["yfinance"]["intervals"] = ["1h", "1d"]
+        mock_download.side_effect = YFRateLimitError()
+
+        result = client.fetch_data("AAPL")
+
+        assert result is False
         assert client._rate_limited is True
-        assert mock_download.call_count == 2
+        assert mock_download.call_count == 1
