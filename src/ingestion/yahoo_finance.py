@@ -24,7 +24,13 @@ class YahooFinanceClient:
             
         self.raw_path = self.config["paths"]["raw_data"]
         os.makedirs(self.raw_path, exist_ok=True)
-        self.session = LimiterSession(per_second=2)
+        yahoo_config = self.config["providers"]["yfinance"]
+        self.requests_per_second = yahoo_config.get("requests_per_second", 2)
+        self.max_retries = yahoo_config.get("max_retries", 2)
+        self.retry_base_seconds = yahoo_config.get("retry_base_seconds", 2)
+        self.retry_jitter_seconds = yahoo_config.get("retry_jitter_seconds", 1)
+        self.error_retry_seconds = yahoo_config.get("error_retry_seconds", 5)
+        self.session = LimiterSession(per_second=self.requests_per_second)
         self.session.headers.update({
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         })
