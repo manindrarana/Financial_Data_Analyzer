@@ -64,8 +64,8 @@ class YahooFinanceClient:
         self.logger.info(f"Fetching data for {ticker} using yfinance...")
         
         config_start_date = self.config["ingestion"]["settings"]["start_date"]
-        intervals = self.config["providers"]["yfinance"]["intervals"] 
-        
+        intervals = self.config["providers"]["yfinance"]["intervals"]
+        fetched_any = False
         for interval in intervals:
             if self._rate_limited:
                 self.logger.warning(f"Yahoo Finance rate limit detected earlier — skipping {ticker} [{interval}] (existing data will be used)")
@@ -183,13 +183,14 @@ class YahooFinanceClient:
                     self.logger.info(f"No existing file for {filename}, creating a new one.")
                 
                 df.to_parquet(file_path, index=False, storage_options=s3_storage_options)
+                fetched_any = True
                 self.logger.info(f"Success! Saved total {len(df)} rows to {file_path}")
 
             except Exception as e:
                 self.logger.error(f"Critical error processing {ticker}: {e}")
                 raise
 
-        return True
+        return fetched_any
 
     def close(self):
         """Close session and cleanup"""
