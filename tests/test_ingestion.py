@@ -152,8 +152,8 @@ class TestYahooFetchData:
         result = client.fetch_data("AAPL")
 
         assert result is False
-        assert client._rate_limited is True
-        assert mock_download.call_count == 2
+        assert client._rate_limited is False
+        assert mock_download.call_count == client.max_retries * 2
 
     @patch("src.ingestion.yahoo_finance.load_dotenv")
     @patch("os.path.exists", return_value=False)
