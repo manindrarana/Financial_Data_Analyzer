@@ -142,3 +142,20 @@ class TestYahooFetchData:
         assert result is False
         assert client._rate_limited is True
         assert mock_download.call_count == 2
+
+    @patch("src.ingestion.yahoo_finance.load_dotenv")
+    @patch("os.path.exists", return_value=False)
+    @patch("time.sleep")
+    @patch("src.ingestion.yahoo_finance.yf.download")
+    def test_stops_remaining_intervals_after_explicit_rate_limit(self, mock_download, mock_sleep, mock_exists, mock_dotenv):
+        from yfinance.exceptions import YFRateLimitError
+
+        client = YahooFinanceClient()
+        client.config["providers"]["yfinance"]["intervals"] = ["1h", "1d"]
+        mock_download.side_effect = YFRateLimitError()
+
+        result = client.fetch_data("AAPL")
+
+        assert result is False
+        assert client._rate_limited is True
+        assert mock_download.call_count == 1
