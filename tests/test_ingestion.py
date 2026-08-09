@@ -105,6 +105,18 @@ class TestYahooGetLastFetchedDate:
 
 class TestYahooFetchData:
     @patch("src.ingestion.yahoo_finance.load_dotenv")
+    @patch("src.ingestion.yahoo_finance.LimiterSession")
+    def test_loads_configured_request_and_retry_settings(self, mock_limiter_session, mock_dotenv):
+        client = YahooFinanceClient()
+
+        assert client.requests_per_second == 1
+        assert client.max_retries == 3
+        assert client.retry_base_seconds == 2
+        assert client.retry_jitter_seconds == 1
+        assert client.error_retry_seconds == 5
+        mock_limiter_session.assert_called_once_with(per_second=1)
+
+    @patch("src.ingestion.yahoo_finance.load_dotenv")
     @patch("os.path.exists", return_value=False)
     @patch("time.sleep")
     @patch("src.ingestion.yahoo_finance.yf.download")
