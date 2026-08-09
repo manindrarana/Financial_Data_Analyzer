@@ -146,6 +146,20 @@ class TestYahooFetchData:
     @patch("src.ingestion.yahoo_finance.load_dotenv")
     @patch("os.path.exists", return_value=False)
     @patch("time.sleep")
+    @patch("src.ingestion.yahoo_finance.yf.download", return_value=pd.DataFrame())
+    def test_empty_download_does_not_mark_provider_rate_limited(self, mock_download, mock_sleep, mock_exists, mock_dotenv):
+        client = YahooFinanceClient()
+        client.config["providers"]["yfinance"]["intervals"] = ["1d"]
+
+        result = client.fetch_data("AAPL")
+
+        assert result is False
+        assert client._rate_limited is False
+        assert mock_download.call_count == client.max_retries
+
+    @patch("src.ingestion.yahoo_finance.load_dotenv")
+    @patch("os.path.exists", return_value=False)
+    @patch("time.sleep")
     @patch("src.ingestion.yahoo_finance.yf.download")
     def test_stops_remaining_intervals_after_explicit_rate_limit(self, mock_download, mock_sleep, mock_exists, mock_dotenv):
         from yfinance.exceptions import YFRateLimitError
