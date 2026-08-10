@@ -5,19 +5,35 @@ import pandas as pd
 import duckdb
 import xgboost as xgb
 from sklearn.metrics import accuracy_score
+from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
 from src.models.feature_engineering import MODEL_FEATURES, NEEDED_COLS, make_stationary
 
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "database", "financial_data.duckdb")
 OUTPUT_DIR = os.path.join("backtesting", "results")
 
 XGB_PARAMS = {
-    "n_estimators": 100,
-    "learning_rate": 0.05,
-    "max_depth": 3,
     "subsample": 1.0,
     "eval_metric": "logloss",
     "random_state": 42,
 }
+
+XGB_PARAM_GRID = {
+    "learning_rate": [0.01, 0.05, 0.1],
+    "max_depth": [3, 5],
+    "n_estimators": [100, 200],
+}
+
+
+def _tune_initial_parameters(X_train, y_train):
+    search = GridSearchCV(
+        estimator=xgb.XGBClassifier(**XGB_PARAMS),
+        param_grid=XGB_PARAM_GRID,
+        cv=TimeSeriesSplit(n_splits=2),
+        scoring="accuracy",
+        n_jobs=-1,
+    )
+    search.fit(X_train, y_train)
+    return search.best_params_
 
 
 def _load_data(asset="BTC", interval="1h", date_start=None, date_end=None, asset_class="crypto"):
@@ -135,6 +151,7 @@ def run_walk_forward(asset="BTC", interval="1h", train_months=6, test_months=1, 
 
     all_predictions = []
     fold_summaries = []
+    selected_params = None
 
     print("\n[3/4] Running folds...")
     for fold in folds:
@@ -152,7 +169,12 @@ def run_walk_forward(asset="BTC", interval="1h", train_months=6, test_months=1, 
             print(f"      SKIP: insufficient data after dropna")
             continue
 
-        model = xgb.XGBClassifier(**XGB_PARAMS)
+        if selected_params is None:
+            print("      Tuning parameters on initial training window...")
+            selected_params = _tune_initial_parameters(X_train, y_train)
+            print(f"      Selected parameters: {selected_params}")
+
+        model = xgb.XGBClassifier(**XGB_PARAMS, **selected_params)
         model.fit(X_train, y_train)
 
         y_pred = model.predict(X_test)
@@ -201,6 +223,7 @@ def run_walk_forward(asset="BTC", interval="1h", train_months=6, test_months=1, 
             "train_months": train_months,
             "test_months": test_months,
             "step_months": step_months,
+            "selected_parameters": selected_params,
             "total_folds": len(folds),
             "total_predictions": len(combined),
             "overall_accuracy": round(overall_acc, 4),
@@ -224,6 +247,7 @@ def run_walk_forward(asset="BTC", interval="1h", train_months=6, test_months=1, 
             "train_months": train_months,
             "test_months": test_months,
             "step_months": step_months,
+            "selected_parameters": selected_params,
             "total_folds": len(folds),
             "total_predictions": len(combined),
             "overall_accuracy": round(

@@ -641,10 +641,33 @@ def render_backtest():
     )
 
 
-def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None):
+def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None, tuning_summary=None):
     """Build Dash UI components from backtest results."""
     if trades_df.empty:
         return dbc.Alert("No trades executed — try relaxing the confidence threshold or date range.", color="warning")
+
+    tuning_panel = None
+    if tuning_summary:
+        if "selected_parameters" in tuning_summary:
+            parameter_sets = {tuning_summary.get("asset", "Model"): tuning_summary["selected_parameters"]}
+        else:
+            parameter_sets = {
+                asset: summary.get("selected_parameters", {})
+                for asset, summary in tuning_summary.items()
+                if summary.get("selected_parameters")
+            }
+        if parameter_sets:
+            tuning_panel = dbc.Alert(
+                [html.Strong("Walk-Forward Tuned Parameters")] + [
+                    html.Div([
+                        html.Span(f"{asset}: ", className="fw-bold"),
+                        html.Span(", ".join(f"{name}={value}" for name, value in params.items())),
+                    ])
+                    for asset, params in parameter_sets.items()
+                ],
+                color="info",
+                className="mb-3",
+            )
 
     buy_hold_return_pct = 0.0
     buy_hold_equity = None
@@ -862,6 +885,7 @@ def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None):
         )
 
     return html.Div([
+        tuning_panel,
         metric_cards,
         benchmark_cards,
         exit_html,
@@ -929,8 +953,9 @@ def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, p
         from backtesting.strategy import run_strategy, run_portfolio_strategy, compute_portfolio_buy_and_hold
         from backtesting.metrics import run_metrics
 
+        tuning_summary = None
         if bt_mode == "portfolio":
-            predictions_dict, _summaries = run_portfolio_backtest(
+            predictions_dict, tuning_summary = run_portfolio_backtest(
                 assets=portfolio_assets,
                 interval=interval,
                 train_months=int(train_months),
@@ -976,7 +1001,7 @@ def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, p
                     asset_class=asset_class,
                 )
             else:
-                predictions_df, _summary = run_walk_forward(
+                predictions_df, tuning_summary = run_walk_forward(
                     asset=asset,
                     interval=interval,
                     train_months=int(train_months),
@@ -1026,7 +1051,13 @@ def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, p
                 interval=interval,
                 asset_class=asset_class,
             )
-        return _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=buy_hold_data)
+        return _build_backtest_results(
+            metrics,
+            equity_df,
+            trades_df,
+            buy_hold_df=buy_hold_data,
+            tuning_summary=tuning_summary,
+        )
 
     except Exception as e:
         return dbc.Alert(f"Backtest failed: {e}", color="danger")
