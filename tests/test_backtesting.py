@@ -43,6 +43,29 @@ class TestWalkForwardParameterTuning:
         assert grid_search.call_args.kwargs["cv"].n_splits == 2
         search.fit.assert_called_once_with(X_train, y_train)
 
+    def test_uses_production_parameter_search_space(self, monkeypatch):
+        search = MagicMock()
+        search.best_params_ = {
+            "learning_rate": 0.05,
+            "max_depth": 3,
+            "n_estimators": 100,
+        }
+        grid_search = MagicMock(return_value=search)
+        monkeypatch.setattr("backtesting.walk_forward.GridSearchCV", grid_search)
+
+        _tune_initial_parameters(
+            pd.DataFrame({"feature": [1.0, 2.0, 3.0, 4.0]}),
+            pd.Series([0, 1, 0, 1]),
+        )
+
+        parameter_grid = grid_search.call_args.kwargs["param_grid"]
+        assert parameter_grid == {
+            "learning_rate": [0.01, 0.05, 0.1],
+            "max_depth": [3, 5],
+            "n_estimators": [100, 200],
+        }
+        assert np.prod([len(values) for values in parameter_grid.values()]) == 12
+
 
 def _make_predictions(n=200, seed=42):
     np.random.seed(seed)
