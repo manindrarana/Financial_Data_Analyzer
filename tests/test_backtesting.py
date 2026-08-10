@@ -16,7 +16,7 @@ from backtesting.metrics import (
     CRYPTO_TRADING_DAYS,
     STOCK_TRADING_DAYS,
 )
-from backtesting.walk_forward import _tune_initial_parameters, run_walk_forward
+from backtesting.walk_forward import _tune_initial_parameters, run_walk_forward, run_portfolio_backtest
 
 
 class TestWalkForwardParameterTuning:
@@ -125,6 +125,31 @@ class TestWalkForwardParameterTuning:
         assert all(model.params["max_depth"] == 5 for model in models)
         assert all(model.params["n_estimators"] == 200 for model in models)
         assert summary["selected_parameters"] == selected
+
+    def test_portfolio_keeps_separate_parameters_for_each_asset(self, monkeypatch):
+        parameters = {
+            "BTC": {"learning_rate": 0.01, "max_depth": 3, "n_estimators": 100},
+            "ETH": {"learning_rate": 0.1, "max_depth": 5, "n_estimators": 200},
+        }
+
+        def run_asset(asset, **kwargs):
+            predictions = pd.DataFrame({
+                "prediction": [0, 1],
+                "actual_direction": [0, 1],
+            })
+            return predictions, {
+                "asset": asset,
+                "selected_parameters": parameters[asset],
+            }
+
+        monkeypatch.setattr("backtesting.walk_forward.run_walk_forward", run_asset)
+
+        predictions, summaries = run_portfolio_backtest(["BTC", "ETH"])
+
+        assert list(predictions) == ["BTC", "ETH"]
+        assert summaries["BTC"]["selected_parameters"] == parameters["BTC"]
+        assert summaries["ETH"]["selected_parameters"] == parameters["ETH"]
+        assert summaries["BTC"]["selected_parameters"] != summaries["ETH"]["selected_parameters"]
 
 
 def _make_predictions(n=200, seed=42):
