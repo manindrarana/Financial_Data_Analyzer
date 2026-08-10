@@ -658,8 +658,7 @@ def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None, tun
             }
         if parameter_sets:
             tuning_panel = dbc.Alert(
-                [
-                    html.Strong("Walk-Forward Tuned Parameters"),
+                [html.Strong("Walk-Forward Tuned Parameters")] + [
                     html.Div([
                         html.Span(f"{asset}: ", className="fw-bold"),
                         html.Span(", ".join(f"{name}={value}" for name, value in params.items())),
@@ -886,6 +885,7 @@ def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None, tun
         )
 
     return html.Div([
+        tuning_panel,
         metric_cards,
         benchmark_cards,
         exit_html,
