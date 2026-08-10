@@ -953,8 +953,9 @@ def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, p
         from backtesting.strategy import run_strategy, run_portfolio_strategy, compute_portfolio_buy_and_hold
         from backtesting.metrics import run_metrics
 
+        tuning_summary = None
         if bt_mode == "portfolio":
-            predictions_dict, _summaries = run_portfolio_backtest(
+            predictions_dict, tuning_summary = run_portfolio_backtest(
                 assets=portfolio_assets,
                 interval=interval,
                 train_months=int(train_months),
