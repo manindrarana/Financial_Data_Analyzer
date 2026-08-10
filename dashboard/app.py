@@ -641,10 +641,34 @@ def render_backtest():
     )
 
 
-def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None):
+def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None, tuning_summary=None):
     """Build Dash UI components from backtest results."""
     if trades_df.empty:
         return dbc.Alert("No trades executed — try relaxing the confidence threshold or date range.", color="warning")
+
+    tuning_panel = None
+    if tuning_summary:
+        if "selected_parameters" in tuning_summary:
+            parameter_sets = {tuning_summary.get("asset", "Model"): tuning_summary["selected_parameters"]}
+        else:
+            parameter_sets = {
+                asset: summary.get("selected_parameters", {})
+                for asset, summary in tuning_summary.items()
+                if summary.get("selected_parameters")
+            }
+        if parameter_sets:
+            tuning_panel = dbc.Alert(
+                [
+                    html.Strong("Walk-Forward Tuned Parameters"),
+                    html.Div([
+                        html.Span(f"{asset}: ", className="fw-bold"),
+                        html.Span(", ".join(f"{name}={value}" for name, value in params.items())),
+                    ])
+                    for asset, params in parameter_sets.items()
+                ],
+                color="info",
+                className="mb-3",
+            )
 
     buy_hold_return_pct = 0.0
     buy_hold_equity = None
