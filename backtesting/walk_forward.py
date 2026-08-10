@@ -151,6 +151,7 @@ def run_walk_forward(asset="BTC", interval="1h", train_months=6, test_months=1, 
 
     all_predictions = []
     fold_summaries = []
+    selected_params = None
 
     print("\n[3/4] Running folds...")
     for fold in folds:
@@ -168,7 +169,12 @@ def run_walk_forward(asset="BTC", interval="1h", train_months=6, test_months=1, 
             print(f"      SKIP: insufficient data after dropna")
             continue
 
-        model = xgb.XGBClassifier(**XGB_PARAMS)
+        if selected_params is None:
+            print("      Tuning parameters on initial training window...")
+            selected_params = _tune_initial_parameters(X_train, y_train)
+            print(f"      Selected parameters: {selected_params}")
+
+        model = xgb.XGBClassifier(**XGB_PARAMS, **selected_params)
         model.fit(X_train, y_train)
 
         y_pred = model.predict(X_test)
