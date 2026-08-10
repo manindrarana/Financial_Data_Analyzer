@@ -1001,7 +1001,7 @@ def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, p
                     asset_class=asset_class,
                 )
             else:
-                predictions_df, _summary = run_walk_forward(
+                predictions_df, tuning_summary = run_walk_forward(
                     asset=asset,
                     interval=interval,
                     train_months=int(train_months),
@@ -1051,7 +1051,13 @@ def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, p
                 interval=interval,
                 asset_class=asset_class,
             )
-        return _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=buy_hold_data)
+        return _build_backtest_results(
+            metrics,
+            equity_df,
+            trades_df,
+            buy_hold_df=buy_hold_data,
+            tuning_summary=tuning_summary,
+        )
 
     except Exception as e:
         return dbc.Alert(f"Backtest failed: {e}", color="danger")
