@@ -16,7 +16,7 @@ from backtesting.metrics import (
     CRYPTO_TRADING_DAYS,
     STOCK_TRADING_DAYS,
 )
-from backtesting.walk_forward import _tune_initial_parameters
+from backtesting.walk_forward import _tune_initial_parameters, run_walk_forward
 
 
 class TestWalkForwardParameterTuning:
@@ -65,6 +65,66 @@ class TestWalkForwardParameterTuning:
             "n_estimators": [100, 200],
         }
         assert np.prod([len(values) for values in parameter_grid.values()]) == 12
+
+    def test_tunes_once_and_reuses_parameters_for_all_folds(self, monkeypatch):
+        selected = {
+            "learning_rate": 0.01,
+            "max_depth": 5,
+            "n_estimators": 200,
+        }
+        tune = MagicMock(return_value=selected)
+        monkeypatch.setattr("backtesting.walk_forward._tune_initial_parameters", tune)
+
+        dates = pd.to_datetime(["2024-01-01", "2024-01-02"])
+        source = pd.DataFrame({"date": dates, "close": [100.0, 101.0]})
+        monkeypatch.setattr("backtesting.walk_forward._load_data", MagicMock(return_value=source))
+        folds = [
+            {
+                "fold_id": fold_id,
+                "train_start": pd.Timestamp(f"2024-0{fold_id}-01"),
+                "train_end": pd.Timestamp(f"2024-0{fold_id + 1}-01"),
+                "test_start": pd.Timestamp(f"2024-0{fold_id + 1}-01"),
+                "test_end": pd.Timestamp(f"2024-0{fold_id + 2}-01"),
+                "train_rows": 120,
+                "test_rows": 30,
+                "train_df": source,
+                "test_df": source,
+            }
+            for fold_id in (1, 2)
+        ]
+        monkeypatch.setattr("backtesting.walk_forward._generate_folds", MagicMock(return_value=folds))
+
+        X_train = pd.DataFrame({"feature": [1.0, 2.0, 3.0, 4.0]})
+        y_train = pd.Series([0, 1, 0, 1])
+        X_test = pd.DataFrame({"feature": [5.0, 6.0]})
+        y_test = pd.Series([0, 1])
+        test_output = pd.DataFrame({"date": dates, "close": [100.0, 101.0]})
+        monkeypatch.setattr(
+            "backtesting.walk_forward._prepare_fold_data",
+            MagicMock(return_value=(X_train, y_train, X_test, y_test, test_output, ["feature"])),
+        )
+
+        models = []
+
+        def build_model(**params):
+            model = MagicMock()
+            model.predict.return_value = np.array([0, 1])
+            model.predict_proba.return_value = np.array([[0.8, 0.2], [0.3, 0.7]])
+            model.params = params
+            models.append(model)
+            return model
+
+        monkeypatch.setattr("backtesting.walk_forward.xgb.XGBClassifier", build_model)
+        monkeypatch.setattr("backtesting.walk_forward.os.makedirs", MagicMock())
+
+        _, summary = run_walk_forward(return_data=True)
+
+        tune.assert_called_once_with(X_train, y_train)
+        assert len(models) == 2
+        assert all(model.params["learning_rate"] == 0.01 for model in models)
+        assert all(model.params["max_depth"] == 5 for model in models)
+        assert all(model.params["n_estimators"] == 200 for model in models)
+        assert summary["selected_parameters"] == selected
 
 
 def _make_predictions(n=200, seed=42):
