@@ -16,6 +16,32 @@ from backtesting.metrics import (
     CRYPTO_TRADING_DAYS,
     STOCK_TRADING_DAYS,
 )
+from backtesting.walk_forward import _tune_initial_parameters
+
+
+class TestWalkForwardParameterTuning:
+    def test_returns_parameters_selected_by_time_series_search(self, monkeypatch):
+        search = MagicMock()
+        search.best_params_ = {
+            "learning_rate": 0.01,
+            "max_depth": 5,
+            "n_estimators": 200,
+        }
+        grid_search = MagicMock(return_value=search)
+        monkeypatch.setattr("backtesting.walk_forward.GridSearchCV", grid_search)
+
+        X_train = pd.DataFrame({"feature": [1.0, 2.0, 3.0, 4.0]})
+        y_train = pd.Series([0, 1, 0, 1])
+
+        selected = _tune_initial_parameters(X_train, y_train)
+
+        assert selected == {
+            "learning_rate": 0.01,
+            "max_depth": 5,
+            "n_estimators": 200,
+        }
+        assert grid_search.call_args.kwargs["cv"].n_splits == 2
+        search.fit.assert_called_once_with(X_train, y_train)
 
 
 def _make_predictions(n=200, seed=42):
