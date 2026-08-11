@@ -2,10 +2,10 @@
   "asset": "AVAX",
   "interval": "1h",
   "asset_class": "crypto",
-  "train_end_date": "2025-08-18T22:00:00",
-  "train_rows": 34208,
-  "test_rows": 8553,
-  "test_accuracy": 0.5142055419151175,
+  "train_end_date": "2025-08-19T18:00:00",
+  "train_rows": 34228,
+  "test_rows": 8558,
+  "test_accuracy": 0.5118018228558074,
   "features": [
     "rsi_14",
     "roc_10",
@@ -46,13 +46,13 @@
     "eval_metric": "logloss",
     "random_state": 42
   },
-  "best_cv_score": 0.5330224904004388,
+  "best_cv_score": 0.5330555860103059,
   "calibration": {
     "method": "platt_scaling",
-    "coefficient": 1.916150251529143,
-    "intercept": -0.9364388417808449,
-    "rows": 6837
+    "coefficient": 1.9348073647071242,
+    "intercept": -0.9463185405221008,
+    "rows": 6841
   },
-  "trained_at": "2026-08-10T07:20:00.489484",
-  "mlflow_run_id": "cfe061b2bc9647caa178863f31fcbf6d"
+  "trained_at": "2026-08-11T08:41:26.327507",
+  "mlflow_run_id": "ceb516e7638a4268a6fc5aff56f8babe"
 }
