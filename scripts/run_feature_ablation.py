@@ -36,3 +36,17 @@ def build_feature_sets():
             feature for feature in MODEL_FEATURES if feature not in FEAR_GREED_FEATURES
         ],
     }
+
+
+def calculate_baseline_differences(results):
+    baseline = next(
+        result["balanced_accuracy"]
+        for result in results
+        if result["experiment"] == "baseline"
+    )
+    compared = []
+    for result in results:
+        row = result.copy()
+        row["balanced_accuracy_difference"] = row["balanced_accuracy"] - baseline
+        compared.append(row)
+    return compared
