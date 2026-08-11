@@ -41,3 +41,10 @@ def test_volatility_ablation_removes_only_volatility_features():
     expected = [feature for feature in MODEL_FEATURES if feature not in VOLATILITY_FEATURES]
 
     assert feature_sets["without_volatility"] == expected
+
+
+def test_volume_ablation_removes_only_volume_ratio():
+    feature_sets = build_feature_sets()
+    expected = [feature for feature in MODEL_FEATURES if feature != "volume_ratio"]
+
+    assert feature_sets["without_volume"] == expected
