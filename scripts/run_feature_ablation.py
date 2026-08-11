@@ -10,6 +10,9 @@ MOMENTUM_FEATURES = [
     "rsi_14", "roc_10", "roc_20", "stoch_k", "stoch_d",
     "returns_1p", "returns_5p", "returns_10p", "returns_20p", "log_returns",
 ]
+VOLATILITY_FEATURES = [
+    "bb_percentage", "atr_pct", "volatility_pct", "hl_ratio", "close_position",
+]
 
 
 def build_feature_sets():
@@ -20,5 +23,8 @@ def build_feature_sets():
         ],
         "without_momentum": [
             feature for feature in MODEL_FEATURES if feature not in MOMENTUM_FEATURES
+        ],
+        "without_volatility": [
+            feature for feature in MODEL_FEATURES if feature not in VOLATILITY_FEATURES
         ],
     }
