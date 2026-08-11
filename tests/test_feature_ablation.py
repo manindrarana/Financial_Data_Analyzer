@@ -1,4 +1,6 @@
-from scripts.run_feature_ablation import build_feature_sets
+import pytest
+
+from scripts.run_feature_ablation import build_feature_sets, calculate_baseline_differences
 from src.models.feature_engineering import MODEL_FEATURES
 
 
@@ -55,3 +57,19 @@ def test_fear_greed_ablation_removes_only_fear_greed():
     expected = [feature for feature in MODEL_FEATURES if feature != "fear_greed"]
 
     assert feature_sets["without_fear_greed"] == expected
+
+
+def test_calculates_balanced_accuracy_differences_from_baseline():
+    results = [
+        {"experiment": "baseline", "balanced_accuracy": 0.52},
+        {"experiment": "without_trend", "balanced_accuracy": 0.50},
+        {"experiment": "without_momentum", "balanced_accuracy": 0.53},
+        {"experiment": "without_volume", "balanced_accuracy": 0.52},
+    ]
+
+    compared = calculate_baseline_differences(results)
+
+    assert compared[0]["balanced_accuracy_difference"] == pytest.approx(0.0)
+    assert compared[1]["balanced_accuracy_difference"] == pytest.approx(-0.02)
+    assert compared[2]["balanced_accuracy_difference"] == pytest.approx(0.01)
+    assert compared[3]["balanced_accuracy_difference"] == pytest.approx(0.0)
