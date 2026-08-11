@@ -48,3 +48,10 @@ def test_volume_ablation_removes_only_volume_ratio():
     expected = [feature for feature in MODEL_FEATURES if feature != "volume_ratio"]
 
     assert feature_sets["without_volume"] == expected
+
+
+def test_fear_greed_ablation_removes_only_fear_greed():
+    feature_sets = build_feature_sets()
+    expected = [feature for feature in MODEL_FEATURES if feature != "fear_greed"]
+
+    assert feature_sets["without_fear_greed"] == expected
