@@ -14,6 +14,7 @@ VOLATILITY_FEATURES = [
     "bb_percentage", "atr_pct", "volatility_pct", "hl_ratio", "close_position",
 ]
 VOLUME_FEATURES = ["volume_ratio"]
+FEAR_GREED_FEATURES = ["fear_greed"]
 
 
 def build_feature_sets():
@@ -30,5 +31,8 @@ def build_feature_sets():
         ],
         "without_volume": [
             feature for feature in MODEL_FEATURES if feature not in VOLUME_FEATURES
+        ],
+        "without_fear_greed": [
+            feature for feature in MODEL_FEATURES if feature not in FEAR_GREED_FEATURES
         ],
     }
