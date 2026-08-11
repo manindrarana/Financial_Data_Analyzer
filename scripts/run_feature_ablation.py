@@ -13,6 +13,7 @@ MOMENTUM_FEATURES = [
 VOLATILITY_FEATURES = [
     "bb_percentage", "atr_pct", "volatility_pct", "hl_ratio", "close_position",
 ]
+VOLUME_FEATURES = ["volume_ratio"]
 
 
 def build_feature_sets():
@@ -26,5 +27,8 @@ def build_feature_sets():
         ],
         "without_volatility": [
             feature for feature in MODEL_FEATURES if feature not in VOLATILITY_FEATURES
+        ],
+        "without_volume": [
+            feature for feature in MODEL_FEATURES if feature not in VOLUME_FEATURES
         ],
     }
