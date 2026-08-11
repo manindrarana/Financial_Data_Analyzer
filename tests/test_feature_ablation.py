@@ -73,3 +73,7 @@ def test_calculates_balanced_accuracy_differences_from_baseline():
     assert compared[1]["balanced_accuracy_difference"] == pytest.approx(-0.02)
     assert compared[2]["balanced_accuracy_difference"] == pytest.approx(0.01)
     assert compared[3]["balanced_accuracy_difference"] == pytest.approx(0.0)
+
+
+def test_empty_results_return_empty_baseline_comparison():
+    assert calculate_baseline_differences([]) == []

@@ -39,6 +39,9 @@ def build_feature_sets():
 
 
 def calculate_baseline_differences(results):
+    if not results:
+        return []
+
     baseline = next(
         result["balanced_accuracy"]
         for result in results
