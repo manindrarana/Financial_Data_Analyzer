@@ -7,6 +7,10 @@ TREND_FEATURES = [
     "ema_12_dist", "ema_26_dist", "ema_50_dist", "ema_200_dist", "vwap_dist",
     "macd_pct", "macd_sig_pct", "macd_hist_pct",
 ]
+MOMENTUM_FEATURES = [
+    "rsi_14", "roc_10", "roc_20", "stoch_k", "stoch_d",
+    "returns_1p", "returns_5p", "returns_10p", "returns_20p", "log_returns",
+]
 
 
 def test_baseline_uses_all_model_features():
@@ -20,3 +24,10 @@ def test_trend_ablation_removes_only_trend_features():
     expected = [feature for feature in MODEL_FEATURES if feature not in TREND_FEATURES]
 
     assert feature_sets["without_trend"] == expected
+
+
+def test_momentum_ablation_removes_only_momentum_features():
+    feature_sets = build_feature_sets()
+    expected = [feature for feature in MODEL_FEATURES if feature not in MOMENTUM_FEATURES]
+
+    assert feature_sets["without_momentum"] == expected
