@@ -6,6 +6,10 @@ TREND_FEATURES = [
     "ema_12_dist", "ema_26_dist", "ema_50_dist", "ema_200_dist", "vwap_dist",
     "macd_pct", "macd_sig_pct", "macd_hist_pct",
 ]
+MOMENTUM_FEATURES = [
+    "rsi_14", "roc_10", "roc_20", "stoch_k", "stoch_d",
+    "returns_1p", "returns_5p", "returns_10p", "returns_20p", "log_returns",
+]
 
 
 def build_feature_sets():
@@ -13,5 +17,8 @@ def build_feature_sets():
         "baseline": MODEL_FEATURES.copy(),
         "without_trend": [
             feature for feature in MODEL_FEATURES if feature not in TREND_FEATURES
+        ],
+        "without_momentum": [
+            feature for feature in MODEL_FEATURES if feature not in MOMENTUM_FEATURES
         ],
     }
