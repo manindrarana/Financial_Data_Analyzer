@@ -78,3 +78,21 @@ def test_calculates_balanced_accuracy_differences_from_baseline():
 
 def test_empty_results_return_empty_baseline_comparison():
     assert calculate_baseline_differences([]) == []
+
+
+def test_prepare_data_uses_shared_complete_model_rows():
+    rows = []
+    for index in range(4):
+        row = {column: 1.0 for column in NEEDED_COLS}
+        row["date"] = pd.Timestamp("2026-01-01") + pd.Timedelta(hours=index)
+        row["close"] = 100.0 + index
+        rows.append(row)
+    rows[1]["fear_greed"] = None
+
+    prepared = prepare_data(pd.DataFrame(rows))
+
+    assert prepared["date"].tolist() == [
+        pd.Timestamp("2026-01-01 00:00:00"),
+        pd.Timestamp("2026-01-01 02:00:00"),
+    ]
+    assert prepared[MODEL_FEATURES].notna().all().all()
