@@ -1,7 +1,8 @@
+import pandas as pd
 import pytest
 
-from scripts.run_feature_ablation import build_feature_sets, calculate_baseline_differences
-from src.models.feature_engineering import MODEL_FEATURES
+from scripts.run_feature_ablation import build_feature_sets, calculate_baseline_differences, prepare_data
+from src.models.feature_engineering import MODEL_FEATURES, NEEDED_COLS
 
 
 TREND_FEATURES = [
