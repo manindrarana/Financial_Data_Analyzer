@@ -108,7 +108,11 @@ def prepare_data(df):
     prepared["target_direction"] = (
         prepared["close"].shift(-1) > prepared["close"]
     ).astype(int)
-    return prepared.iloc[:-1].copy()
+    prepared = prepared.iloc[:-1].copy()
+    available_features = [
+        feature for feature in MODEL_FEATURES if feature in prepared.columns
+    ]
+    return prepared.dropna(subset=available_features).copy()
 
 
 def split_data(df, features):
