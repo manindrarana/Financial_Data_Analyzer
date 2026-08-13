@@ -1042,7 +1042,6 @@ def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, p
             asset_class=asset_class,
         )
 
-        set_progress(dbc.Alert("Rendering results...", color="success"))
         if bt_mode != "portfolio":
             buy_hold_data = compute_portfolio_buy_and_hold(
                 predictions_dict={asset: predictions_df},
