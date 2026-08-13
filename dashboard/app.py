@@ -924,7 +924,7 @@ def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None, tun
     background=True,
     running=[(dash.Output("bt-run-btn", "disabled"), True, False)],
     progress=[dash.Output("bt-progress-bar", "children")],
-    progress_default=[],
+    progress_default=[None],
     prevent_initial_call=True,
 )
 def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, portfolio_assets,
