@@ -368,11 +368,13 @@ def simulate_portfolio_trades(
     cash = initial_capital
     equity_peak = initial_capital
     open_positions = {}
+    latest_prices = {}
 
     for i in range(len(merged)):
         current_date = merged.loc[i, "date"]
         current_price = merged.loc[i, "close"]
         current_asset = merged.loc[i, "asset"]
+        latest_prices[current_asset] = current_price
         pred = int(merged.loc[i, "prediction"])
         conf = float(merged.loc[i, "confidence"])
 
