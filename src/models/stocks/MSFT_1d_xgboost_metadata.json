@@ -52,6 +52,6 @@
     "intercept": 0.31538980434234304,
     "rows": 556
   },
-  "trained_at": "2026-08-12T07:15:03.099246",
-  "mlflow_run_id": "acc3fc1a510d446f96eb04d60e01aeeb"
+  "trained_at": "2026-08-13T07:10:53.118517",
+  "mlflow_run_id": "47419922d99a4a8dbc84624091936373"
 }

@@ -2,10 +2,10 @@
   "asset": "LTC",
   "interval": "4h",
   "asset_class": "crypto",
-  "train_end_date": "2025-06-20T12:00:00",
-  "train_rows": 10021,
-  "test_rows": 2506,
-  "test_accuracy": 0.518754988028731,
+  "train_end_date": "2025-06-21T08:00:00",
+  "train_rows": 10026,
+  "test_rows": 2507,
+  "test_accuracy": 0.5181491822895892,
   "features": [
     "rsi_14",
     "roc_10",
@@ -41,18 +41,18 @@
   "best_params": {
     "learning_rate": 0.01,
     "max_depth": 3,
-    "n_estimators": 100,
+    "n_estimators": 200,
     "subsample": 1.0,
     "eval_metric": "logloss",
     "random_state": 42
   },
-  "best_cv_score": 0.5325842696629213,
+  "best_cv_score": 0.5334955089820359,
   "calibration": {
     "method": "platt_scaling",
-    "coefficient": 0.4261162655643087,
-    "intercept": -0.21489684648025917,
-    "rows": 2003
+    "coefficient": 0.5945721727644611,
+    "intercept": -0.30639313834652426,
+    "rows": 2004
   },
-  "trained_at": "2026-08-12T07:12:59.391848",
-  "mlflow_run_id": "f5b9fa6c042c4d5a823e8c1428070dbb"
+  "trained_at": "2026-08-13T07:00:34.499854",
+  "mlflow_run_id": "697682e4cfee43af8a7d59f1b7667f44"
 }
