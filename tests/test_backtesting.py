@@ -66,6 +66,23 @@ class TestWalkForwardParameterTuning:
         }
         assert np.prod([len(values) for values in parameter_grid.values()]) == 12
 
+    def test_uses_single_job_for_parameter_search(self, monkeypatch):
+        search = MagicMock()
+        search.best_params_ = {
+            "learning_rate": 0.05,
+            "max_depth": 3,
+            "n_estimators": 100,
+        }
+        grid_search = MagicMock(return_value=search)
+        monkeypatch.setattr("backtesting.walk_forward.GridSearchCV", grid_search)
+
+        _tune_initial_parameters(
+            pd.DataFrame({"feature": [1.0, 2.0, 3.0, 4.0]}),
+            pd.Series([0, 1, 0, 1]),
+        )
+
+        assert grid_search.call_args.kwargs["n_jobs"] == 1
+
     def test_tunes_once_and_reuses_parameters_for_all_folds(self, monkeypatch):
         selected = {
             "learning_rate": 0.01,

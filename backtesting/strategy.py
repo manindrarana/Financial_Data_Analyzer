@@ -368,11 +368,13 @@ def simulate_portfolio_trades(
     cash = initial_capital
     equity_peak = initial_capital
     open_positions = {}
+    latest_prices = {}
 
     for i in range(len(merged)):
         current_date = merged.loc[i, "date"]
         current_price = merged.loc[i, "close"]
         current_asset = merged.loc[i, "asset"]
+        latest_prices[current_asset] = current_price
         pred = int(merged.loc[i, "prediction"])
         conf = float(merged.loc[i, "confidence"])
 
@@ -469,15 +471,16 @@ def simulate_portfolio_trades(
 
         if open_positions:
             unrealized_total = 0.0
-            for pos in open_positions.values():
+            for asset_name, pos in open_positions.items():
                 entry_price = pos["entry_price"]
                 position_size = pos["position_size"]
+                asset_price = latest_prices[asset_name]
                 entry_cost = position_size * entry_price * transaction_cost_pct
-                exit_cost_now = position_size * current_price * transaction_cost_pct
+                exit_cost_now = position_size * asset_price * transaction_cost_pct
                 if pos["direction"] == "long":
-                    unrealized_total += position_size * (current_price - entry_price) - entry_cost - exit_cost_now
+                    unrealized_total += position_size * (asset_price - entry_price) - entry_cost - exit_cost_now
                 else:
-                    unrealized_total += position_size * (entry_price - current_price) - entry_cost - exit_cost_now
+                    unrealized_total += position_size * (entry_price - asset_price) - entry_cost - exit_cost_now
             current_equity = cash + unrealized_total
         else:
             current_equity = cash

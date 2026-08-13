@@ -30,7 +30,7 @@ def _tune_initial_parameters(X_train, y_train):
         param_grid=XGB_PARAM_GRID,
         cv=TimeSeriesSplit(n_splits=2),
         scoring="accuracy",
-        n_jobs=-1,
+        n_jobs=1,
     )
     search.fit(X_train, y_train)
     return search.best_params_

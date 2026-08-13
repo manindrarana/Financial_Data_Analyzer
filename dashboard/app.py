@@ -768,9 +768,8 @@ def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None, tun
     fig_equity = go.Figure()
     fig_equity.add_trace(go.Scatter(
         x=equity_df["date"], y=equity_df["equity"],
-        mode="lines", name="Equity",
-        line=dict(color="#17a2b8", width=1.5),
-        fill="tozeroy", fillcolor="rgba(23,162,184,0.1)",
+        mode="lines", name="Strategy",
+        line=dict(color="#17a2b8", width=2),
     ))
     if buy_hold_equity is not None and buy_hold_dates is not None:
         fig_equity.add_trace(go.Scatter(
@@ -784,9 +783,10 @@ def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None, tun
         margin=dict(l=10, r=10, t=40, b=10),
         dragmode="pan",
         hoverlabel=dict(bgcolor="#212529", font_size=13),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
-    fig_equity.update_yaxes(title_text="Equity ($)")
-    fig_equity.update_xaxes(hoverformat="%Y-%m-%d %H:%M")
+    fig_equity.update_yaxes(title_text="Equity ($)", gridcolor="rgba(255,255,255,0.08)", zeroline=False)
+    fig_equity.update_xaxes(hoverformat="%Y-%m-%d %H:%M", gridcolor="rgba(255,255,255,0.06)")
     fig_equity.update_traces(hovertemplate="Date: %{x}<br>Value: $%{y:,.2f}<extra></extra>")
 
     trades_df = trades_df.copy()
@@ -924,6 +924,7 @@ def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None, tun
     background=True,
     running=[(dash.Output("bt-run-btn", "disabled"), True, False)],
     progress=[dash.Output("bt-progress-bar", "children")],
+    progress_default=[None],
     prevent_initial_call=True,
 )
 def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, portfolio_assets,
@@ -1042,7 +1043,6 @@ def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, p
             asset_class=asset_class,
         )
 
-        set_progress(dbc.Alert("Rendering results...", color="success"))
         if bt_mode != "portfolio":
             buy_hold_data = compute_portfolio_buy_and_hold(
                 predictions_dict={asset: predictions_df},
