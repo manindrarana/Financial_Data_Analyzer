@@ -2201,6 +2201,35 @@ def build_feature_ablation_chart():
     )
     results["balanced_accuracy_pct"] = results["balanced_accuracy"] * 100
     results["difference_pct"] = results["balanced_accuracy_difference"] * 100
+    is_baseline = results["experiment"].eq("baseline")
+    result_labels = [
+        f"{accuracy:.2f}% (baseline)"
+        if baseline
+        else f"{accuracy:.2f}% ({difference:+.2f} pp)"
+        for accuracy, difference, baseline in zip(
+            results["balanced_accuracy_pct"],
+            results["difference_pct"],
+            is_baseline,
+        )
+    ]
+
+    fig = go.Figure(go.Scatter(
+        x=results["balanced_accuracy_pct"],
+        y=results["experiment_label"],
+        mode="markers+text",
+        marker={
+            "color": ["#ffffff" if baseline else "#3498db" for baseline in is_baseline],
+            "size": [14 if baseline else 11 for baseline in is_baseline],
+            "symbol": ["diamond" if baseline else "circle" for baseline in is_baseline],
+        },
+        text=result_labels,
+        textposition="middle right",
+        customdata=results["difference_pct"],
+        hovertemplate=(
+            "<b>%{y}</b><br>Balanced Accuracy: %{x:.2f}%"
+            "<br>Difference from Baseline: %{customdata:+.2f} pp<extra></extra>"
+        ),
+    ))
 
 
 def render_model_insights():
