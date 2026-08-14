@@ -2342,6 +2342,13 @@ def render_model_insights():
         ),
         build_accuracy_chart(),
         html.Hr(className="my-4"),
+        html.H3("Feature Ablation", className="text-light mb-2"),
+        html.P(
+            "Compares saved BTC 1h experiments to show the small measured effect of removing each feature group.",
+            className="text-muted small mb-3",
+        ),
+        build_feature_ablation_chart(),
+        html.Hr(className="my-4"),
         html.H3("Model Family Comparison", className="text-light mb-2"),
         html.P(
             "Compares XGBoost, logistic regression, and random forest using the same BTC 1h training and unseen test data.",
