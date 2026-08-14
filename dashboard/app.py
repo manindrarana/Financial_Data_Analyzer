@@ -2231,6 +2231,23 @@ def build_feature_ablation_chart():
         ),
     ))
 
+    lower_bound = max(0, results["balanced_accuracy_pct"].min() - 0.15)
+    upper_bound = min(100, results["balanced_accuracy_pct"].max() + 0.45)
+    fig.update_layout(
+        template="plotly_dark",
+        title="BTC 1h Feature Ablation Balanced Accuracy",
+        xaxis_title="Balanced Accuracy (%)",
+        xaxis={"range": [lower_bound, upper_bound], "showgrid": True},
+        yaxis={"autorange": "reversed"},
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=420,
+        margin={"l": 170, "r": 150, "t": 60, "b": 50},
+        showlegend=False,
+    )
+
+    return dcc.Graph(figure=fig, config={"displayModeBar": False})
+
 
 def render_model_insights():
     return html.Div([
