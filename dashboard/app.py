@@ -2190,6 +2190,19 @@ def format_feature_ablation_experiment(experiment):
     return labels.get(experiment, str(experiment).replace("_", " ").title())
 
 
+def build_feature_ablation_chart():
+    results = load_feature_ablation_results()
+    if results.empty:
+        return dbc.Alert("No valid feature ablation results are available.", color="info")
+
+    results = results.copy()
+    results["experiment_label"] = results["experiment"].map(
+        format_feature_ablation_experiment
+    )
+    results["balanced_accuracy_pct"] = results["balanced_accuracy"] * 100
+    results["difference_pct"] = results["balanced_accuracy_difference"] * 100
+
+
 def render_model_insights():
     return html.Div([
         html.H3("Feature Importance", className="text-light mb-2"),
