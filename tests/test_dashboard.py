@@ -631,6 +631,139 @@ class TestAccuracyChart:
         assert stock_y == sorted(stock_y)
 
 
+class TestFeatureAblationChart:
+    def test_displays_known_balanced_accuracy_values(self):
+        results = pd.DataFrame({
+            "experiment": [
+                "baseline",
+                "without_trend",
+                "without_momentum",
+                "without_volatility",
+                "without_volume",
+                "without_fear_greed",
+            ],
+            "balanced_accuracy": [
+                0.527536247988728,
+                0.5295046090760445,
+                0.5263361440813968,
+                0.5255328431393864,
+                0.5282585102310553,
+                0.52622389453116,
+            ],
+            "balanced_accuracy_difference": [
+                0.0,
+                0.0019683610873164614,
+                -0.0012001039073311626,
+                -0.0020034048493415835,
+                0.0007222622423272984,
+                -0.0013123534575679718,
+            ],
+        })
+
+        with patch.object(dashboard_app, "load_feature_ablation_results", return_value=results):
+            result = dashboard_app.build_feature_ablation_chart()
+
+        assert list(result.figure.data[0].x) == pytest.approx([
+            52.7536247988728,
+            52.95046090760445,
+            52.63361440813968,
+            52.55328431393864,
+            52.82585102310553,
+            52.622389453116,
+        ])
+
+    def test_displays_known_baseline_differences(self):
+        results = pd.DataFrame({
+            "experiment": [
+                "baseline",
+                "without_trend",
+                "without_momentum",
+                "without_volatility",
+                "without_volume",
+                "without_fear_greed",
+            ],
+            "balanced_accuracy": [
+                0.527536247988728,
+                0.5295046090760445,
+                0.5263361440813968,
+                0.5255328431393864,
+                0.5282585102310553,
+                0.52622389453116,
+            ],
+            "balanced_accuracy_difference": [
+                0.0,
+                0.0019683610873164614,
+                -0.0012001039073311626,
+                -0.0020034048493415835,
+                0.0007222622423272984,
+                -0.0013123534575679718,
+            ],
+        })
+
+        with patch.object(dashboard_app, "load_feature_ablation_results", return_value=results):
+            result = dashboard_app.build_feature_ablation_chart()
+
+        assert list(result.figure.data[0].customdata) == pytest.approx([
+            0.0,
+            0.19683610873164614,
+            -0.12001039073311626,
+            -0.20034048493415835,
+            0.07222622423272984,
+            -0.13123534575679718,
+        ])
+
+    def test_baseline_is_clearly_distinguished(self):
+        results = pd.DataFrame({
+            "experiment": ["baseline", "without_trend"],
+            "balanced_accuracy": [0.527536247988728, 0.5295046090760445],
+            "balanced_accuracy_difference": [0.0, 0.0019683610873164614],
+        })
+
+        with patch.object(dashboard_app, "load_feature_ablation_results", return_value=results):
+            result = dashboard_app.build_feature_ablation_chart()
+
+        marker = result.figure.data[0].marker
+        assert list(marker.color) == ["#ffffff", "#3498db"]
+        assert list(marker.symbol) == ["diamond", "circle"]
+        assert list(marker.size) == [14, 11]
+
+    def test_empty_results_show_clear_message(self):
+        with patch.object(
+            dashboard_app,
+            "load_feature_ablation_results",
+            return_value=pd.DataFrame(),
+        ):
+            result = dashboard_app.build_feature_ablation_chart()
+
+        text = _collect_text(result)
+        assert any("No valid feature ablation results" in value for value in text)
+
+    def test_loader_rejects_missing_required_columns(self):
+        invalid_results = pd.DataFrame({
+            "experiment": ["baseline"],
+            "balanced_accuracy": [0.527536247988728],
+        })
+
+        with patch.object(dashboard_app.pd, "read_csv", return_value=invalid_results):
+            result = dashboard_app.load_feature_ablation_results()
+
+        assert result.empty
+
+    def test_loader_removes_invalid_metric_rows(self):
+        mixed_results = pd.DataFrame({
+            "experiment": ["baseline", "without_trend"],
+            "balanced_accuracy": [0.527536247988728, "invalid"],
+            "balanced_accuracy_difference": [0.0, 0.0019683610873164614],
+        })
+
+        with patch.object(dashboard_app.pd, "read_csv", return_value=mixed_results):
+            result = dashboard_app.load_feature_ablation_results()
+
+        assert list(result["experiment"]) == ["baseline"]
+        assert result.iloc[0]["balanced_accuracy"] == pytest.approx(0.527536247988728)
+        assert result.iloc[0]["balanced_accuracy_difference"] == pytest.approx(0.0)
+
+
 class TestModelFamilyComparison:
     def test_displays_known_model_metrics(self, tmp_path):
         result_data = {

@@ -2152,6 +2152,103 @@ def build_baseline_significance(results):
     }
 
 
+def load_feature_ablation_results():
+    result_path = os.path.join(_project_root, "reports", "feature_ablation_results.csv")
+    required_columns = {
+        "experiment",
+        "balanced_accuracy",
+        "balanced_accuracy_difference",
+    }
+
+    try:
+        results = pd.read_csv(result_path)
+    except (OSError, pd.errors.ParserError, pd.errors.EmptyDataError):
+        return pd.DataFrame()
+
+    if results.empty or not required_columns.issubset(results.columns):
+        return pd.DataFrame()
+
+    results = results.copy()
+    results["balanced_accuracy"] = pd.to_numeric(
+        results["balanced_accuracy"], errors="coerce"
+    )
+    results["balanced_accuracy_difference"] = pd.to_numeric(
+        results["balanced_accuracy_difference"], errors="coerce"
+    )
+    return results.dropna(subset=list(required_columns))
+
+
+def format_feature_ablation_experiment(experiment):
+    labels = {
+        "baseline": "Baseline",
+        "without_trend": "Without trend",
+        "without_momentum": "Without momentum",
+        "without_volatility": "Without volatility",
+        "without_volume": "Without volume",
+        "without_fear_greed": "Without Fear and Greed",
+    }
+    return labels.get(experiment, str(experiment).replace("_", " ").title())
+
+
+def build_feature_ablation_chart():
+    results = load_feature_ablation_results()
+    if results.empty:
+        return dbc.Alert("No valid feature ablation results are available.", color="info")
+
+    results = results.copy()
+    results["experiment_label"] = results["experiment"].map(
+        format_feature_ablation_experiment
+    )
+    results["balanced_accuracy_pct"] = results["balanced_accuracy"] * 100
+    results["difference_pct"] = results["balanced_accuracy_difference"] * 100
+    is_baseline = results["experiment"].eq("baseline")
+    result_labels = [
+        f"{accuracy:.2f}% (baseline)"
+        if baseline
+        else f"{accuracy:.2f}% ({difference:+.2f} pp)"
+        for accuracy, difference, baseline in zip(
+            results["balanced_accuracy_pct"],
+            results["difference_pct"],
+            is_baseline,
+        )
+    ]
+
+    fig = go.Figure(go.Scatter(
+        x=results["balanced_accuracy_pct"],
+        y=results["experiment_label"],
+        mode="markers+text",
+        marker={
+            "color": ["#ffffff" if baseline else "#3498db" for baseline in is_baseline],
+            "size": [14 if baseline else 11 for baseline in is_baseline],
+            "symbol": ["diamond" if baseline else "circle" for baseline in is_baseline],
+        },
+        text=result_labels,
+        textposition="middle right",
+        customdata=results["difference_pct"],
+        hovertemplate=(
+            "<b>%{y}</b><br>Balanced Accuracy: %{x:.2f}%"
+            "<br>Difference from Baseline: %{customdata:+.2f} pp<extra></extra>"
+        ),
+    ))
+
+    lower_bound = max(0, results["balanced_accuracy_pct"].min() - 0.15)
+    upper_bound = min(100, results["balanced_accuracy_pct"].max() + 0.45)
+    fig.update_layout(
+        template="plotly_dark",
+        title="BTC 1h Feature Ablation Balanced Accuracy",
+        xaxis_title="Balanced Accuracy (%)",
+        xaxis={"range": [lower_bound, upper_bound], "showgrid": True},
+        yaxis={"autorange": "reversed"},
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=420,
+        margin={"l": 170, "r": 150, "t": 60, "b": 50},
+        showlegend=False,
+    )
+
+    return dcc.Graph(figure=fig, config={"displayModeBar": False})
+
+
 def render_model_insights():
     return html.Div([
         html.H3("Feature Importance", className="text-light mb-2"),
@@ -2244,6 +2341,13 @@ def render_model_insights():
             className="text-muted small mb-3",
         ),
         build_accuracy_chart(),
+        html.Hr(className="my-4"),
+        html.H3("Feature Ablation", className="text-light mb-2"),
+        html.P(
+            "Compares saved BTC 1h experiments to show the small measured effect of removing each feature group.",
+            className="text-muted small mb-3",
+        ),
+        build_feature_ablation_chart(),
         html.Hr(className="my-4"),
         html.H3("Model Family Comparison", className="text-light mb-2"),
         html.P(
