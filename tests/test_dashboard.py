@@ -727,6 +727,17 @@ class TestFeatureAblationChart:
         assert list(marker.symbol) == ["diamond", "circle"]
         assert list(marker.size) == [14, 11]
 
+    def test_empty_results_show_clear_message(self):
+        with patch.object(
+            dashboard_app,
+            "load_feature_ablation_results",
+            return_value=pd.DataFrame(),
+        ):
+            result = dashboard_app.build_feature_ablation_chart()
+
+        text = _collect_text(result)
+        assert any("No valid feature ablation results" in value for value in text)
+
 
 class TestModelFamilyComparison:
     def test_displays_known_model_metrics(self, tmp_path):
