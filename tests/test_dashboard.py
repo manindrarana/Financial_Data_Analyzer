@@ -749,6 +749,20 @@ class TestFeatureAblationChart:
 
         assert result.empty
 
+    def test_loader_removes_invalid_metric_rows(self):
+        mixed_results = pd.DataFrame({
+            "experiment": ["baseline", "without_trend"],
+            "balanced_accuracy": [0.527536247988728, "invalid"],
+            "balanced_accuracy_difference": [0.0, 0.0019683610873164614],
+        })
+
+        with patch.object(dashboard_app.pd, "read_csv", return_value=mixed_results):
+            result = dashboard_app.load_feature_ablation_results()
+
+        assert list(result["experiment"]) == ["baseline"]
+        assert result.iloc[0]["balanced_accuracy"] == pytest.approx(0.527536247988728)
+        assert result.iloc[0]["balanced_accuracy_difference"] == pytest.approx(0.0)
+
 
 class TestModelFamilyComparison:
     def test_displays_known_model_metrics(self, tmp_path):
