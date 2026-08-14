@@ -2178,6 +2178,18 @@ def load_feature_ablation_results():
     return results.dropna(subset=list(required_columns))
 
 
+def format_feature_ablation_experiment(experiment):
+    labels = {
+        "baseline": "Baseline",
+        "without_trend": "Without trend",
+        "without_momentum": "Without momentum",
+        "without_volatility": "Without volatility",
+        "without_volume": "Without volume",
+        "without_fear_greed": "Without Fear and Greed",
+    }
+    return labels.get(experiment, str(experiment).replace("_", " ").title())
+
+
 def render_model_insights():
     return html.Div([
         html.H3("Feature Importance", className="text-light mb-2"),
