@@ -712,6 +712,21 @@ class TestFeatureAblationChart:
             -0.13123534575679718,
         ])
 
+    def test_baseline_is_clearly_distinguished(self):
+        results = pd.DataFrame({
+            "experiment": ["baseline", "without_trend"],
+            "balanced_accuracy": [0.527536247988728, 0.5295046090760445],
+            "balanced_accuracy_difference": [0.0, 0.0019683610873164614],
+        })
+
+        with patch.object(dashboard_app, "load_feature_ablation_results", return_value=results):
+            result = dashboard_app.build_feature_ablation_chart()
+
+        marker = result.figure.data[0].marker
+        assert list(marker.color) == ["#ffffff", "#3498db"]
+        assert list(marker.symbol) == ["diamond", "circle"]
+        assert list(marker.size) == [14, 11]
+
 
 class TestModelFamilyComparison:
     def test_displays_known_model_metrics(self, tmp_path):
