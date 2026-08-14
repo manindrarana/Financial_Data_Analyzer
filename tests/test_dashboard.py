@@ -672,6 +672,46 @@ class TestFeatureAblationChart:
             52.622389453116,
         ])
 
+    def test_displays_known_baseline_differences(self):
+        results = pd.DataFrame({
+            "experiment": [
+                "baseline",
+                "without_trend",
+                "without_momentum",
+                "without_volatility",
+                "without_volume",
+                "without_fear_greed",
+            ],
+            "balanced_accuracy": [
+                0.527536247988728,
+                0.5295046090760445,
+                0.5263361440813968,
+                0.5255328431393864,
+                0.5282585102310553,
+                0.52622389453116,
+            ],
+            "balanced_accuracy_difference": [
+                0.0,
+                0.0019683610873164614,
+                -0.0012001039073311626,
+                -0.0020034048493415835,
+                0.0007222622423272984,
+                -0.0013123534575679718,
+            ],
+        })
+
+        with patch.object(dashboard_app, "load_feature_ablation_results", return_value=results):
+            result = dashboard_app.build_feature_ablation_chart()
+
+        assert list(result.figure.data[0].customdata) == pytest.approx([
+            0.0,
+            0.19683610873164614,
+            -0.12001039073311626,
+            -0.20034048493415835,
+            0.07222622423272984,
+            -0.13123534575679718,
+        ])
+
 
 class TestModelFamilyComparison:
     def test_displays_known_model_metrics(self, tmp_path):
