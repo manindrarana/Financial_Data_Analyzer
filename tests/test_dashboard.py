@@ -738,6 +738,17 @@ class TestFeatureAblationChart:
         text = _collect_text(result)
         assert any("No valid feature ablation results" in value for value in text)
 
+    def test_loader_rejects_missing_required_columns(self):
+        invalid_results = pd.DataFrame({
+            "experiment": ["baseline"],
+            "balanced_accuracy": [0.527536247988728],
+        })
+
+        with patch.object(dashboard_app.pd, "read_csv", return_value=invalid_results):
+            result = dashboard_app.load_feature_ablation_results()
+
+        assert result.empty
+
 
 class TestModelFamilyComparison:
     def test_displays_known_model_metrics(self, tmp_path):
