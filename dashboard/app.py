@@ -2152,6 +2152,32 @@ def build_baseline_significance(results):
     }
 
 
+def load_feature_ablation_results():
+    result_path = os.path.join(_project_root, "reports", "feature_ablation_results.csv")
+    required_columns = {
+        "experiment",
+        "balanced_accuracy",
+        "balanced_accuracy_difference",
+    }
+
+    try:
+        results = pd.read_csv(result_path)
+    except (OSError, pd.errors.ParserError, pd.errors.EmptyDataError):
+        return pd.DataFrame()
+
+    if results.empty or not required_columns.issubset(results.columns):
+        return pd.DataFrame()
+
+    results = results.copy()
+    results["balanced_accuracy"] = pd.to_numeric(
+        results["balanced_accuracy"], errors="coerce"
+    )
+    results["balanced_accuracy_difference"] = pd.to_numeric(
+        results["balanced_accuracy_difference"], errors="coerce"
+    )
+    return results.dropna(subset=list(required_columns))
+
+
 def render_model_insights():
     return html.Div([
         html.H3("Feature Importance", className="text-light mb-2"),
