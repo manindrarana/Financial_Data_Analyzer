@@ -177,6 +177,20 @@ def run_experiment(experiment, features, df):
     }
 
 
+def save_results(results, output_path):
+    output_dir = os.path.dirname(output_path)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+
+    temporary_path = f"{output_path}.tmp"
+    try:
+        pd.DataFrame(results).to_csv(temporary_path, index=False)
+        os.replace(temporary_path, output_path)
+    finally:
+        if os.path.exists(temporary_path):
+            os.remove(temporary_path)
+
+
 def run_feature_ablation(db_path, asset, interval, asset_class, output_path):
     prepared = prepare_data(load_data(db_path, asset, interval, asset_class))
     feature_sets = build_feature_sets()
@@ -189,10 +203,7 @@ def run_feature_ablation(db_path, asset, interval, asset_class, output_path):
         results.append(run_experiment(experiment, features, prepared))
 
     compared = calculate_baseline_differences(results)
-    output_dir = os.path.dirname(output_path)
-    if output_dir:
-        os.makedirs(output_dir, exist_ok=True)
-    pd.DataFrame(compared).to_csv(output_path, index=False)
+    save_results(compared, output_path)
     return compared
 
 
