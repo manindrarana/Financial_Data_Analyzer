@@ -744,8 +744,10 @@ class TestFeatureAblationChart:
             result = dashboard_app.build_feature_ablation_chart()
 
         text = _collect_text(result)
-        assert "Generated: 2026-08-15 13:30 WEST" in text
-        assert "Source data through: 2026-08-15 11:00 WEST" in text
+        assert text == [
+            "Generated: 2026-08-15 13:30 WEST | "
+            "Source data through: 2026-08-15 11:00 WEST"
+        ]
 
     def test_empty_results_show_clear_message(self):
         with patch.object(
