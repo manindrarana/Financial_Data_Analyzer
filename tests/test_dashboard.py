@@ -727,6 +727,28 @@ class TestFeatureAblationChart:
         assert list(marker.symbol) == ["diamond", "circle"]
         assert list(marker.size) == [14, 11]
 
+    def test_displays_generation_and_source_dates_in_lisbon_time(self):
+        results = pd.DataFrame({
+            "experiment": ["baseline"],
+            "balanced_accuracy": [0.5275],
+            "balanced_accuracy_difference": [0.0],
+            "generated_at": ["2026-08-15T12:30:00+00:00"],
+            "source_data_end_date": ["2026-08-15T10:00:00+00:00"],
+        })
+
+        with patch.object(
+            dashboard_app,
+            "load_feature_ablation_results",
+            return_value=results,
+        ):
+            result = dashboard_app.build_feature_ablation_chart()
+
+        text = _collect_text(result)
+        assert text == [
+            "Generated: 2026-08-15 13:30 WEST | "
+            "Source data through: 2026-08-15 11:00 WEST"
+        ]
+
     def test_empty_results_show_clear_message(self):
         with patch.object(
             dashboard_app,

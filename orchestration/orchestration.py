@@ -13,6 +13,8 @@ from src.ingestion import YahooFinanceClient, BybitClient, FearGreedClient
 from src.database import DatabaseLoader, DimensionBuilder, FactLoader
 from src.processing import DataCleaner
 from src.models import GoldLayerProcessor, TechnicalIndicatorProcessor, PipelineModelTrainer
+from scripts.compare_model_families import refresh_comparison
+from scripts.run_feature_ablation import run_feature_ablation
 
 CHECKPOINT_FILE = Path("data/.pipeline_checkpoint.json")
 LOCK_FILE = Path("data/.pipeline_running.lock")
@@ -422,6 +424,12 @@ def build_technical_indicators():
     indicator_processor.close()
 
 
+def refresh_feature_ablation(logger):
+    output_path = os.path.join("reports", "feature_ablation_results.csv")
+    run_feature_ablation(_get_db_path(), "BTC", "1h", "crypto", output_path)
+    logger.info("BTC 1h feature ablation refreshed")
+
+
 @task(name="train-models", retries=1, retry_delay_seconds=30)
 def train_models():
     logger = get_run_logger()
@@ -433,8 +441,11 @@ def train_models():
 
     if "BTC_1h" in retrained:
         try:
-            from scripts.compare_model_families import refresh_comparison
+            refresh_feature_ablation(logger)
+        except Exception as error:
+            logger.warning(f"BTC 1h feature ablation failed: {error}")
 
+        try:
             refresh_comparison()
             logger.info("BTC 1h model family comparison refreshed")
         except Exception as error:

@@ -1,7 +1,14 @@
+import os
+
 import pandas as pd
 import pytest
 
-from scripts.run_feature_ablation import build_feature_sets, calculate_baseline_differences, prepare_data
+from scripts.run_feature_ablation import (
+    build_feature_sets,
+    calculate_baseline_differences,
+    prepare_data,
+    save_results,
+)
 from src.models.feature_engineering import MODEL_FEATURES, NEEDED_COLS
 
 
@@ -78,6 +85,25 @@ def test_calculates_balanced_accuracy_differences_from_baseline():
 
 def test_empty_results_return_empty_baseline_comparison():
     assert calculate_baseline_differences([]) == []
+
+
+def test_save_results_writes_values_and_cleans_temporary_file(tmp_path):
+    output_path = tmp_path / "feature_ablation_results.csv"
+    results = [
+        {"experiment": "baseline", "balanced_accuracy": 0.5275},
+        {
+            "experiment": "without_trend",
+            "balanced_accuracy": 0.5295,
+            "balanced_accuracy_difference": 0.002,
+        },
+    ]
+
+    save_results(results, str(output_path))
+
+    saved = pd.read_csv(output_path)
+    assert saved.loc[0, "balanced_accuracy"] == pytest.approx(0.5275)
+    assert saved.loc[1, "balanced_accuracy_difference"] == pytest.approx(0.002)
+    assert not os.path.exists(f"{output_path}.tmp")
 
 
 def test_prepare_data_uses_shared_complete_model_rows():

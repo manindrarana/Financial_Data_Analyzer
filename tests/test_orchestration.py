@@ -157,15 +157,75 @@ class TestLockFile:
         assert CHECKPOINT_FILE.name == ".pipeline_checkpoint.json"
 
 
+class TestFeatureAblationRefresh:
+    def test_refresh_uses_btc_1h_configuration(self):
+        logger = MagicMock()
+        with patch.object(orch, "_get_db_path", return_value="database/test.duckdb"):
+            with patch(
+                "scripts.run_feature_ablation.run_feature_ablation"
+            ) as run_ablation:
+                orch.refresh_feature_ablation(logger)
+
+        run_ablation.assert_called_once_with(
+            "database/test.duckdb",
+            "BTC",
+            "1h",
+            "crypto",
+            os.path.join("reports", "feature_ablation_results.csv"),
+        )
+        logger.info.assert_called_once_with("BTC 1h feature ablation refreshed")
+
+    def test_refreshes_after_btc_1h_retraining(self):
+        trainer = MagicMock()
+        trainer.last_retrained_models = ["BTC_1h", "ETH_1h"]
+        with patch.object(orch, "PipelineModelTrainer", return_value=trainer):
+            with patch.object(orch, "refresh_feature_ablation") as refresh:
+                with patch("scripts.compare_model_families.refresh_comparison"):
+                    result = orch.train_models.fn()
+
+        assert result == ["BTC_1h", "ETH_1h"]
+        refresh.assert_called_once_with(mock_prefect.get_run_logger.return_value)
+
+    def test_does_not_refresh_for_unrelated_retraining(self):
+        trainer = MagicMock()
+        trainer.last_retrained_models = ["ETH_1h"]
+        with patch.object(orch, "PipelineModelTrainer", return_value=trainer):
+            with patch.object(orch, "refresh_feature_ablation") as refresh:
+                result = orch.train_models.fn()
+
+        assert result == ["ETH_1h"]
+        refresh.assert_not_called()
+
+    def test_failure_does_not_fail_retraining(self):
+        trainer = MagicMock()
+        trainer.last_retrained_models = ["BTC_1h"]
+        logger = MagicMock()
+        with patch.object(orch, "PipelineModelTrainer", return_value=trainer):
+            with patch.object(orch, "get_run_logger", return_value=logger):
+                with patch.object(
+                    orch,
+                    "refresh_feature_ablation",
+                    side_effect=RuntimeError("ablation failed"),
+                ):
+                    with patch("scripts.compare_model_families.refresh_comparison"):
+                        result = orch.train_models.fn()
+
+        assert result == ["BTC_1h"]
+        logger.warning.assert_called_once_with(
+            "BTC 1h feature ablation failed: ablation failed"
+        )
+
+
 class TestModelFamilyRefresh:
     def test_refreshes_after_btc_1h_retraining(self):
         trainer = MagicMock()
         trainer.last_retrained_models = ["BTC_1h", "ETH_1h"]
         with patch.object(orch, "PipelineModelTrainer", return_value=trainer):
-            with patch(
-                "scripts.compare_model_families.refresh_comparison"
-            ) as refresh:
-                result = orch.train_models.fn()
+            with patch.object(orch, "refresh_feature_ablation"):
+                with patch(
+                    "scripts.compare_model_families.refresh_comparison"
+                ) as refresh:
+                    result = orch.train_models.fn()
 
         assert result == ["BTC_1h", "ETH_1h"]
         refresh.assert_called_once_with()
@@ -188,11 +248,12 @@ class TestModelFamilyRefresh:
         logger = MagicMock()
         with patch.object(orch, "PipelineModelTrainer", return_value=trainer):
             with patch.object(orch, "get_run_logger", return_value=logger):
-                with patch(
-                    "scripts.compare_model_families.refresh_comparison",
-                    side_effect=RuntimeError("comparison failed"),
-                ):
-                    result = orch.train_models.fn()
+                with patch.object(orch, "refresh_feature_ablation"):
+                    with patch(
+                        "scripts.compare_model_families.refresh_comparison",
+                        side_effect=RuntimeError("comparison failed"),
+                    ):
+                        result = orch.train_models.fn()
 
         assert result == ["BTC_1h"]
         logger.warning.assert_called_once_with(

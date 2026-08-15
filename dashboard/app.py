@@ -2246,7 +2246,31 @@ def build_feature_ablation_chart():
         showlegend=False,
     )
 
-    return dcc.Graph(figure=fig, config={"displayModeBar": False})
+    freshness_parts = []
+    for label, field in (
+        ("Generated", "generated_at"),
+        ("Source data through", "source_data_end_date"),
+    ):
+        if field not in results.columns:
+            continue
+        timestamp = pd.to_datetime(results[field].iloc[0], utc=True, errors="coerce")
+        if pd.notna(timestamp):
+            local_timestamp = timestamp.tz_convert(ZoneInfo("Europe/Lisbon"))
+            freshness_parts.append(
+                f"{label}: {local_timestamp.strftime('%Y-%m-%d %H:%M %Z')}"
+            )
+
+    chart = dcc.Graph(figure=fig, config={"displayModeBar": False})
+    if not freshness_parts:
+        return chart
+
+    return html.Div([
+        chart,
+        html.P(
+            " | ".join(freshness_parts),
+            className="text-muted small mt-0 mb-2",
+        ),
+    ])
 
 
 def render_model_insights():
