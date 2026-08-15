@@ -1,5 +1,6 @@
 import argparse
 import os
+from datetime import datetime, timezone
 
 import duckdb
 import pandas as pd
@@ -177,6 +178,18 @@ def run_experiment(experiment, features, df):
     }
 
 
+def add_result_metadata(results, prepared):
+    generated_at = datetime.now(timezone.utc).isoformat()
+    source_data_end_date = pd.to_datetime(prepared["date"].max(), utc=True).isoformat()
+    enriched = []
+    for result in results:
+        row = result.copy()
+        row["generated_at"] = generated_at
+        row["source_data_end_date"] = source_data_end_date
+        enriched.append(row)
+    return enriched
+
+
 def save_results(results, output_path):
     output_dir = os.path.dirname(output_path)
     if output_dir:
@@ -203,8 +216,9 @@ def run_feature_ablation(db_path, asset, interval, asset_class, output_path):
         results.append(run_experiment(experiment, features, prepared))
 
     compared = calculate_baseline_differences(results)
-    save_results(compared, output_path)
-    return compared
+    enriched = add_result_metadata(compared, prepared)
+    save_results(enriched, output_path)
+    return enriched
 
 
 def main():
