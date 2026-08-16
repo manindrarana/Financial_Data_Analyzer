@@ -253,6 +253,24 @@ class TestFeatureTables:
         assert FEATURE_TABLES["stocks"] == "gold_stock_features"
 
 
+class TestStockFreshness:
+    def test_classifies_fresh_and_stale_datasets_from_known_timestamps(self):
+        now_utc = pd.Timestamp("2026-08-16 12:00:00", tz="UTC")
+        rows = [
+            ("AAPL", "1h", pd.Timestamp("2026-08-16 00:00:00", tz="UTC")),
+            ("AMZN", "1d", pd.Timestamp("2026-08-13 11:00:00", tz="UTC")),
+        ]
+
+        datasets, _ = dashboard_app._build_stock_freshness(rows, now_utc)
+        statuses = {
+            (dataset["asset"], dataset["interval"]): dataset["status"]
+            for dataset in datasets
+        }
+
+        assert statuses[("AAPL", "1h")] == "Fresh"
+        assert statuses[("AMZN", "1d")] == "Stale"
+
+
 class TestPredictionCards:
     def test_next_prediction_card_uses_latest_prediction(self):
         prediction_rows = pd.DataFrame({
