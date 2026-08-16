@@ -280,6 +280,20 @@ class TestStockFreshness:
         assert all(dataset["status"] == "Unavailable" for dataset in unavailable)
         assert oldest is None
 
+    def test_selects_oldest_available_stock_dataset(self):
+        now_utc = pd.Timestamp("2026-08-16 12:00:00", tz="UTC")
+        rows = [
+            ("AAPL", "1h", pd.Timestamp("2026-08-16 08:00:00", tz="UTC")),
+            ("TSLA", "1d", pd.Timestamp("2026-08-12 20:00:00", tz="UTC")),
+            ("MSFT", "1h", pd.Timestamp("2026-08-15 15:00:00", tz="UTC")),
+        ]
+
+        _, oldest = dashboard_app._build_stock_freshness(rows, now_utc)
+
+        assert oldest["asset"] == "TSLA"
+        assert oldest["interval"] == "1d"
+        assert oldest["latest"] == pd.Timestamp("2026-08-12 20:00:00", tz="UTC")
+
 
 class TestPredictionCards:
     def test_next_prediction_card_uses_latest_prediction(self):
