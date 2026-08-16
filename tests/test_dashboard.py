@@ -270,6 +270,16 @@ class TestStockFreshness:
         assert statuses[("AAPL", "1h")] == "Fresh"
         assert statuses[("AMZN", "1d")] == "Stale"
 
+    def test_marks_missing_datasets_as_unavailable(self):
+        now_utc = pd.Timestamp("2026-08-16 12:00:00", tz="UTC")
+
+        datasets, oldest = dashboard_app._build_stock_freshness([], now_utc)
+        unavailable = [dataset for dataset in datasets if dataset["latest"] is None]
+
+        assert len(unavailable) == len(dashboard_app.STOCK_ASSETS) * len(dashboard_app.STOCK_INTERVALS)
+        assert all(dataset["status"] == "Unavailable" for dataset in unavailable)
+        assert oldest is None
+
 
 class TestPredictionCards:
     def test_next_prediction_card_uses_latest_prediction(self):
