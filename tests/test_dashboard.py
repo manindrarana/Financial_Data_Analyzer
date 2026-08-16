@@ -294,6 +294,18 @@ class TestStockFreshness:
         assert oldest["interval"] == "1d"
         assert oldest["latest"] == pd.Timestamp("2026-08-12 20:00:00", tz="UTC")
 
+    def test_displays_stock_timestamp_in_lisbon_time(self):
+        connection = MagicMock()
+        connection.execute.return_value.fetchall.return_value = [
+            ("AAPL", "1h", pd.Timestamp("2026-08-16 12:00:00", tz="UTC")),
+        ]
+
+        with patch.object(dashboard_app.duckdb, "connect", return_value=connection):
+            result = dashboard_app.update_stock_freshness(0)
+
+        text = " ".join(_collect_text(result))
+        assert "2026-08-16 13:00 WEST" in text
+
 
 class TestPredictionCards:
     def test_next_prediction_card_uses_latest_prediction(self):
