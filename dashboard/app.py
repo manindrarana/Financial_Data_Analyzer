@@ -4133,16 +4133,30 @@ def _build_stock_freshness(rows, now_utc):
     dash.Input("freshness-interval", "n_intervals"),
 )
 def update_stock_freshness(_n):
-    """Stock freshness badge with relaxed thresholds for market-hours trading."""
+    conn = None
     try:
         conn = duckdb.connect(DB_PATH, read_only=True)
-        stock_date = conn.execute(
-            "SELECT MAX(date) FROM gold_stock_analytics"
-        ).fetchone()[0]
-        conn.close()
-        return _build_freshness_badge(stock_date, datetime.now(timezone.utc), "Stocks", False)
+        rows = conn.execute(
+            """
+            SELECT asset_symbol, interval, MAX(date) AS latest_date
+            FROM gold_stock_analytics
+            GROUP BY asset_symbol, interval
+            """
+        ).fetchall()
+        _, oldest = _build_stock_freshness(rows, datetime.now(timezone.utc))
+        if oldest is None:
+            return dbc.Badge("Stocks: unavailable", color="secondary", className="px-3 py-2 fs-6")
+        return _build_freshness_badge(
+            oldest["latest"],
+            datetime.now(timezone.utc),
+            f"Stocks oldest: {oldest['asset']} {oldest['interval']}",
+            False,
+        )
     except Exception:
         return dbc.Badge("Stocks: unavailable", color="secondary", className="px-3 py-2 fs-6")
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 @app.callback(
