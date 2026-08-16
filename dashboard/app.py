@@ -4089,6 +4089,45 @@ def update_crypto_freshness(_n):
         return dbc.Badge("Crypto: unavailable", color="secondary", className="px-3 py-2 fs-6")
 
 
+def _build_stock_freshness(rows, now_utc):
+    latest_by_dataset = {(asset, interval): latest for asset, interval, latest in rows}
+    datasets = []
+
+    for asset in STOCK_ASSETS:
+        for interval in STOCK_INTERVALS:
+            latest = latest_by_dataset.get((asset, interval))
+            if latest is None:
+                datasets.append({
+                    "asset": asset,
+                    "interval": interval,
+                    "latest": None,
+                    "age_hours": None,
+                    "status": "Unavailable",
+                    "color": "secondary",
+                })
+                continue
+
+            if isinstance(latest, str):
+                latest = datetime.fromisoformat(latest)
+            if latest.tzinfo is None:
+                latest = latest.replace(tzinfo=timezone.utc)
+
+            age_hours = (now_utc - latest).total_seconds() / 3600
+            color = _get_age_color(age_hours, False)
+            datasets.append({
+                "asset": asset,
+                "interval": interval,
+                "latest": latest,
+                "age_hours": age_hours,
+                "status": "Fresh" if color == "success" else "Stale",
+                "color": color,
+            })
+
+    available = [dataset for dataset in datasets if dataset["latest"] is not None]
+    oldest = min(available, key=lambda dataset: dataset["latest"]) if available else None
+    return datasets, oldest
+
+
 @app.callback(
     dash.Output("freshness-stock-badge", "children"),
     dash.Input("freshness-interval", "n_intervals"),
