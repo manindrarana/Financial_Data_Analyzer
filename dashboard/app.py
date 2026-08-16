@@ -4089,21 +4089,112 @@ def update_crypto_freshness(_n):
         return dbc.Badge("Crypto: unavailable", color="secondary", className="px-3 py-2 fs-6")
 
 
+def _build_stock_freshness(rows, now_utc):
+    latest_by_dataset = {(asset, interval): latest for asset, interval, latest in rows}
+    datasets = []
+
+    for asset in STOCK_ASSETS:
+        for interval in STOCK_INTERVALS:
+            latest = latest_by_dataset.get((asset, interval))
+            if latest is None:
+                datasets.append({
+                    "asset": asset,
+                    "interval": interval,
+                    "latest": None,
+                    "age_hours": None,
+                    "status": "Unavailable",
+                    "color": "secondary",
+                })
+                continue
+
+            if isinstance(latest, str):
+                latest = datetime.fromisoformat(latest)
+            if latest.tzinfo is None:
+                latest = latest.replace(tzinfo=timezone.utc)
+
+            age_hours = (now_utc - latest).total_seconds() / 3600
+            color = _get_age_color(age_hours, False)
+            datasets.append({
+                "asset": asset,
+                "interval": interval,
+                "latest": latest,
+                "age_hours": age_hours,
+                "status": "Fresh" if color == "success" else "Stale",
+                "color": color,
+            })
+
+    available = [dataset for dataset in datasets if dataset["latest"] is not None]
+    oldest = min(available, key=lambda dataset: dataset["latest"]) if available else None
+    return datasets, oldest
+
+
 @app.callback(
     dash.Output("freshness-stock-badge", "children"),
     dash.Input("freshness-interval", "n_intervals"),
 )
 def update_stock_freshness(_n):
-    """Stock freshness badge with relaxed thresholds for market-hours trading."""
+    conn = None
     try:
         conn = duckdb.connect(DB_PATH, read_only=True)
-        stock_date = conn.execute(
-            "SELECT MAX(date) FROM gold_stock_analytics"
-        ).fetchone()[0]
-        conn.close()
-        return _build_freshness_badge(stock_date, datetime.now(timezone.utc), "Stocks", False)
+        rows = conn.execute(
+            """
+            SELECT asset_symbol, interval, MAX(date) AS latest_date
+            FROM gold_stock_analytics
+            GROUP BY asset_symbol, interval
+            """
+        ).fetchall()
+        now_utc = datetime.now(timezone.utc)
+        datasets, oldest = _build_stock_freshness(rows, now_utc)
+        if oldest is None:
+            badge = dbc.Badge("Stocks: unavailable", color="secondary", className="px-3 py-2 fs-6")
+        else:
+            badge = _build_freshness_badge(
+                oldest["latest"],
+                now_utc,
+                f"Stocks oldest: {oldest['asset']} {oldest['interval']}",
+                False,
+            )
+
+        lisbon = ZoneInfo("Europe/Lisbon")
+        table_rows = []
+        for dataset in datasets:
+            if dataset["latest"] is None:
+                latest_label = "Unavailable"
+                age_label = "-"
+            else:
+                latest_label = dataset["latest"].astimezone(lisbon).strftime("%Y-%m-%d %H:%M %Z")
+                age_label = f"{dataset['age_hours']:.1f}h"
+            table_rows.append(
+                html.Tr([
+                    html.Td(dataset["asset"]),
+                    html.Td(dataset["interval"]),
+                    html.Td(latest_label),
+                    html.Td(age_label),
+                    html.Td(dbc.Badge(dataset["status"], color=dataset["color"])),
+                ])
+            )
+
+        return html.Div([
+            badge,
+            html.Details([
+                html.Summary("Stock dataset freshness", className="text-muted small mt-2"),
+                dbc.Table([
+                    html.Thead(html.Tr([
+                        html.Th("Asset"),
+                        html.Th("Interval"),
+                        html.Th("Latest data"),
+                        html.Th("Age"),
+                        html.Th("Status"),
+                    ])),
+                    html.Tbody(table_rows),
+                ], bordered=False, hover=True, responsive=True, size="sm", color="dark"),
+            ]),
+        ])
     except Exception:
         return dbc.Badge("Stocks: unavailable", color="secondary", className="px-3 py-2 fs-6")
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 @app.callback(

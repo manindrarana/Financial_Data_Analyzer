@@ -253,6 +253,60 @@ class TestFeatureTables:
         assert FEATURE_TABLES["stocks"] == "gold_stock_features"
 
 
+class TestStockFreshness:
+    def test_classifies_fresh_and_stale_datasets_from_known_timestamps(self):
+        now_utc = pd.Timestamp("2026-08-16 12:00:00", tz="UTC")
+        rows = [
+            ("AAPL", "1h", pd.Timestamp("2026-08-16 00:00:00", tz="UTC")),
+            ("AMZN", "1d", pd.Timestamp("2026-08-13 11:00:00", tz="UTC")),
+        ]
+
+        datasets, _ = dashboard_app._build_stock_freshness(rows, now_utc)
+        statuses = {
+            (dataset["asset"], dataset["interval"]): dataset["status"]
+            for dataset in datasets
+        }
+
+        assert statuses[("AAPL", "1h")] == "Fresh"
+        assert statuses[("AMZN", "1d")] == "Stale"
+
+    def test_marks_missing_datasets_as_unavailable(self):
+        now_utc = pd.Timestamp("2026-08-16 12:00:00", tz="UTC")
+
+        datasets, oldest = dashboard_app._build_stock_freshness([], now_utc)
+        unavailable = [dataset for dataset in datasets if dataset["latest"] is None]
+
+        assert len(unavailable) == len(dashboard_app.STOCK_ASSETS) * len(dashboard_app.STOCK_INTERVALS)
+        assert all(dataset["status"] == "Unavailable" for dataset in unavailable)
+        assert oldest is None
+
+    def test_selects_oldest_available_stock_dataset(self):
+        now_utc = pd.Timestamp("2026-08-16 12:00:00", tz="UTC")
+        rows = [
+            ("AAPL", "1h", pd.Timestamp("2026-08-16 08:00:00", tz="UTC")),
+            ("TSLA", "1d", pd.Timestamp("2026-08-12 20:00:00", tz="UTC")),
+            ("MSFT", "1h", pd.Timestamp("2026-08-15 15:00:00", tz="UTC")),
+        ]
+
+        _, oldest = dashboard_app._build_stock_freshness(rows, now_utc)
+
+        assert oldest["asset"] == "TSLA"
+        assert oldest["interval"] == "1d"
+        assert oldest["latest"] == pd.Timestamp("2026-08-12 20:00:00", tz="UTC")
+
+    def test_displays_stock_timestamp_in_lisbon_time(self):
+        connection = MagicMock()
+        connection.execute.return_value.fetchall.return_value = [
+            ("AAPL", "1h", pd.Timestamp("2026-08-16 12:00:00", tz="UTC")),
+        ]
+
+        with patch.object(dashboard_app.duckdb, "connect", return_value=connection):
+            result = dashboard_app.update_stock_freshness(0)
+
+        text = " ".join(_collect_text(result))
+        assert "2026-08-16 13:00 WEST" in text
+
+
 class TestPredictionCards:
     def test_next_prediction_card_uses_latest_prediction(self):
         prediction_rows = pd.DataFrame({
