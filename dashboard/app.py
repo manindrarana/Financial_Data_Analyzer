@@ -4143,15 +4143,53 @@ def update_stock_freshness(_n):
             GROUP BY asset_symbol, interval
             """
         ).fetchall()
-        _, oldest = _build_stock_freshness(rows, datetime.now(timezone.utc))
+        now_utc = datetime.now(timezone.utc)
+        datasets, oldest = _build_stock_freshness(rows, now_utc)
         if oldest is None:
-            return dbc.Badge("Stocks: unavailable", color="secondary", className="px-3 py-2 fs-6")
-        return _build_freshness_badge(
-            oldest["latest"],
-            datetime.now(timezone.utc),
-            f"Stocks oldest: {oldest['asset']} {oldest['interval']}",
-            False,
-        )
+            badge = dbc.Badge("Stocks: unavailable", color="secondary", className="px-3 py-2 fs-6")
+        else:
+            badge = _build_freshness_badge(
+                oldest["latest"],
+                now_utc,
+                f"Stocks oldest: {oldest['asset']} {oldest['interval']}",
+                False,
+            )
+
+        lisbon = ZoneInfo("Europe/Lisbon")
+        table_rows = []
+        for dataset in datasets:
+            if dataset["latest"] is None:
+                latest_label = "Unavailable"
+                age_label = "-"
+            else:
+                latest_label = dataset["latest"].astimezone(lisbon).strftime("%Y-%m-%d %H:%M %Z")
+                age_label = f"{dataset['age_hours']:.1f}h"
+            table_rows.append(
+                html.Tr([
+                    html.Td(dataset["asset"]),
+                    html.Td(dataset["interval"]),
+                    html.Td(latest_label),
+                    html.Td(age_label),
+                    html.Td(dbc.Badge(dataset["status"], color=dataset["color"])),
+                ])
+            )
+
+        return html.Div([
+            badge,
+            html.Details([
+                html.Summary("Stock dataset freshness", className="text-muted small mt-2"),
+                dbc.Table([
+                    html.Thead(html.Tr([
+                        html.Th("Asset"),
+                        html.Th("Interval"),
+                        html.Th("Latest data"),
+                        html.Th("Age"),
+                        html.Th("Status"),
+                    ])),
+                    html.Tbody(table_rows),
+                ], bordered=False, hover=True, responsive=True, size="sm", color="dark"),
+            ]),
+        ])
     except Exception:
         return dbc.Badge("Stocks: unavailable", color="secondary", className="px-3 py-2 fs-6")
     finally:
