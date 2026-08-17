@@ -2380,6 +2380,13 @@ def render_model_insights():
         ),
         build_model_family_comparison(),
         html.Hr(className="my-4"),
+        html.H3("Multi-Timeframe Comparison", className="text-light mb-2"),
+        html.P(
+            "Compares BTC 1h and 4h models with their combined probability using the same next-4h target and unseen timestamps.",
+            className="text-muted small mb-3",
+        ),
+        build_multitimeframe_comparison(),
+        html.Hr(className="my-4"),
         html.H3("Prediction Confidence", className="text-light mb-2"),
         html.P(
             "Shows how confident the model was for each prediction and whether that confidence was justified.",
