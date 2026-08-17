@@ -973,6 +973,14 @@ class TestMultiTimeframeComparison:
         assert "2,761 identical unseen rows" in text
         assert "did not improve on the best individual model" in text
 
+    def test_missing_result_file_shows_clear_alert(self, tmp_path):
+        with patch.object(dashboard_app, "_project_root", str(tmp_path)):
+            result = dashboard_app.build_multitimeframe_comparison()
+
+        text = " ".join(_collect_text(result))
+        assert "No multi-timeframe comparison results are available" in text
+        assert "Run the BTC 1h and 4h comparison experiment first" in text
+
 
 class TestConfusionMatrix:
     def _fake_predictions(self):
