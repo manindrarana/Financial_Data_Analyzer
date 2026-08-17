@@ -1,5 +1,7 @@
+import numpy as np
 import pandas as pd
 
+import scripts.compare_multitimeframe_models as multitimeframe
 from scripts.compare_multitimeframe_models import (
     build_paired_dataset,
     calculate_metrics,
@@ -80,3 +82,38 @@ def test_calculate_metrics_returns_known_accuracy_values():
     assert metrics["accuracy"] == 0.5
     assert metrics["balanced_accuracy"] == 0.5
     assert metrics["coverage"] == 1.0
+
+
+def test_compare_timeframes_averages_probabilities_and_reports_improvement(monkeypatch):
+    class FixedModel:
+        def __init__(self, probabilities):
+            self.probabilities = np.array(probabilities)
+
+        def fit(self, features, target):
+            return self
+
+        def predict_proba(self, features):
+            return np.column_stack((1 - self.probabilities, self.probabilities))
+
+    models = iter([
+        FixedModel([0.9, 0.6, 0.4, 0.1]),
+        FixedModel([0.4, 0.1, 0.6, 0.6]),
+    ])
+    monkeypatch.setattr(multitimeframe, "build_model", lambda: next(models))
+    train = pd.DataFrame({
+        "one_hour_feature": [1.0, 2.0, 3.0, 4.0],
+        "four_hour_feature": [4.0, 3.0, 2.0, 1.0],
+        "target_direction": [1, 0, 1, 0],
+    })
+
+    results = multitimeframe.compare_timeframes(
+        train,
+        train,
+        ["one_hour_feature"],
+        ["four_hour_feature"],
+    )
+
+    assert results["1h"]["balanced_accuracy"] == 0.5
+    assert results["4h"]["balanced_accuracy"] == 0.5
+    assert results["ensemble"]["balanced_accuracy"] == 1.0
+    assert results["ensemble"]["difference_from_best_individual"] == 0.5
