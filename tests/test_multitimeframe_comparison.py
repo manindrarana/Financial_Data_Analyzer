@@ -2,6 +2,7 @@ import pandas as pd
 
 from scripts.compare_multitimeframe_models import (
     build_paired_dataset,
+    calculate_metrics,
     prepare_interval_data,
 )
 
@@ -68,3 +69,14 @@ def test_paired_dataset_uses_next_four_hour_close_as_common_target():
     paired, _, _ = build_paired_dataset(one_hour, four_hour)
 
     assert paired["target_direction"].tolist() == [1, 0]
+
+
+def test_calculate_metrics_returns_known_accuracy_values():
+    metrics = calculate_metrics(
+        pd.Series([1, 0, 1, 0]),
+        pd.Series([0.9, 0.2, 0.4, 0.8]),
+    )
+
+    assert metrics["accuracy"] == 0.5
+    assert metrics["balanced_accuracy"] == 0.5
+    assert metrics["coverage"] == 1.0
