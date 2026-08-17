@@ -44,3 +44,27 @@ def test_paired_dataset_does_not_use_future_one_hour_candle():
 
     assert one_hour_features == ["rsi_14_1h"]
     assert paired.iloc[0]["rsi_14_1h"] == 30.0
+
+
+def test_paired_dataset_uses_next_four_hour_close_as_common_target():
+    one_hour = pd.DataFrame({
+        "date": pd.to_datetime([
+            "2026-01-01 02:00:00+00:00",
+            "2026-01-01 06:00:00+00:00",
+        ]),
+        "close": [100.0, 103.0],
+        "rsi_14": [30.0, 50.0],
+    })
+    four_hour = pd.DataFrame({
+        "date": pd.to_datetime([
+            "2026-01-01 00:00:00+00:00",
+            "2026-01-01 04:00:00+00:00",
+            "2026-01-01 08:00:00+00:00",
+        ]),
+        "close": [100.0, 104.0, 102.0],
+        "rsi_14": [40.0, 45.0, 42.0],
+    })
+
+    paired, _, _ = build_paired_dataset(one_hour, four_hour)
+
+    assert paired["target_direction"].tolist() == [1, 0]
