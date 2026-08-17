@@ -940,6 +940,77 @@ class TestModelFamilyComparison:
         assert "Source data through: 2026-08-07 13:00 UTC" in text
 
 
+class TestMultiTimeframeComparison:
+    def test_displays_known_metrics_and_conclusion(self, tmp_path):
+        result_file = tmp_path / "scripts" / "results" / "btc_1h_4h_multitimeframe_comparison.json"
+        result_file.parent.mkdir(parents=True)
+        result_file.write_text(
+            __import__("json").dumps({
+                "test_rows": 2761,
+                "test_start_date": "2025-05-13T04:00:00+00:00",
+                "test_end_date": "2026-08-16T04:00:00+00:00",
+                "models": {
+                    "1h": {"accuracy": 0.5277, "balanced_accuracy": 0.5276, "coverage": 1.0},
+                    "4h": {"accuracy": 0.5350, "balanced_accuracy": 0.5350, "coverage": 1.0},
+                    "ensemble": {
+                        "accuracy": 0.5350,
+                        "balanced_accuracy": 0.5349,
+                        "coverage": 1.0,
+                        "difference_from_best_individual": -0.0001,
+                    },
+                },
+            }),
+            encoding="utf-8",
+        )
+
+        with patch.object(dashboard_app, "_project_root", str(tmp_path)):
+            result = dashboard_app.build_multitimeframe_comparison()
+
+        text = " ".join(_collect_text(result))
+        assert "52.77%" in text
+        assert "53.50%" in text
+        assert "-0.010 pp" in text
+        assert "2,761 identical unseen rows" in text
+        assert "did not improve on the best individual model" in text
+
+    def test_missing_result_file_shows_clear_alert(self, tmp_path):
+        with patch.object(dashboard_app, "_project_root", str(tmp_path)):
+            result = dashboard_app.build_multitimeframe_comparison()
+
+        text = " ".join(_collect_text(result))
+        assert "No multi-timeframe comparison results are available" in text
+        assert "Run the BTC 1h and 4h comparison experiment first" in text
+
+    def test_displays_result_freshness_in_lisbon_time(self, tmp_path):
+        result_file = tmp_path / "scripts" / "results" / "btc_1h_4h_multitimeframe_comparison.json"
+        result_file.parent.mkdir(parents=True)
+        result_file.write_text(
+            __import__("json").dumps({
+                "generated_at": "2026-08-17T06:43:25+00:00",
+                "source_data_end_date": "2026-08-16T06:00:00+00:00",
+                "test_rows": 10,
+                "test_start_date": "2026-08-01T00:00:00+00:00",
+                "test_end_date": "2026-08-16T04:00:00+00:00",
+                "models": {
+                    "ensemble": {
+                        "accuracy": 0.53,
+                        "balanced_accuracy": 0.53,
+                        "coverage": 1.0,
+                        "difference_from_best_individual": 0.0,
+                    },
+                },
+            }),
+            encoding="utf-8",
+        )
+
+        with patch.object(dashboard_app, "_project_root", str(tmp_path)):
+            result = dashboard_app.build_multitimeframe_comparison()
+
+        text = " ".join(_collect_text(result))
+        assert "Generated: 2026-08-17 07:43 WEST" in text
+        assert "Source data through: 2026-08-16 07:00 WEST" in text
+
+
 class TestConfusionMatrix:
     def _fake_predictions(self):
         return pd.DataFrame({

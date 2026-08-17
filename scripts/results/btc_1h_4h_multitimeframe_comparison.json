@@ -1,0 +1,33 @@
+{
+  "asset": "BTC",
+  "intervals": [
+    "1h",
+    "4h"
+  ],
+  "target": "next_4h_direction",
+  "ensemble_method": "mean_probability",
+  "generated_at": "2026-08-17T06:43:25.933549+00:00",
+  "source_data_end_date": "2026-08-16T06:00:00+00:00",
+  "train_rows": 11043,
+  "test_rows": 2761,
+  "test_start_date": "2025-05-13T04:00:00+00:00",
+  "test_end_date": "2026-08-16T04:00:00+00:00",
+  "models": {
+    "1h": {
+      "accuracy": 0.5277073524085476,
+      "balanced_accuracy": 0.5276286666897548,
+      "coverage": 1.0
+    },
+    "4h": {
+      "accuracy": 0.5349511046722202,
+      "balanced_accuracy": 0.5350499386589342,
+      "coverage": 1.0
+    },
+    "ensemble": {
+      "accuracy": 0.5349511046722202,
+      "balanced_accuracy": 0.5349714913592529,
+      "coverage": 1.0,
+      "difference_from_best_individual": -7.84472996813168e-05
+    }
+  }
+}
