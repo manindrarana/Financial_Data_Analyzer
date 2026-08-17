@@ -2665,6 +2665,87 @@ def build_model_family_comparison():
     ])
 
 
+def build_multitimeframe_comparison():
+    result_path = os.path.join(
+        _project_root,
+        "scripts",
+        "results",
+        "btc_1h_4h_multitimeframe_comparison.json",
+    )
+    if not os.path.exists(result_path):
+        return dbc.Alert(
+            "No multi-timeframe comparison results are available. Run the BTC 1h and 4h comparison experiment first.",
+            color="info",
+        )
+
+    try:
+        with open(result_path, encoding="utf-8") as result_file:
+            result = json.load(result_file)
+    except (OSError, json.JSONDecodeError) as error:
+        return dbc.Alert(f"Could not load multi-timeframe comparison: {error}", color="danger")
+
+    labels = {"1h": "1h Model", "4h": "4h Model", "ensemble": "1h + 4h Ensemble"}
+    rows = []
+    for model_name, label in labels.items():
+        metrics = result.get("models", {}).get(model_name)
+        if not metrics:
+            continue
+        difference = metrics.get("difference_from_best_individual")
+        rows.append({
+            "Comparison": label,
+            "Accuracy": f"{metrics['accuracy'] * 100:.2f}%",
+            "Balanced Accuracy": f"{metrics['balanced_accuracy'] * 100:.2f}%",
+            "Coverage": f"{metrics['coverage'] * 100:.1f}%",
+            "Difference vs Best Individual": (
+                f"{difference * 100:+.3f} pp" if difference is not None else "N/A"
+            ),
+        })
+
+    if not rows:
+        return dbc.Alert("The multi-timeframe result has no model metrics.", color="warning")
+
+    period = (
+        f"{result.get('test_rows', 0):,} identical unseen rows from "
+        f"{str(result.get('test_start_date', ''))[:10]} to "
+        f"{str(result.get('test_end_date', ''))[:10]}."
+    )
+    freshness_parts = []
+    for label, field in (
+        ("Generated", "generated_at"),
+        ("Source data through", "source_data_end_date"),
+    ):
+        value = result.get(field)
+        if value:
+            timestamp = pd.to_datetime(value, utc=True).tz_convert(
+                ZoneInfo("Europe/Lisbon")
+            )
+            freshness_parts.append(
+                f"{label}: {timestamp.strftime('%Y-%m-%d %H:%M %Z')}"
+            )
+
+    ensemble = result.get("models", {}).get("ensemble", {})
+    difference = ensemble.get("difference_from_best_individual")
+    conclusion = (
+        "The 1h and 4h ensemble did not improve on the best individual model."
+        if difference is not None and difference <= 0
+        else "The 1h and 4h ensemble improved on the best individual model."
+    )
+    return html.Div([
+        html.P(period, className="text-muted small mb-1"),
+        html.P(" | ".join(freshness_parts), className="text-muted small mb-2") if freshness_parts else None,
+        dbc.Table.from_dataframe(
+            pd.DataFrame(rows),
+            striped=True,
+            bordered=True,
+            hover=True,
+            responsive=True,
+            color="dark",
+            className="mb-3",
+        ),
+        dbc.Alert(conclusion, color="info", className="mb-0"),
+    ])
+
+
 PRICE_RANGE_MAP = {
     "1d": 1, "3d": 3, "7d": 7, "30d": 30,
     "90d": 90, "180d": 180, "365d": 365,
