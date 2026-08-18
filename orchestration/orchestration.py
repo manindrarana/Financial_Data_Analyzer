@@ -14,6 +14,7 @@ from src.database import DatabaseLoader, DimensionBuilder, FactLoader
 from src.processing import DataCleaner
 from src.models import GoldLayerProcessor, TechnicalIndicatorProcessor, PipelineModelTrainer
 from scripts.compare_model_families import refresh_comparison
+from scripts.compare_multitimeframe_models import refresh_multitimeframe_comparison
 from scripts.run_feature_ablation import run_feature_ablation
 
 CHECKPOINT_FILE = Path("data/.pipeline_checkpoint.json")
@@ -450,6 +451,13 @@ def train_models():
             logger.info("BTC 1h model family comparison refreshed")
         except Exception as error:
             logger.warning(f"BTC 1h model family comparison failed: {error}")
+
+    if {"BTC_1h", "BTC_4h"}.intersection(retrained):
+        try:
+            refresh_multitimeframe_comparison(_get_db_path())
+            logger.info("BTC 1h and 4h multi-timeframe comparison refreshed")
+        except Exception as error:
+            logger.warning(f"BTC 1h and 4h multi-timeframe comparison failed: {error}")
 
     return retrained
 
