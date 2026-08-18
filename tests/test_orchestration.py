@@ -274,3 +274,14 @@ class TestMultiTimeframeRefresh:
 
         assert result == ["BTC_1h", "ETH_1h"]
         refresh.assert_called_once_with("database/test.duckdb")
+
+    def test_refreshes_after_btc_4h_retraining(self):
+        trainer = MagicMock()
+        trainer.last_retrained_models = ["BTC_4h"]
+        with patch.object(orch, "PipelineModelTrainer", return_value=trainer):
+            with patch.object(orch, "_get_db_path", return_value="database/test.duckdb"):
+                with patch.object(orch, "refresh_multitimeframe_comparison") as refresh:
+                    result = orch.train_models.fn()
+
+        assert result == ["BTC_4h"]
+        refresh.assert_called_once_with("database/test.duckdb")
