@@ -259,3 +259,58 @@ class TestModelFamilyRefresh:
         logger.warning.assert_called_once_with(
             "BTC 1h model family comparison failed: comparison failed"
         )
+
+
+class TestMultiTimeframeRefresh:
+    def test_refreshes_after_btc_1h_retraining(self):
+        trainer = MagicMock()
+        trainer.last_retrained_models = ["BTC_1h", "ETH_1h"]
+        with patch.object(orch, "PipelineModelTrainer", return_value=trainer):
+            with patch.object(orch, "refresh_feature_ablation"):
+                with patch.object(orch, "refresh_comparison"):
+                    with patch.object(orch, "_get_db_path", return_value="database/test.duckdb"):
+                        with patch.object(orch, "refresh_multitimeframe_comparison") as refresh:
+                            result = orch.train_models.fn()
+
+        assert result == ["BTC_1h", "ETH_1h"]
+        refresh.assert_called_once_with("database/test.duckdb")
+
+    def test_refreshes_after_btc_4h_retraining(self):
+        trainer = MagicMock()
+        trainer.last_retrained_models = ["BTC_4h"]
+        with patch.object(orch, "PipelineModelTrainer", return_value=trainer):
+            with patch.object(orch, "_get_db_path", return_value="database/test.duckdb"):
+                with patch.object(orch, "refresh_multitimeframe_comparison") as refresh:
+                    result = orch.train_models.fn()
+
+        assert result == ["BTC_4h"]
+        refresh.assert_called_once_with("database/test.duckdb")
+
+    def test_does_not_refresh_after_unrelated_retraining(self):
+        trainer = MagicMock()
+        trainer.last_retrained_models = ["ETH_1h", "AAPL_1d"]
+        with patch.object(orch, "PipelineModelTrainer", return_value=trainer):
+            with patch.object(orch, "refresh_multitimeframe_comparison") as refresh:
+                result = orch.train_models.fn()
+
+        assert result == ["ETH_1h", "AAPL_1d"]
+        refresh.assert_not_called()
+
+    def test_refresh_failure_does_not_fail_retraining(self):
+        trainer = MagicMock()
+        trainer.last_retrained_models = ["BTC_4h"]
+        logger = MagicMock()
+        with patch.object(orch, "PipelineModelTrainer", return_value=trainer):
+            with patch.object(orch, "get_run_logger", return_value=logger):
+                with patch.object(orch, "_get_db_path", return_value="database/test.duckdb"):
+                    with patch.object(
+                        orch,
+                        "refresh_multitimeframe_comparison",
+                        side_effect=RuntimeError("refresh failed"),
+                    ):
+                        result = orch.train_models.fn()
+
+        assert result == ["BTC_4h"]
+        logger.warning.assert_called_once_with(
+            "BTC 1h and 4h multi-timeframe comparison failed: refresh failed"
+        )
