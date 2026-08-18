@@ -285,3 +285,13 @@ class TestMultiTimeframeRefresh:
 
         assert result == ["BTC_4h"]
         refresh.assert_called_once_with("database/test.duckdb")
+
+    def test_does_not_refresh_after_unrelated_retraining(self):
+        trainer = MagicMock()
+        trainer.last_retrained_models = ["ETH_1h", "AAPL_1d"]
+        with patch.object(orch, "PipelineModelTrainer", return_value=trainer):
+            with patch.object(orch, "refresh_multitimeframe_comparison") as refresh:
+                result = orch.train_models.fn()
+
+        assert result == ["ETH_1h", "AAPL_1d"]
+        refresh.assert_not_called()
