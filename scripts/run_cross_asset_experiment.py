@@ -1,10 +1,18 @@
 import duckdb
 import numpy as np
 import pandas as pd
+import xgboost as xgb
+from sklearn.metrics import accuracy_score, balanced_accuracy_score, f1_score
+from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
 
 from src.models.feature_engineering import MODEL_FEATURES, NEEDED_COLS, make_stationary
 
 
+PARAM_GRID = {
+    "learning_rate": [0.01, 0.05, 0.1],
+    "max_depth": [3, 5],
+    "n_estimators": [100, 200],
+}
 CROSS_ASSET_COLUMNS = [
     "eth_btc_relative_return",
     "tracked_crypto_market_return",
