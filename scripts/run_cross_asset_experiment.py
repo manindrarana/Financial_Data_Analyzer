@@ -2,6 +2,8 @@ import duckdb
 import numpy as np
 import pandas as pd
 
+from src.models.feature_engineering import MODEL_FEATURES, NEEDED_COLS, make_stationary
+
 
 CROSS_ASSET_COLUMNS = [
     "eth_btc_relative_return",
@@ -9,6 +11,12 @@ CROSS_ASSET_COLUMNS = [
     "tracked_crypto_market_breadth",
     "cross_asset_volatility",
     "market_asset_count",
+]
+EXPERIMENT_FEATURES = [
+    "eth_btc_relative_return",
+    "tracked_crypto_market_return",
+    "tracked_crypto_market_breadth",
+    "cross_asset_volatility",
 ]
 RESULT_COLUMNS = [
     "date",
