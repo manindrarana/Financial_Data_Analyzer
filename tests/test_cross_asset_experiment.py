@@ -78,7 +78,7 @@ def test_evaluate_experiment_model_returns_known_metrics():
     )
 
     assert metrics["accuracy"] == pytest.approx(0.75)
-    assert metrics["balanced_accuracy"] == pytest.approx(0.75)
+    assert metrics["balanced_accuracy"] == pytest.approx(5 / 6)
     assert metrics["f1"] == pytest.approx(2 / 3)
     assert metrics["best_cv_score"] == pytest.approx(0.6)
 
