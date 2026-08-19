@@ -11,6 +11,72 @@ from scripts.run_cross_asset_experiment import (
 from src.models.feature_engineering import MODEL_FEATURES, NEEDED_COLS
 
 
+def test_prepare_target_features_creates_next_candle_labels_and_drops_last_row():
+    rows = []
+    for index, close in enumerate([100.0, 110.0, 105.0]):
+        row = {column: 1.0 for column in NEEDED_COLS}
+        row["date"] = pd.Timestamp("2026-01-01") + pd.Timedelta(hours=index)
+        row["close"] = close
+        rows.append(row)
+
+    prepared = prepare_target_features(pd.DataFrame(rows))
+
+    assert prepared["date"].tolist() == [
+        pd.Timestamp("2026-01-01 00:00:00"),
+        pd.Timestamp("2026-01-01 01:00:00"),
+    ]
+    assert prepared["target_direction"].tolist() == [1, 0]
+    assert prepared[MODEL_FEATURES].notna().all().all()
+
+
+def test_merge_cross_asset_features_keeps_complete_shared_rows():
+    target = pd.DataFrame(
+        {
+            "date": pd.to_datetime(["2026-01-01 00:00", "2026-01-01 01:00"]),
+            "target_direction": [1, 0],
+        }
+    )
+    cross_asset = pd.DataFrame(
+        {
+            "date": pd.to_datetime(["2026-01-01 00:00", "2026-01-01 01:00"]),
+            "eth_btc_relative_return": [0.01, 0.02],
+            "tracked_crypto_market_return": [0.03, 0.04],
+            "tracked_crypto_market_breadth": [0.5, 1.0],
+            "cross_asset_volatility": [0.02, 0.03],
+        }
+    )
+
+    merged = merge_cross_asset_features(target, cross_asset)
+
+    assert merged["target_direction"].tolist() == [1, 0]
+    assert merged["tracked_crypto_market_return"].tolist() == [0.03, 0.04]
+    assert merged[EXPERIMENT_FEATURES].notna().all().all()
+
+
+def test_merge_cross_asset_features_drops_rows_with_missing_experiment_values():
+    target = pd.DataFrame(
+        {
+            "date": pd.to_datetime(["2026-01-01 00:00", "2026-01-01 01:00"]),
+            "target_direction": [1, 0],
+        }
+    )
+    cross_asset = pd.DataFrame(
+        {
+            "date": pd.to_datetime(["2026-01-01 00:00", "2026-01-01 01:00"]),
+            "eth_btc_relative_return": [0.01, None],
+            "tracked_crypto_market_return": [0.03, 0.04],
+            "tracked_crypto_market_breadth": [0.5, 1.0],
+            "cross_asset_volatility": [0.02, 0.03],
+        }
+    )
+
+    merged = merge_cross_asset_features(target, cross_asset)
+
+    assert len(merged) == 1
+    assert merged.iloc[0]["target_direction"] == 1
+    assert merged.iloc[0]["date"] == pd.Timestamp("2026-01-01 00:00")
+
+
 def test_builds_known_cross_asset_values_for_btc():
     candles = pd.DataFrame(
         [
