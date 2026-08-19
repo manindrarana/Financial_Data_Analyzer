@@ -18,9 +18,9 @@ from src.models.feature_engineering import MODEL_FEATURES, NEEDED_COLS
 def test_split_experiment_data_preserves_chronological_shared_rows():
     data = pd.DataFrame(
         {
-            "date": pd.date_range("2026-01-01", periods=10, freq="h"),
-            "feature": range(10),
-            "target_direction": [0, 1] * 5,
+            "date": pd.date_range("2026-01-01", periods=125, freq="h"),
+            "feature": range(125),
+            "target_direction": [index % 2 for index in range(125)],
         }
     )
 
@@ -29,11 +29,13 @@ def test_split_experiment_data_preserves_chronological_shared_rows():
         ["feature"],
     )
 
-    assert X_train["feature"].tolist() == list(range(8))
-    assert y_train.tolist() == [0, 1] * 4
-    assert X_test["feature"].tolist() == [8, 9]
-    assert y_test.tolist() == [0, 1]
-    assert test_dates.tolist() == list(pd.date_range("2026-01-01 08:00", periods=2, freq="h"))
+    assert X_train["feature"].tolist() == list(range(100))
+    assert y_train.tolist() == [index % 2 for index in range(100)]
+    assert X_test["feature"].tolist() == list(range(100, 125))
+    assert y_test.tolist() == [index % 2 for index in range(100, 125)]
+    assert test_dates.tolist() == list(
+        pd.date_range("2026-01-05 04:00", periods=25, freq="h")
+    )
 
 
 def test_train_experiment_model_returns_selected_parameters(monkeypatch):
