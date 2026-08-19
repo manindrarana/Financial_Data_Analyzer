@@ -43,6 +43,49 @@ def load_crypto_candles(db_path, interval):
         connection.close()
 
 
+def load_target_features(db_path, asset, interval):
+    connection = duckdb.connect(db_path, read_only=True)
+    try:
+        columns = ", ".join(NEEDED_COLS)
+        return connection.execute(
+            f"""
+            SELECT {columns}
+            FROM gold_crypto_features
+            WHERE asset_symbol = ? AND interval = ?
+            ORDER BY date
+            """,
+            [asset, interval],
+        ).df()
+    finally:
+        connection.close()
+
+
+def prepare_target_features(df):
+    if df.empty:
+        raise ValueError("no target feature data found")
+
+    prepared = make_stationary(df)
+    prepared["date"] = pd.to_datetime(prepared["date"])
+    prepared["target_direction"] = (
+        prepared["close"].shift(-1) > prepared["close"]
+    ).astype(int)
+    prepared = prepared.iloc[:-1].copy()
+    return prepared.dropna(subset=MODEL_FEATURES).copy()
+
+
+def merge_cross_asset_features(target_df, cross_asset_df):
+    if target_df.empty:
+        return target_df.copy()
+
+    merged = target_df.merge(
+        cross_asset_df[["date", *EXPERIMENT_FEATURES]],
+        on="date",
+        how="inner",
+        validate="one_to_one",
+    )
+    return merged.dropna(subset=EXPERIMENT_FEATURES).copy()
+
+
 def calculate_asset_returns(candles):
     if candles.empty:
         return candles.assign(asset_return=pd.Series(dtype=float))
