@@ -90,6 +90,7 @@ def build_cross_asset_features(candles, target_asset, interval, min_market_asset
         relative_returns["eth_btc_relative_return"] = np.nan
 
     result = target_rows.merge(market, on="date", how="left")
+    result["market_asset_count"] = result["market_asset_count"].fillna(0).astype(int)
     result = result.merge(
         relative_returns[["eth_btc_relative_return"]],
         on="date",
