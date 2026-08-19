@@ -1,14 +1,84 @@
 import pandas as pd
 import pytest
 
+import scripts.run_cross_asset_experiment as cross_asset_experiment
 from scripts.run_cross_asset_experiment import (
     EXPERIMENT_FEATURES,
     build_cross_asset_features,
+    evaluate_experiment_model,
     load_target_features,
     merge_cross_asset_features,
     prepare_target_features,
+    split_experiment_data,
+    train_experiment_model,
 )
 from src.models.feature_engineering import MODEL_FEATURES, NEEDED_COLS
+
+
+def test_split_experiment_data_preserves_chronological_shared_rows():
+    data = pd.DataFrame(
+        {
+            "date": pd.date_range("2026-01-01", periods=10, freq="h"),
+            "feature": range(10),
+            "target_direction": [0, 1] * 5,
+        }
+    )
+
+    X_train, y_train, X_test, y_test, test_dates = split_experiment_data(
+        data,
+        ["feature"],
+    )
+
+    assert X_train["feature"].tolist() == list(range(8))
+    assert y_train.tolist() == [0, 1] * 4
+    assert X_test["feature"].tolist() == [8, 9]
+    assert y_test.tolist() == [0, 1]
+    assert test_dates.tolist() == list(pd.date_range("2026-01-01 08:00", periods=2, freq="h"))
+
+
+def test_train_experiment_model_returns_selected_parameters(monkeypatch):
+    monkeypatch.setattr(
+        cross_asset_experiment,
+        "PARAM_GRID",
+        {"learning_rate": [0.1], "max_depth": [1], "n_estimators": [10]},
+    )
+    X_train = pd.DataFrame({"feature": range(100)})
+    y_train = pd.Series([0, 1] * 50)
+
+    search = train_experiment_model(X_train, y_train)
+
+    assert search.best_params_ == {
+        "learning_rate": 0.1,
+        "max_depth": 1,
+        "n_estimators": 10,
+    }
+    assert search.best_estimator_.get_xgb_params()["random_state"] == 42
+
+
+def test_evaluate_experiment_model_returns_known_metrics():
+    class FixedModel:
+        def predict(self, X):
+            return [0, 1, 1, 0]
+
+    class FixedSearch:
+        best_estimator_ = FixedModel()
+        best_score_ = 0.6
+        best_params_ = {
+            "learning_rate": 0.05,
+            "max_depth": 3,
+            "n_estimators": 100,
+        }
+
+    metrics = evaluate_experiment_model(
+        FixedSearch(),
+        pd.DataFrame({"feature": [1, 2, 3, 4]}),
+        pd.Series([0, 1, 0, 0]),
+    )
+
+    assert metrics["accuracy"] == pytest.approx(0.75)
+    assert metrics["balanced_accuracy"] == pytest.approx(0.75)
+    assert metrics["f1"] == pytest.approx(2 / 3)
+    assert metrics["best_cv_score"] == pytest.approx(0.6)
 
 
 def test_prepare_target_features_creates_next_candle_labels_and_drops_last_row():
