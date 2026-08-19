@@ -2,10 +2,10 @@
   "asset": "DOT",
   "interval": "1h",
   "asset_class": "crypto",
-  "train_end_date": "2025-07-20T03:00:00",
-  "train_rows": 37836,
-  "test_rows": 9460,
-  "test_accuracy": 0.5280126849894292,
+  "train_end_date": "2025-07-20T23:00:00",
+  "train_rows": 37856,
+  "test_rows": 9465,
+  "test_accuracy": 0.5274167987321712,
   "features": [
     "rsi_14",
     "roc_10",
@@ -46,13 +46,13 @@
     "eval_metric": "logloss",
     "random_state": 42
   },
-  "best_cv_score": 0.5362987206188634,
+  "best_cv_score": 0.5346451229183188,
   "calibration": {
     "method": "platt_scaling",
-    "coefficient": 1.3154297844586578,
-    "intercept": -0.6455257647667679,
-    "rows": 7563
+    "coefficient": 1.3573290538246756,
+    "intercept": -0.6660436156906342,
+    "rows": 7567
   },
-  "trained_at": "2026-08-18T07:43:37.657341",
-  "mlflow_run_id": "b6d56bb58a644d009dd195b715085448"
+  "trained_at": "2026-08-19T08:13:14.970562",
+  "mlflow_run_id": "2cfca5dd9f754ff788d8fff10c0eda2f"
 }
