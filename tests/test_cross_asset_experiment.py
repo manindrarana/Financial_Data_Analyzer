@@ -1,7 +1,14 @@
 import pandas as pd
 import pytest
 
-from scripts.run_cross_asset_experiment import build_cross_asset_features
+from scripts.run_cross_asset_experiment import (
+    EXPERIMENT_FEATURES,
+    build_cross_asset_features,
+    load_target_features,
+    merge_cross_asset_features,
+    prepare_target_features,
+)
+from src.models.feature_engineering import MODEL_FEATURES, NEEDED_COLS
 
 
 def test_builds_known_cross_asset_values_for_btc():
