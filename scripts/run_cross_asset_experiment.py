@@ -94,6 +94,57 @@ def merge_cross_asset_features(target_df, cross_asset_df):
     return merged.dropna(subset=EXPERIMENT_FEATURES).copy()
 
 
+def split_experiment_data(df, features):
+    if df.empty:
+        raise ValueError("no complete experiment rows found")
+
+    split_index = int(len(df) * 0.8)
+    train = df.iloc[:split_index]
+    test = df.iloc[split_index:]
+    if len(train) < 100 or len(test) < 20:
+        raise ValueError(
+            f"insufficient experiment rows: train={len(train)}, test={len(test)}"
+        )
+
+    return (
+        train[features],
+        train["target_direction"],
+        test[features],
+        test["target_direction"],
+        test["date"],
+    )
+
+
+def train_experiment_model(X_train, y_train):
+    search = GridSearchCV(
+        xgb.XGBClassifier(
+            subsample=1.0,
+            eval_metric="logloss",
+            random_state=42,
+        ),
+        PARAM_GRID,
+        cv=TimeSeriesSplit(n_splits=2),
+        scoring="balanced_accuracy",
+        n_jobs=1,
+        verbose=0,
+    )
+    search.fit(X_train, y_train)
+    return search
+
+
+def evaluate_experiment_model(search, X_test, y_test):
+    predictions = search.best_estimator_.predict(X_test)
+    return {
+        "accuracy": accuracy_score(y_test, predictions),
+        "balanced_accuracy": balanced_accuracy_score(y_test, predictions),
+        "f1": f1_score(y_test, predictions, zero_division=0),
+        "best_cv_score": search.best_score_,
+        "learning_rate": search.best_params_["learning_rate"],
+        "max_depth": search.best_params_["max_depth"],
+        "n_estimators": search.best_params_["n_estimators"],
+    }
+
+
 def calculate_asset_returns(candles):
     if candles.empty:
         return candles.assign(asset_return=pd.Series(dtype=float))
