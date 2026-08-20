@@ -1,7 +1,7 @@
 {
   "asset": "BTC",
   "interval": "1h",
-  "generated_at": "2026-08-20T07:42:20.371317+00:00",
+  "generated_at": "2026-08-20T07:54:15.663156+00:00",
   "source_data_end_date": "2026-08-20T07:00:00",
   "train_rows": 44728,
   "test_rows": 11182,
