@@ -180,8 +180,9 @@ class TestFeatureAblationRefresh:
         trainer.last_retrained_models = ["BTC_1h", "ETH_1h"]
         with patch.object(orch, "PipelineModelTrainer", return_value=trainer):
             with patch.object(orch, "refresh_feature_ablation") as refresh:
-                with patch("scripts.compare_model_families.refresh_comparison"):
-                    result = orch.train_models.fn()
+                with patch.object(orch, "refresh_comparison"):
+                    with patch.object(orch, "refresh_multitimeframe_comparison"):
+                        result = orch.train_models.fn()
 
         assert result == ["BTC_1h", "ETH_1h"]
         refresh.assert_called_once_with(mock_prefect.get_run_logger.return_value)
@@ -222,10 +223,9 @@ class TestModelFamilyRefresh:
         trainer.last_retrained_models = ["BTC_1h", "ETH_1h"]
         with patch.object(orch, "PipelineModelTrainer", return_value=trainer):
             with patch.object(orch, "refresh_feature_ablation"):
-                with patch(
-                    "scripts.compare_model_families.refresh_comparison"
-                ) as refresh:
-                    result = orch.train_models.fn()
+                with patch.object(orch, "refresh_comparison") as refresh:
+                    with patch.object(orch, "refresh_multitimeframe_comparison"):
+                        result = orch.train_models.fn()
 
         assert result == ["BTC_1h", "ETH_1h"]
         refresh.assert_called_once_with()
@@ -234,9 +234,7 @@ class TestModelFamilyRefresh:
         trainer = MagicMock()
         trainer.last_retrained_models = ["ETH_1h"]
         with patch.object(orch, "PipelineModelTrainer", return_value=trainer):
-            with patch(
-                "scripts.compare_model_families.refresh_comparison"
-            ) as refresh:
+            with patch.object(orch, "refresh_comparison") as refresh:
                 result = orch.train_models.fn()
 
         assert result == ["ETH_1h"]
@@ -249,11 +247,13 @@ class TestModelFamilyRefresh:
         with patch.object(orch, "PipelineModelTrainer", return_value=trainer):
             with patch.object(orch, "get_run_logger", return_value=logger):
                 with patch.object(orch, "refresh_feature_ablation"):
-                    with patch(
-                        "scripts.compare_model_families.refresh_comparison",
+                    with patch.object(
+                        orch,
+                        "refresh_comparison",
                         side_effect=RuntimeError("comparison failed"),
                     ):
-                        result = orch.train_models.fn()
+                        with patch.object(orch, "refresh_multitimeframe_comparison"):
+                            result = orch.train_models.fn()
 
         assert result == ["BTC_1h"]
         logger.warning.assert_called_once_with(
