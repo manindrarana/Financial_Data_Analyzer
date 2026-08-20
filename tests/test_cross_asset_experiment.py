@@ -49,7 +49,15 @@ def test_compare_experiment_variants_uses_identical_rows_and_returns_metadata(mo
 
     def fake_train(X_train, y_train):
         trained_rows.append((len(X_train), len(y_train)))
-        return object()
+
+        class FixedEstimator:
+            def predict(self, X):
+                return [0] * len(X)
+
+        class FixedSearch:
+            best_estimator_ = FixedEstimator()
+
+        return FixedSearch()
 
     def fake_evaluate(search, X_test, y_test):
         return {"accuracy": len(X_test) / 100}
