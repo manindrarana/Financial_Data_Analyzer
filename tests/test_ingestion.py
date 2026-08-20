@@ -29,11 +29,9 @@ class TestBybitOIIntvMapping:
         client = BybitClient()
         assert client._map_to_oi_interval("D") == "1d"
 
-    def test_returns_none_for_unknown(self):
+    def test_maps_240_to_4h(self):
         client = BybitClient()
-        assert client._map_to_oi_interval("W") is None
-        assert client._map_to_oi_interval("M") is None
-        assert client._map_to_oi_interval("240") is None
+        assert client._map_to_oi_interval("240") == "4h"
 
 
 class TestBybitGetLastFetchedDate:

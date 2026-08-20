@@ -10,8 +10,8 @@ from src.models.feature_engineering import MODEL_FEATURES, NEEDED_COLS, make_sta
 
 
 class TestModelFeatures:
-    def test_has_29_features(self):
-        assert len(MODEL_FEATURES) == 29
+    def test_has_30_features(self):
+        assert len(MODEL_FEATURES) == 30
 
     def test_contains_key_indicators(self):
         for col in ["rsi_14", "stoch_k", "stoch_d", "macd_pct", "returns_1p", "log_returns", "hl_ratio"]:
@@ -28,8 +28,8 @@ class TestModelFeatures:
 
 
 class TestNeededCols:
-    def test_has_31_columns(self):
-        assert len(NEEDED_COLS) == 31
+    def test_has_32_columns(self):
+        assert len(NEEDED_COLS) == 32
 
     def test_contains_close_and_date(self):
         assert "date" in NEEDED_COLS
