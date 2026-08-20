@@ -15,6 +15,86 @@ from scripts.run_cross_asset_experiment import (
 from src.models.feature_engineering import MODEL_FEATURES, NEEDED_COLS
 
 
+def test_compare_experiment_variants_uses_identical_rows_and_returns_metadata(monkeypatch):
+    rows = []
+    for index in range(125):
+        row = {column: float(index + 1) for column in MODEL_FEATURES}
+        row.update(
+            {
+                "date": pd.Timestamp("2026-01-01") + pd.Timedelta(hours=index),
+                "target_direction": index % 2,
+                "eth_btc_relative_return": 0.01,
+                "tracked_crypto_market_return": 0.02,
+                "tracked_crypto_market_breadth": 0.5,
+                "cross_asset_volatility": 0.03,
+            }
+        )
+        rows.append(row)
+    dataset = pd.DataFrame(rows)
+    split_features = []
+    trained_rows = []
+
+    def fake_prepare(*args, **kwargs):
+        return dataset
+
+    def fake_split(data, features):
+        split_features.append(features)
+        return (
+            data.iloc[:100][features],
+            data.iloc[:100]["target_direction"],
+            data.iloc[100:][features],
+            data.iloc[100:]["target_direction"],
+            data.iloc[100:]["date"],
+        )
+
+    def fake_train(X_train, y_train):
+        trained_rows.append((len(X_train), len(y_train)))
+        return object()
+
+    def fake_evaluate(search, X_test, y_test):
+        return {"accuracy": len(X_test) / 100}
+
+    monkeypatch.setattr(cross_asset_experiment, "prepare_experiment_dataset", fake_prepare)
+    monkeypatch.setattr(cross_asset_experiment, "split_experiment_data", fake_split)
+    monkeypatch.setattr(cross_asset_experiment, "train_experiment_model", fake_train)
+    monkeypatch.setattr(cross_asset_experiment, "evaluate_experiment_model", fake_evaluate)
+
+    result = cross_asset_experiment.compare_experiment_variants("ignored.duckdb")
+
+    assert split_features[0] == MODEL_FEATURES
+    assert split_features[1] == [*MODEL_FEATURES, *EXPERIMENT_FEATURES]
+    assert trained_rows == [(100, 100), (100, 100)]
+    assert result["asset"] == "BTC"
+    assert result["interval"] == "1h"
+    assert result["total_rows"] == 125
+    assert result["train_rows"] == 100
+    assert result["test_rows"] == 25
+    assert result["test_start"] == pd.Timestamp("2026-01-05 04:00")
+    assert result["test_end"] == pd.Timestamp("2026-01-06 04:00")
+    assert result["baseline"]["accuracy"] == pytest.approx(0.25)
+    assert result["cross_asset"]["accuracy"] == pytest.approx(0.25)
+
+
+def test_compare_experiment_variants_passes_market_asset_threshold(monkeypatch):
+    captured = {}
+
+    monkeypatch.setattr(
+        cross_asset_experiment,
+        "prepare_experiment_dataset",
+        lambda *args, **kwargs: captured.update(kwargs) or pd.DataFrame(),
+    )
+
+    with pytest.raises(ValueError, match="no complete experiment rows found"):
+        cross_asset_experiment.compare_experiment_variants(
+            "ignored.duckdb",
+            asset="ETH",
+            interval="1h",
+            min_market_assets=7,
+        )
+
+    assert captured == {"min_market_assets": 7}
+
+
 def test_split_experiment_data_preserves_chronological_shared_rows():
     data = pd.DataFrame(
         {
