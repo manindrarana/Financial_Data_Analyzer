@@ -159,6 +159,54 @@ def evaluate_experiment_model(search, X_test, y_test):
     }
 
 
+def compare_experiment_variants(
+    db_path,
+    asset="BTC",
+    interval="1h",
+    min_market_assets=5,
+):
+    dataset = prepare_experiment_dataset(
+        db_path,
+        asset,
+        interval,
+        min_market_assets=min_market_assets,
+    )
+    baseline_split = split_experiment_data(dataset, MODEL_FEATURES)
+    cross_asset_split = split_experiment_data(
+        dataset,
+        [*MODEL_FEATURES, *EXPERIMENT_FEATURES],
+    )
+
+    baseline_search = train_experiment_model(
+        baseline_split[0],
+        baseline_split[1],
+    )
+    cross_asset_search = train_experiment_model(
+        cross_asset_split[0],
+        cross_asset_split[1],
+    )
+
+    return {
+        "asset": asset,
+        "interval": interval,
+        "total_rows": len(dataset),
+        "train_rows": len(baseline_split[0]),
+        "test_rows": len(baseline_split[2]),
+        "test_start": baseline_split[4].iloc[0],
+        "test_end": baseline_split[4].iloc[-1],
+        "baseline": evaluate_experiment_model(
+            baseline_search,
+            baseline_split[2],
+            baseline_split[3],
+        ),
+        "cross_asset": evaluate_experiment_model(
+            cross_asset_search,
+            cross_asset_split[2],
+            cross_asset_split[3],
+        ),
+    }
+
+
 def calculate_asset_returns(candles):
     if candles.empty:
         return candles.assign(asset_return=pd.Series(dtype=float))
