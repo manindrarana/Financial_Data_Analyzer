@@ -161,9 +161,7 @@ class TestFeatureAblationRefresh:
     def test_refresh_uses_btc_1h_configuration(self):
         logger = MagicMock()
         with patch.object(orch, "_get_db_path", return_value="database/test.duckdb"):
-            with patch(
-                "scripts.run_feature_ablation.run_feature_ablation"
-            ) as run_ablation:
+            with patch.object(orch, "run_feature_ablation") as run_ablation:
                 orch.refresh_feature_ablation(logger)
 
         run_ablation.assert_called_once_with(
@@ -208,8 +206,9 @@ class TestFeatureAblationRefresh:
                     "refresh_feature_ablation",
                     side_effect=RuntimeError("ablation failed"),
                 ):
-                    with patch("scripts.compare_model_families.refresh_comparison"):
-                        result = orch.train_models.fn()
+                    with patch.object(orch, "refresh_comparison"):
+                        with patch.object(orch, "refresh_multitimeframe_comparison"):
+                            result = orch.train_models.fn()
 
         assert result == ["BTC_1h"]
         logger.warning.assert_called_once_with(
