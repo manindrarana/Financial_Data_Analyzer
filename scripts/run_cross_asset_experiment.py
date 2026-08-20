@@ -94,6 +94,20 @@ def merge_cross_asset_features(target_df, cross_asset_df):
     return merged.dropna(subset=EXPERIMENT_FEATURES).copy()
 
 
+def prepare_experiment_dataset(db_path, asset, interval, min_market_assets=5):
+    target = prepare_target_features(load_target_features(db_path, asset, interval))
+    candles = load_crypto_candles(db_path, interval)
+    cross_asset = build_cross_asset_features(
+        candles,
+        asset,
+        interval,
+        min_market_assets=min_market_assets,
+    )
+    return merge_cross_asset_features(target, cross_asset).sort_values("date").reset_index(
+        drop=True
+    )
+
+
 def split_experiment_data(df, features):
     if df.empty:
         raise ValueError("no complete experiment rows found")
