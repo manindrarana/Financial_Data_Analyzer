@@ -73,6 +73,57 @@ def test_compare_experiment_variants_uses_identical_rows_and_returns_metadata(mo
     assert result["test_end"] == pd.Timestamp("2026-01-06 04:00")
     assert result["baseline"]["accuracy"] == pytest.approx(0.25)
     assert result["cross_asset"]["accuracy"] == pytest.approx(0.25)
+    assert result["test_predictions"].columns.tolist() == [
+        "date",
+        "actual_direction",
+        "baseline_prediction",
+        "cross_asset_prediction",
+    ]
+    assert len(result["test_predictions"]) == 25
+    assert result["test_predictions"]["date"].tolist() == list(
+        pd.date_range("2026-01-05 04:00", periods=25, freq="h")
+    )
+
+
+def test_save_experiment_results_writes_metadata_and_predictions(tmp_path):
+    result = {
+        "asset": "BTC",
+        "interval": "1h",
+        "total_rows": 3,
+        "train_rows": 2,
+        "test_rows": 1,
+        "test_start": pd.Timestamp("2026-01-01 02:00"),
+        "test_end": pd.Timestamp("2026-01-01 02:00"),
+        "baseline_features": ["feature"],
+        "cross_asset_features": ["market_feature"],
+        "baseline": {"accuracy": 0.5},
+        "cross_asset": {"accuracy": 0.4},
+        "test_predictions": pd.DataFrame(
+            {
+                "date": [pd.Timestamp("2026-01-01 02:00")],
+                "actual_direction": [1],
+                "baseline_prediction": [1],
+                "cross_asset_prediction": [0],
+            }
+        ),
+    }
+
+    paths = cross_asset_experiment.save_experiment_results(result, tmp_path)
+
+    metadata = __import__("json").loads(
+        paths["metadata"].read_text(encoding="utf-8")
+    )
+    assert "test_predictions" not in metadata
+    assert metadata["asset"] == "BTC"
+    assert metadata["test_start"] == "2026-01-01T02:00:00"
+    assert pd.read_csv(paths["predictions"]).to_dict("records") == [
+        {
+            "date": "2026-01-01T02:00:00",
+            "actual_direction": 1,
+            "baseline_prediction": 1,
+            "cross_asset_prediction": 0,
+        }
+    ]
 
 
 def test_compare_experiment_variants_passes_market_asset_threshold(monkeypatch):
