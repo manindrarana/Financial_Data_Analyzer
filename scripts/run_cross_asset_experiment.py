@@ -1,4 +1,7 @@
 import duckdb
+import json
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import xgboost as xgb
@@ -186,6 +189,29 @@ def compare_experiment_variants(
         cross_asset_split[1],
     )
 
+    baseline_metrics = evaluate_experiment_model(
+        baseline_search,
+        baseline_split[2],
+        baseline_split[3],
+    )
+    cross_asset_metrics = evaluate_experiment_model(
+        cross_asset_search,
+        cross_asset_split[2],
+        cross_asset_split[3],
+    )
+    test_predictions = pd.DataFrame(
+        {
+            "date": baseline_split[4].to_numpy(),
+            "actual_direction": baseline_split[3].to_numpy(),
+            "baseline_prediction": baseline_search.best_estimator_.predict(
+                baseline_split[2]
+            ),
+            "cross_asset_prediction": cross_asset_search.best_estimator_.predict(
+                cross_asset_split[2]
+            ),
+        }
+    )
+
     return {
         "asset": asset,
         "interval": interval,
@@ -194,17 +220,37 @@ def compare_experiment_variants(
         "test_rows": len(baseline_split[2]),
         "test_start": baseline_split[4].iloc[0],
         "test_end": baseline_split[4].iloc[-1],
-        "baseline": evaluate_experiment_model(
-            baseline_search,
-            baseline_split[2],
-            baseline_split[3],
-        ),
-        "cross_asset": evaluate_experiment_model(
-            cross_asset_search,
-            cross_asset_split[2],
-            cross_asset_split[3],
-        ),
+        "baseline_features": list(MODEL_FEATURES),
+        "cross_asset_features": list(EXPERIMENT_FEATURES),
+        "baseline": baseline_metrics,
+        "cross_asset": cross_asset_metrics,
+        "test_predictions": test_predictions,
     }
+
+
+def save_experiment_results(result, output_dir):
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    predictions = result["test_predictions"].copy()
+    predictions["date"] = pd.to_datetime(predictions["date"]).dt.strftime(
+        "%Y-%m-%dT%H:%M:%S"
+    )
+    predictions_path = output_path / "test_predictions.csv"
+    predictions.to_csv(predictions_path, index=False)
+
+    metadata = {
+        key: value
+        for key, value in result.items()
+        if key != "test_predictions"
+    }
+    metadata["test_start"] = pd.Timestamp(metadata["test_start"]).isoformat()
+    metadata["test_end"] = pd.Timestamp(metadata["test_end"]).isoformat()
+    metadata_path = output_path / "comparison.json"
+    metadata_path.write_text(
+        json.dumps(metadata, indent=2, default=lambda value: value.item()),
+        encoding="utf-8",
+    )
+    return {"metadata": metadata_path, "predictions": predictions_path}
 
 
 def calculate_asset_returns(candles):
