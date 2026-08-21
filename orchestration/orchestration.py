@@ -72,7 +72,30 @@ def _migrate_pipeline_run_history():
         pass
 
 
-def _acquire_pipeline_lock() -> int | None:
+def _is_process_running(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        import ctypes
+
+        process_query_limited_information = 0x1000
+        handle = ctypes.windll.kernel32.OpenProcess(
+            process_query_limited_information,
+            False,
+            pid,
+        )
+        if handle:
+            ctypes.windll.kernel32.CloseHandle(handle)
+            return True
+        return ctypes.get_last_error() == 5
+    try:
+        os.kill(pid, 0)
+        return True
+    except (ProcessLookupError, OSError):
+        return False
+
+
+def _acquire_pipeline_lock():
     LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
     while True:
         try:
@@ -85,13 +108,14 @@ def _acquire_pipeline_lock() -> int | None:
         except FileExistsError:
             try:
                 existing_pid = int(LOCK_FILE.read_text().strip())
-                os.kill(existing_pid, 0)
+            except ValueError:
+                existing_pid = 0
+            if _is_process_running(existing_pid):
                 return existing_pid
-            except (ValueError, ProcessLookupError, OSError):
-                try:
-                    LOCK_FILE.unlink()
-                except FileNotFoundError:
-                    pass
+            try:
+                LOCK_FILE.unlink()
+            except FileNotFoundError:
+                pass
 
 
 def _start_pipeline_run(status="running", error_message=None) -> str:
