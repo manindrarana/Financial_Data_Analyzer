@@ -72,6 +72,28 @@ def _migrate_pipeline_run_history():
         pass
 
 
+def _acquire_pipeline_lock() -> int | None:
+    LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+    while True:
+        try:
+            descriptor = os.open(LOCK_FILE, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
+            try:
+                os.write(descriptor, str(os.getpid()).encode())
+            finally:
+                os.close(descriptor)
+            return None
+        except FileExistsError:
+            try:
+                existing_pid = int(LOCK_FILE.read_text().strip())
+                os.kill(existing_pid, 0)
+                return existing_pid
+            except (ValueError, ProcessLookupError, OSError):
+                try:
+                    LOCK_FILE.unlink()
+                except FileNotFoundError:
+                    pass
+
+
 def _start_pipeline_run(status="running", error_message=None) -> str:
     _migrate_pipeline_run_history()
     run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{os.getpid()}"
