@@ -1,5 +1,6 @@
 import os
 import sqlite3
+import time
 from contextlib import closing
 from datetime import datetime
 
@@ -64,7 +65,10 @@ def insert_pipeline_run(db_path, values):
 
 def update_pipeline_run(db_path, run_id, status, error_message, stats, run_start):
     end_time = datetime.now()
-    duration = (end_time - run_start).total_seconds()
+    if isinstance(run_start, datetime):
+        duration = (end_time - run_start).total_seconds()
+    else:
+        duration = time.time() - run_start
     models = stats.get("models_retrained") or []
     models_str = ",".join(models) if models else None
     with closing(connect_audit_db(db_path)) as conn:
