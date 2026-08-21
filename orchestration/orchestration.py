@@ -480,19 +480,12 @@ def _run_concurrent_extract(config: dict) -> dict:
 def run_pipeline():
     logger = get_run_logger()
 
-    if LOCK_FILE.exists():
-        try:
-            existing_pid = int(LOCK_FILE.read_text().strip())
-            os.kill(existing_pid, 0)
-            skip_message = f"Pipeline run skipped because another run is active (PID {existing_pid})."
-            logger.warning(skip_message)
-            _start_pipeline_run(status="skipped", error_message=skip_message)
-            return
-        except (ValueError, ProcessLookupError, OSError):
-            logger.info("Stale lock file found — removing and acquiring lock")
-
-    LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
-    LOCK_FILE.write_text(str(os.getpid()))
+    existing_pid = _acquire_pipeline_lock()
+    if existing_pid is not None:
+        skip_message = f"Pipeline run skipped because another run is active (PID {existing_pid})."
+        logger.warning(skip_message)
+        _start_pipeline_run(status="skipped", error_message=skip_message)
+        return
 
     run_id = _start_pipeline_run()
     run_start = time.time()
