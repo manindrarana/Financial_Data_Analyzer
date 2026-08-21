@@ -1,11 +1,11 @@
 import os
+import sqlite3
 import sys
 import tempfile
 from unittest.mock import MagicMock, patch
 
 sys.modules["dotenv"] = MagicMock()
 
-import duckdb
 import pandas as pd
 
 from dashboard import app as dashboard_app
@@ -39,23 +39,23 @@ def _walk_components(component):
 
 
 def _make_db_with_runs(tmpdir, rows):
-    db_path = os.path.join(tmpdir, "test.duckdb")
-    conn = duckdb.connect(db_path)
+    db_path = os.path.join(tmpdir, "pipeline_history.sqlite3")
+    conn = sqlite3.connect(db_path)
     conn.execute(
         """
         CREATE TABLE pipeline_runs (
-            run_id VARCHAR PRIMARY KEY,
+            run_id TEXT PRIMARY KEY,
             start_time TIMESTAMP,
             end_time TIMESTAMP,
-            duration_seconds DOUBLE,
-            status VARCHAR,
-            trigger VARCHAR,
-            error_message VARCHAR,
-            models_retrained VARCHAR,
+            duration_seconds REAL,
+            status TEXT,
+            trigger TEXT,
+            error_message TEXT,
+            models_retrained TEXT,
             rows_fetched INTEGER,
             rows_cleaned INTEGER,
             validator_failures INTEGER,
-            checkpoint_resumed BOOLEAN
+            checkpoint_resumed INTEGER
         )
         """
     )
@@ -76,6 +76,7 @@ def _make_db_with_runs(tmpdir, rows):
                 r.get("validator_failures", 0), r.get("checkpoint_resumed", False),
             ],
         )
+    conn.commit()
     conn.close()
     return db_path
 
