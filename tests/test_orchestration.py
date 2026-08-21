@@ -158,6 +158,31 @@ class TestLockFile:
     def test_checkpoint_file_path(self):
         assert CHECKPOINT_FILE.name == ".pipeline_checkpoint.json"
 
+    def test_acquire_pipeline_lock_creates_lock_with_current_pid(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            lock_path = Path(tmpdir) / ".pipeline_running.lock"
+            with patch.object(orch, "LOCK_FILE", lock_path):
+                assert orch._acquire_pipeline_lock() is None
+            assert lock_path.read_text() == str(os.getpid())
+            lock_path.unlink()
+
+    def test_acquire_pipeline_lock_returns_active_pid(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            lock_path = Path(tmpdir) / ".pipeline_running.lock"
+            lock_path.write_text(str(os.getpid()))
+            with patch.object(orch, "LOCK_FILE", lock_path):
+                assert orch._acquire_pipeline_lock() == os.getpid()
+            lock_path.unlink()
+
+    def test_acquire_pipeline_lock_replaces_stale_lock(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            lock_path = Path(tmpdir) / ".pipeline_running.lock"
+            lock_path.write_text("999999999")
+            with patch.object(orch, "LOCK_FILE", lock_path):
+                assert orch._acquire_pipeline_lock() is None
+            assert lock_path.read_text() == str(os.getpid())
+            lock_path.unlink()
+
 
 class TestFeatureAblationRefresh:
     def test_refresh_uses_btc_1h_configuration(self):
