@@ -83,7 +83,7 @@ def _make_db_with_runs(tmpdir, rows):
 
 class TestGetPipelineRuns:
     def test_returns_empty_dataframe_when_db_missing(self):
-        with patch("dashboard.pipeline_history.DB_PATH", "/nonexistent/test.duckdb"):
+        with patch("dashboard.pipeline_history.AUDIT_DB_PATH", "/nonexistent/test.duckdb"):
             df = get_pipeline_runs(limit=50)
         assert df.empty
         assert "run_id" in df.columns
@@ -93,7 +93,7 @@ class TestGetPipelineRuns:
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = os.path.join(tmpdir, "test.duckdb")
             duckdb.connect(db_path).close()
-            with patch("dashboard.pipeline_history.DB_PATH", db_path):
+            with patch("dashboard.pipeline_history.AUDIT_DB_PATH", db_path):
                 df = get_pipeline_runs(limit=50)
         assert df.empty
         assert "run_id" in df.columns
@@ -112,7 +112,7 @@ class TestGetPipelineRuns:
         ]
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = _make_db_with_runs(tmpdir, rows)
-            with patch("dashboard.pipeline_history.DB_PATH", db_path):
+            with patch("dashboard.pipeline_history.AUDIT_DB_PATH", db_path):
                 df = get_pipeline_runs(limit=50)
         assert len(df) == 3
         assert df.iloc[0]["run_id"] == "run_3"
@@ -127,7 +127,7 @@ class TestGetPipelineRuns:
         ]
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = _make_db_with_runs(tmpdir, rows)
-            with patch("dashboard.pipeline_history.DB_PATH", db_path):
+            with patch("dashboard.pipeline_history.AUDIT_DB_PATH", db_path):
                 df = get_pipeline_runs(limit=2)
         assert len(df) == 2
         assert df.iloc[0]["run_id"] == "run_4"
@@ -143,7 +143,7 @@ class TestGetPipelineRuns:
         ]
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = _make_db_with_runs(tmpdir, rows)
-            with patch("dashboard.pipeline_history.DB_PATH", db_path):
+            with patch("dashboard.pipeline_history.AUDIT_DB_PATH", db_path):
                 df = get_pipeline_runs(limit=50)
         expected_cols = {
             "run_id", "start_time", "end_time", "duration_seconds",
@@ -158,7 +158,7 @@ class TestGetPipelineRuns:
 
 class TestGetRunSummary:
     def test_returns_zeros_when_db_missing(self):
-        with patch("dashboard.pipeline_history.DB_PATH", "/nonexistent/test.duckdb"):
+        with patch("dashboard.pipeline_history.AUDIT_DB_PATH", "/nonexistent/test.duckdb"):
             summary = get_run_summary()
         assert summary["total"] == 0
         assert summary["success"] == 0
@@ -172,7 +172,7 @@ class TestGetRunSummary:
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = os.path.join(tmpdir, "test.duckdb")
             duckdb.connect(db_path).close()
-            with patch("dashboard.pipeline_history.DB_PATH", db_path):
+            with patch("dashboard.pipeline_history.AUDIT_DB_PATH", db_path):
                 summary = get_run_summary()
         assert summary["total"] == 0
         assert summary["last_status"] == "none"
@@ -187,7 +187,7 @@ class TestGetRunSummary:
         ]
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = _make_db_with_runs(tmpdir, rows)
-            with patch("dashboard.pipeline_history.DB_PATH", db_path):
+            with patch("dashboard.pipeline_history.AUDIT_DB_PATH", db_path):
                 summary = get_run_summary()
         assert summary["total"] == 4
         assert summary["success"] == 2
@@ -206,7 +206,7 @@ class TestGetRunSummary:
         ]
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = _make_db_with_runs(tmpdir, rows)
-            with patch("dashboard.pipeline_history.DB_PATH", db_path):
+            with patch("dashboard.pipeline_history.AUDIT_DB_PATH", db_path):
                 summary = get_run_summary()
         assert summary["total"] == 3
         assert summary["success"] == 1
@@ -224,7 +224,7 @@ class TestGetRunSummary:
         ]
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = _make_db_with_runs(tmpdir, rows)
-            with patch("dashboard.pipeline_history.DB_PATH", db_path):
+            with patch("dashboard.pipeline_history.AUDIT_DB_PATH", db_path):
                 summary = get_run_summary()
         assert summary["last_status"] == "failed"
         assert "fact_price_history has 0 rows" in summary["last_error"]
@@ -236,7 +236,7 @@ class TestGetRunSummary:
         ]
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = _make_db_with_runs(tmpdir, rows)
-            with patch("dashboard.pipeline_history.DB_PATH", db_path):
+            with patch("dashboard.pipeline_history.AUDIT_DB_PATH", db_path):
                 summary = get_run_summary()
         assert summary["success_rate"] == 0.0
         assert summary["failed"] == 2
@@ -248,7 +248,7 @@ class TestGetRunSummary:
         ]
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = _make_db_with_runs(tmpdir, rows)
-            with patch("dashboard.pipeline_history.DB_PATH", db_path):
+            with patch("dashboard.pipeline_history.AUDIT_DB_PATH", db_path):
                 summary = get_run_summary()
         assert summary["success_rate"] == 100.0
 
