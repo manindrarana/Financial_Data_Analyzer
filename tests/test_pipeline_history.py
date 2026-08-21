@@ -91,8 +91,8 @@ class TestGetPipelineRuns:
 
     def test_returns_empty_dataframe_when_table_missing(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = os.path.join(tmpdir, "test.duckdb")
-            duckdb.connect(db_path).close()
+            db_path = os.path.join(tmpdir, "pipeline_history.sqlite3")
+            sqlite3.connect(db_path).close()
             with patch("dashboard.pipeline_history.AUDIT_DB_PATH", db_path):
                 df = get_pipeline_runs(limit=50)
         assert df.empty
