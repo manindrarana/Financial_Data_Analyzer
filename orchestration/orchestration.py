@@ -13,12 +13,18 @@ from src.ingestion import YahooFinanceClient, BybitClient, FearGreedClient
 from src.database import DatabaseLoader, DimensionBuilder, FactLoader
 from src.processing import DataCleaner
 from src.models import GoldLayerProcessor, TechnicalIndicatorProcessor, PipelineModelTrainer
+from src.utils.pipeline_audit import (
+    insert_pipeline_run,
+    migrate_pipeline_runs,
+    update_pipeline_run,
+)
 from scripts.compare_model_families import refresh_comparison
 from scripts.compare_multitimeframe_models import refresh_multitimeframe_comparison
 from scripts.run_feature_ablation import run_feature_ablation
 
 CHECKPOINT_FILE = Path("data/.pipeline_checkpoint.json")
 LOCK_FILE = Path("data/.pipeline_running.lock")
+AUDIT_DB_NAME = "pipeline_history.sqlite3"
 
 
 def _load_checkpoint() -> set:
@@ -55,37 +61,65 @@ def _get_db_path() -> str:
     return config["paths"]["database"]
 
 
-def _init_pipeline_runs_table():
-    db_path = _get_db_path()
-    parent = os.path.dirname(db_path)
-    if parent and not os.path.exists(parent):
-        os.makedirs(parent, exist_ok=True)
-    conn = duckdb.connect(db_path)
+def _get_audit_db_path() -> str:
+    return os.path.join(os.path.dirname(_get_db_path()), AUDIT_DB_NAME)
+
+
+def _migrate_pipeline_run_history():
     try:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS pipeline_runs (
-                run_id VARCHAR PRIMARY KEY,
-                start_time TIMESTAMP,
-                end_time TIMESTAMP,
-                duration_seconds DOUBLE,
-                status VARCHAR,
-                trigger VARCHAR,
-                error_message VARCHAR,
-                models_retrained VARCHAR,
-                rows_fetched INTEGER,
-                rows_cleaned INTEGER,
-                validator_failures INTEGER,
-                checkpoint_resumed BOOLEAN
-            )
-            """
+        migrate_pipeline_runs(_get_db_path(), _get_audit_db_path())
+    except duckdb.IOException:
+        pass
+
+
+def _is_process_running(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        import ctypes
+
+        process_query_limited_information = 0x1000
+        handle = ctypes.windll.kernel32.OpenProcess(
+            process_query_limited_information,
+            False,
+            pid,
         )
-    finally:
-        conn.close()
+        if handle:
+            ctypes.windll.kernel32.CloseHandle(handle)
+            return True
+        return ctypes.get_last_error() == 5
+    try:
+        os.kill(pid, 0)
+        return True
+    except (ProcessLookupError, OSError):
+        return False
+
+
+def _acquire_pipeline_lock():
+    LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+    while True:
+        try:
+            descriptor = os.open(LOCK_FILE, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
+            try:
+                os.write(descriptor, str(os.getpid()).encode())
+            finally:
+                os.close(descriptor)
+            return None
+        except FileExistsError:
+            try:
+                existing_pid = int(LOCK_FILE.read_text().strip())
+            except ValueError:
+                existing_pid = 0
+            if _is_process_running(existing_pid):
+                return existing_pid
+            try:
+                LOCK_FILE.unlink()
+            except FileNotFoundError:
+                pass
 
 
 def _start_pipeline_run(status="running", error_message=None) -> str:
-    _init_pipeline_runs_table()
+    _migrate_pipeline_run_history()
     run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{os.getpid()}"
     start_time = datetime.now()
     end_time = start_time if status == "skipped" else None
@@ -96,49 +130,35 @@ def _start_pipeline_run(status="running", error_message=None) -> str:
     elif not FORCE_FLAG:
         trigger = "cron"
     checkpoint_resumed = bool(_load_checkpoint())
-    conn = duckdb.connect(_get_db_path())
-    try:
-        conn.execute(
-            """
-            INSERT INTO pipeline_runs
-                (run_id, start_time, end_time, duration_seconds, status,
-                 trigger, error_message, models_retrained, rows_fetched,
-                 rows_cleaned, validator_failures, checkpoint_resumed)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, 0, ?)
-            """,
-            [
-                run_id, start_time, end_time, duration_seconds, status,
-                trigger, error_message, checkpoint_resumed,
-            ],
-        )
-    finally:
-        conn.close()
+    insert_pipeline_run(
+        _get_audit_db_path(),
+        (
+            run_id,
+            start_time,
+            end_time,
+            duration_seconds,
+            status,
+            trigger,
+            error_message,
+            None,
+            None,
+            None,
+            0,
+            checkpoint_resumed,
+        ),
+    )
     return run_id
 
 
 def _end_pipeline_run(run_id, status, error_message, stats, run_start):
-    end_time = datetime.now()
-    duration = time.time() - run_start
-    models = stats.get("models_retrained") or []
-    models_str = ",".join(models) if models else None
-    conn = duckdb.connect(_get_db_path())
-    try:
-        conn.execute(
-            """
-            UPDATE pipeline_runs
-            SET end_time = ?, duration_seconds = ?, status = ?,
-                error_message = ?, models_retrained = ?, rows_fetched = ?,
-                rows_cleaned = ?, validator_failures = ?
-            WHERE run_id = ?
-            """,
-            [
-                end_time, duration, status, error_message, models_str,
-                stats.get("rows_fetched"), stats.get("rows_cleaned"),
-                stats.get("validator_failures", 0), run_id,
-            ],
-        )
-    finally:
-        conn.close()
+    update_pipeline_run(
+        _get_audit_db_path(),
+        run_id,
+        status,
+        error_message,
+        stats,
+        run_start,
+    )
 
 
 def _count_rows(table_names):
@@ -484,19 +504,12 @@ def _run_concurrent_extract(config: dict) -> dict:
 def run_pipeline():
     logger = get_run_logger()
 
-    if LOCK_FILE.exists():
-        try:
-            existing_pid = int(LOCK_FILE.read_text().strip())
-            os.kill(existing_pid, 0)
-            skip_message = f"Pipeline run skipped because another run is active (PID {existing_pid})."
-            logger.warning(skip_message)
-            _start_pipeline_run(status="skipped", error_message=skip_message)
-            return
-        except (ValueError, ProcessLookupError, OSError):
-            logger.info("Stale lock file found — removing and acquiring lock")
-
-    LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
-    LOCK_FILE.write_text(str(os.getpid()))
+    existing_pid = _acquire_pipeline_lock()
+    if existing_pid is not None:
+        skip_message = f"Pipeline run skipped because another run is active (PID {existing_pid})."
+        logger.warning(skip_message)
+        _start_pipeline_run(status="skipped", error_message=skip_message)
+        return
 
     run_id = _start_pipeline_run()
     run_start = time.time()

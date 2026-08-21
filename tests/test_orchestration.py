@@ -1,4 +1,5 @@
 import os
+import sqlite3
 import sys
 import tempfile
 from pathlib import Path
@@ -127,12 +128,13 @@ class TestPipelineRunHistory:
     def test_start_pipeline_run_saves_skipped_status_and_reason(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = os.path.join(tmpdir, "test.duckdb")
+            audit_db_path = os.path.join(tmpdir, "pipeline_history.sqlite3")
             reason = "Pipeline run skipped because another run is active (PID 1234)."
             with patch("orchestration.orchestration._get_db_path", return_value=db_path):
                 with patch("orchestration.orchestration._load_checkpoint", return_value=set()):
                     run_id = _start_pipeline_run(status="skipped", error_message=reason)
 
-            conn = duckdb.connect(db_path, read_only=True)
+            conn = sqlite3.connect(audit_db_path)
             row = conn.execute(
                 """
                 SELECT status, error_message, end_time, duration_seconds
@@ -155,6 +157,31 @@ class TestLockFile:
 
     def test_checkpoint_file_path(self):
         assert CHECKPOINT_FILE.name == ".pipeline_checkpoint.json"
+
+    def test_acquire_pipeline_lock_creates_lock_with_current_pid(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            lock_path = Path(tmpdir) / ".pipeline_running.lock"
+            with patch.object(orch, "LOCK_FILE", lock_path):
+                assert orch._acquire_pipeline_lock() is None
+            assert lock_path.read_text() == str(os.getpid())
+            lock_path.unlink()
+
+    def test_acquire_pipeline_lock_returns_active_pid(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            lock_path = Path(tmpdir) / ".pipeline_running.lock"
+            lock_path.write_text(str(os.getpid()))
+            with patch.object(orch, "LOCK_FILE", lock_path):
+                assert orch._acquire_pipeline_lock() == os.getpid()
+            lock_path.unlink()
+
+    def test_acquire_pipeline_lock_replaces_stale_lock(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            lock_path = Path(tmpdir) / ".pipeline_running.lock"
+            lock_path.write_text("999999999")
+            with patch.object(orch, "LOCK_FILE", lock_path):
+                assert orch._acquire_pipeline_lock() is None
+            assert lock_path.read_text() == str(os.getpid())
+            lock_path.unlink()
 
 
 class TestFeatureAblationRefresh:
