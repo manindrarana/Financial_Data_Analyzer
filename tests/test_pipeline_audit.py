@@ -1,4 +1,5 @@
 import sqlite3
+import time
 from datetime import datetime, timedelta
 
 import duckdb
@@ -92,6 +93,45 @@ def test_insert_and_update_pipeline_run_save_known_values(tmp_path):
 
     assert row[:6] == ("success", "BTC_1h,ETH_4h", 120, 115, 2, 1)
     assert 4.0 <= row[6] <= 6.0
+
+
+def test_update_pipeline_run_accepts_production_float_start_time(tmp_path):
+    db_path = str(tmp_path / "pipeline_history.sqlite3")
+    insert_pipeline_run(
+        db_path,
+        (
+            "run_float",
+            datetime.now(),
+            None,
+            None,
+            "running",
+            "cron",
+            None,
+            None,
+            None,
+            None,
+            0,
+            False,
+        ),
+    )
+
+    update_pipeline_run(
+        db_path,
+        "run_float",
+        "success",
+        None,
+        {"rows_fetched": 10, "rows_cleaned": 9},
+        time.time() - 3,
+    )
+
+    conn = sqlite3.connect(db_path)
+    row = conn.execute(
+        "SELECT status, rows_fetched, rows_cleaned, duration_seconds FROM pipeline_runs"
+    ).fetchone()
+    conn.close()
+
+    assert row[:3] == ("success", 10, 9)
+    assert 2.0 <= row[3] <= 4.0
 
 
 def test_migrate_pipeline_runs_preserves_values_and_is_idempotent(tmp_path):
