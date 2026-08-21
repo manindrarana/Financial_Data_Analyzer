@@ -36,7 +36,7 @@ def get_pipeline_runs(limit: int = 50) -> pd.DataFrame:
                 conn,
                 params=[limit],
             )
-        except sqlite3.Error:
+        except Exception:
             return pd.DataFrame(columns=_EMPTY_COLUMNS)
     finally:
         conn.close()
