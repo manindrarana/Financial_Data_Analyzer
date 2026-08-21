@@ -170,8 +170,8 @@ class TestGetRunSummary:
 
     def test_returns_zeros_when_table_missing(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = os.path.join(tmpdir, "test.duckdb")
-            duckdb.connect(db_path).close()
+            db_path = os.path.join(tmpdir, "pipeline_history.sqlite3")
+            sqlite3.connect(db_path).close()
             with patch("dashboard.pipeline_history.AUDIT_DB_PATH", db_path):
                 summary = get_run_summary()
         assert summary["total"] == 0
