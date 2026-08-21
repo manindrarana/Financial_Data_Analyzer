@@ -1,28 +1,29 @@
 import os
-import duckdb
+import sqlite3
 import pandas as pd
-from typing import Optional, List
 
-DB_PATH = os.path.join(
+AUDIT_DB_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
     "database",
-    "financial_data.duckdb",
+    "pipeline_history.sqlite3",
 )
+
+_EMPTY_COLUMNS = [
+    "run_id", "start_time", "end_time", "duration_seconds",
+    "status", "trigger", "error_message", "models_retrained",
+    "rows_fetched", "rows_cleaned", "validator_failures",
+    "checkpoint_resumed",
+]
 
 
 def get_pipeline_runs(limit: int = 50) -> pd.DataFrame:
-    if not os.path.exists(DB_PATH):
-        return pd.DataFrame(columns=[
-            "run_id", "start_time", "end_time", "duration_seconds",
-            "status", "trigger", "error_message", "models_retrained",
-            "rows_fetched", "rows_cleaned", "validator_failures",
-            "checkpoint_resumed",
-        ])
+    if not os.path.exists(AUDIT_DB_PATH):
+        return pd.DataFrame(columns=_EMPTY_COLUMNS)
 
-    conn = duckdb.connect(DB_PATH, read_only=True)
+    conn = sqlite3.connect(AUDIT_DB_PATH)
     try:
         try:
-            df = conn.execute(
+            return pd.read_sql_query(
                 """
                 SELECT run_id, start_time, end_time, duration_seconds,
                        status, trigger, error_message, models_retrained,
@@ -32,45 +33,33 @@ def get_pipeline_runs(limit: int = 50) -> pd.DataFrame:
                 ORDER BY start_time DESC
                 LIMIT ?
                 """,
-                [limit],
-            ).df()
-        except Exception:
-            return pd.DataFrame(columns=[
-                "run_id", "start_time", "end_time", "duration_seconds",
-                "status", "trigger", "error_message", "models_retrained",
-                "rows_fetched", "rows_cleaned", "validator_failures",
-                "checkpoint_resumed",
-            ])
-        return df
+                conn,
+                params=[limit],
+            )
+        except sqlite3.Error:
+            return pd.DataFrame(columns=_EMPTY_COLUMNS)
     finally:
         conn.close()
 
 
 def get_run_summary() -> dict:
-    if not os.path.exists(DB_PATH):
-        return {
-            "total": 0, "success": 0, "failed": 0, "running": 0,
-            "skipped": 0, "success_rate": 0.0, "last_status": "none",
-            "last_error": None,
-        }
+    empty_summary = {
+        "total": 0, "success": 0, "failed": 0, "running": 0,
+        "skipped": 0, "success_rate": 0.0, "last_status": "none",
+        "last_error": None,
+    }
+    if not os.path.exists(AUDIT_DB_PATH):
+        return empty_summary
 
-    conn = duckdb.connect(DB_PATH, read_only=True)
+    conn = sqlite3.connect(AUDIT_DB_PATH)
     try:
         try:
             total = conn.execute("SELECT COUNT(*) FROM pipeline_runs").fetchone()[0]
-        except Exception:
-            return {
-                "total": 0, "success": 0, "failed": 0, "running": 0,
-                "skipped": 0, "success_rate": 0.0, "last_status": "none",
-                "last_error": None,
-            }
+        except sqlite3.Error:
+            return empty_summary
 
         if total == 0:
-            return {
-                "total": 0, "success": 0, "failed": 0, "running": 0,
-                "skipped": 0, "success_rate": 0.0, "last_status": "none",
-                "last_error": None,
-            }
+            return empty_summary
 
         success = conn.execute(
             "SELECT COUNT(*) FROM pipeline_runs WHERE status = 'success'"
