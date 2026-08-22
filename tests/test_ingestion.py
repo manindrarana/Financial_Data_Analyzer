@@ -211,7 +211,7 @@ class TestBybitFundingRate:
         assert first_call["startTime"] == 1000
         assert first_call["endTime"] == 4000
         assert first_call["limit"] == 200
-        assert second_call["endTime"] == 999
+        assert second_call["endTime"] == 1999
         assert mock_sleep.call_count == 1
 
     @patch("src.ingestion.bybit_client.load_dotenv")
