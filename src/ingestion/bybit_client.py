@@ -118,43 +118,42 @@ class BybitClient:
         return oi_df
 
     def fetch_funding_rate(self, symbol: str, start_ts: int, end_ts: int):
-        """Fetch historical funding rate data and resample to target interval."""
+        """Fetch funding events in bounded historical windows."""
         self.logger.info(f"  Fetching Funding Rate for {symbol}...")
 
         all_fr = []
-        cursor = None
+        request_end = end_ts
+        seen_oldest = set()
 
-        while True:
+        while request_end >= start_ts:
             try:
-                params = {
-                    "category": "linear",
-                    "symbol": symbol,
-                    "limit": 200
-                }
-                if cursor:
-                    params["cursor"] = cursor
-
-                response = self.session.get_funding_rate_history(**params)
-                raw_list = response.get('result', {}).get('list', [])
+                response = self.session.get_funding_rate_history(
+                    category="linear",
+                    symbol=symbol,
+                    startTime=start_ts,
+                    endTime=request_end,
+                    limit=200,
+                )
+                raw_list = response.get("result", {}).get("list", [])
 
                 if not raw_list:
                     break
 
+                page = []
                 for item in raw_list:
-                    ts = int(item["fundingRateTimestamp"])
-                    if ts < start_ts:
-                        continue
-                    if ts > end_ts:
-                        continue
-                    all_fr.append({
-                        "timestamp": ts,
-                        "funding_rate": float(item["fundingRate"])
+                    page.append({
+                        "timestamp": int(item["fundingRateTimestamp"]),
+                        "funding_rate": float(item["fundingRate"]),
                     })
 
-                cursor = response.get('result', {}).get('nextPageCursor')
-                if not cursor:
-                    break
+                page_df = pd.DataFrame(page).drop_duplicates(subset=["timestamp"])
+                all_fr.extend(page_df.to_dict("records"))
 
+                oldest = int(page_df["timestamp"].min())
+                if oldest in seen_oldest or oldest <= start_ts:
+                    break
+                seen_oldest.add(oldest)
+                request_end = oldest - 1
                 time.sleep(0.1)
 
             except Exception as e:
@@ -166,9 +165,13 @@ class BybitClient:
             return None
 
         fr_df = pd.DataFrame(all_fr)
+        fr_df = fr_df[
+            (fr_df["timestamp"] >= start_ts) &
+            (fr_df["timestamp"] <= end_ts)
+        ]
         fr_df = fr_df.sort_values("timestamp").drop_duplicates(subset=["timestamp"])
         self.logger.info(f"  Fetched {len(fr_df)} funding rate data points")
-        return fr_df
+        return fr_df.reset_index(drop=True)
 
     def fetch_data(self, symbol: str):
         """
