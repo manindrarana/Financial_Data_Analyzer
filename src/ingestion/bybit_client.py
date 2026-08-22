@@ -262,8 +262,28 @@ class BybitClient:
                 df[col] = df[col].astype(float)
                 
             df["date"] = pd.to_datetime(df["timestamp"], unit="ms")
-            
+
             df = df.sort_values(by="date").reset_index(drop=True)
+
+            s3_bucket = self.config["paths"].get("s3_bucket", "raw-data")
+            file_path = f"s3://{s3_bucket}/{symbol}_{'1h' if interval == '60' else ('4h' if interval == '240' else ('1d' if interval == 'D' else interval))}.parquet"
+            s3_storage_options = {
+                "client_kwargs": {"endpoint_url": os.getenv("S3_ENDPOINT_URL", "http://localhost:9000")},
+                "key": os.getenv("AWS_ACCESS_KEY_ID"),
+                "secret": os.getenv("AWS_SECRET_ACCESS_KEY")
+            }
+            existing_df = pd.DataFrame()
+            try:
+                existing_df = pd.read_parquet(file_path, storage_options=s3_storage_options)
+                self.logger.info(f"Found existing {os.path.basename(file_path)} ({len(existing_df)} rows). Merging...")
+            except Exception:
+                self.logger.info(f"No existing file for {os.path.basename(file_path)}, creating a new one.")
+
+            previous_funding_rate = None
+            if not existing_df.empty and "funding_rate" in existing_df:
+                previous_values = pd.to_numeric(existing_df["funding_rate"], errors="coerce").dropna()
+                if not previous_values.empty:
+                    previous_funding_rate = float(previous_values.iloc[-1])
 
             oi_df = self.fetch_open_interest(symbol, interval, start_ts, end_ts)
             if oi_df is not None:
@@ -276,17 +296,19 @@ class BybitClient:
             fr_df = self.fetch_funding_rate(symbol, start_ts, end_ts)
             if fr_df is not None:
                 df = df.merge(fr_df, on="timestamp", how="left")
+                if previous_funding_rate is not None:
+                    df["funding_rate"] = df["funding_rate"].fillna(previous_funding_rate)
                 df["funding_rate"] = df["funding_rate"].ffill()
                 self.logger.info(f"  Merged funding rate data: {df['funding_rate'].notna().sum()} non-null rows")
             else:
-                df["funding_rate"] = None
+                df["funding_rate"] = previous_funding_rate
 
             output_columns = ["date", "open", "high", "low", "close", "volume", "turnover",
                               "open_interest", "funding_rate"]
             df = df[output_columns]
 
             readable_interval = "1h" if interval == "60" else ("4h" if interval == "240" else ("1d" if interval == "D" else interval))
-            
+
             filename = f"{symbol}_{readable_interval}.parquet"
             s3_bucket = self.config["paths"].get("s3_bucket", "raw-data")
             file_path = f"s3://{s3_bucket}/{filename}"
