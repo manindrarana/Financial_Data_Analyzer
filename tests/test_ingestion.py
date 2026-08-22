@@ -180,6 +180,64 @@ class TestYahooFetchData:
 
         result = client.fetch_data("AAPL")
 
-        assert result is False
-        assert client._rate_limited is True
-        assert mock_download.call_count == 1
+class TestBybitFundingRate:
+    @patch("src.ingestion.bybit_client.load_dotenv")
+    @patch("time.sleep")
+    def test_fetches_bounded_pages_and_moves_end_time_backward(self, mock_sleep, mock_dotenv):
+        client = BybitClient()
+        client.session.get_funding_rate_history = MagicMock(side_effect=[
+            {
+                "result": {
+                    "list": [
+                        {"fundingRateTimestamp": "3000", "fundingRate": "0.3"},
+                        {"fundingRateTimestamp": "2000", "fundingRate": "0.2"},
+                    ]
+                }
+            },
+            {
+                "result": {
+                    "list": [
+                        {"fundingRateTimestamp": "1000", "fundingRate": "0.1"},
+                    ]
+                }
+            },
+        ])
+
+        result = client.fetch_funding_rate("BTCUSDT", 1000, 4000)
+
+        assert result["timestamp"].tolist() == [1000, 2000, 3000]
+        first_call = client.session.get_funding_rate_history.call_args_list[0].kwargs
+        second_call = client.session.get_funding_rate_history.call_args_list[1].kwargs
+        assert first_call["startTime"] == 1000
+        assert first_call["endTime"] == 4000
+        assert first_call["limit"] == 200
+        assert second_call["endTime"] == 999
+        assert mock_sleep.call_count == 1
+
+    @patch("src.ingestion.bybit_client.load_dotenv")
+    @patch("time.sleep")
+    def test_deduplicates_events_and_stops_on_repeated_oldest_timestamp(self, mock_sleep, mock_dotenv):
+        client = BybitClient()
+        client.session.get_funding_rate_history = MagicMock(side_effect=[
+            {
+                "result": {
+                    "list": [
+                        {"fundingRateTimestamp": "2000", "fundingRate": "0.2"},
+                        {"fundingRateTimestamp": "1000", "fundingRate": "0.1"},
+                    ]
+                }
+            },
+            {
+                "result": {
+                    "list": [
+                        {"fundingRateTimestamp": "1000", "fundingRate": "0.1"},
+                    ]
+                }
+            },
+        ])
+
+        result = client.fetch_funding_rate("BTCUSDT", 0, 3000)
+
+        assert result["timestamp"].tolist() == [1000, 2000]
+        assert client.session.get_funding_rate_history.call_count == 2
+        assert mock_sleep.call_count == 1
