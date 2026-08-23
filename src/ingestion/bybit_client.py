@@ -281,7 +281,7 @@ class BybitClient:
                 self.logger.info(f"No existing file for {os.path.basename(file_path)}, creating a new one.")
 
             previous_funding_rate = None
-            if not existing_df.empty and "funding_rate" in existing_df:
+            if incremental_load and not existing_df.empty and "funding_rate" in existing_df:
                 previous_values = pd.to_numeric(existing_df["funding_rate"], errors="coerce").dropna()
                 if not previous_values.empty:
                     previous_funding_rate = float(previous_values.iloc[-1])
