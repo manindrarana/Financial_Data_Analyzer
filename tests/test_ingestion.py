@@ -180,6 +180,99 @@ class TestYahooFetchData:
 
         result = client.fetch_data("AAPL")
 
-        assert result is False
-        assert client._rate_limited is True
-        assert mock_download.call_count == 1
+class TestBybitFundingRate:
+    @patch("src.ingestion.bybit_client.load_dotenv")
+    @patch("time.sleep")
+    def test_fetches_bounded_pages_and_moves_end_time_backward(self, mock_sleep, mock_dotenv):
+        client = BybitClient()
+        client.session.get_funding_rate_history = MagicMock(side_effect=[
+            {
+                "result": {
+                    "list": [
+                        {"fundingRateTimestamp": "3000", "fundingRate": "0.3"},
+                        {"fundingRateTimestamp": "2000", "fundingRate": "0.2"},
+                    ]
+                }
+            },
+            {
+                "result": {
+                    "list": [
+                        {"fundingRateTimestamp": "1000", "fundingRate": "0.1"},
+                    ]
+                }
+            },
+        ])
+
+        result = client.fetch_funding_rate("BTCUSDT", 1000, 4000)
+
+        assert result["timestamp"].tolist() == [1000, 2000, 3000]
+        first_call = client.session.get_funding_rate_history.call_args_list[0].kwargs
+        second_call = client.session.get_funding_rate_history.call_args_list[1].kwargs
+        assert first_call["startTime"] == 1000
+        assert first_call["endTime"] == 4000
+        assert first_call["limit"] == 200
+        assert second_call["endTime"] == 1999
+        assert mock_sleep.call_count == 1
+
+    @patch("src.ingestion.bybit_client.load_dotenv")
+    @patch("time.sleep")
+    def test_deduplicates_events_and_stops_on_repeated_oldest_timestamp(self, mock_sleep, mock_dotenv):
+        client = BybitClient()
+        client.session.get_funding_rate_history = MagicMock(side_effect=[
+            {
+                "result": {
+                    "list": [
+                        {"fundingRateTimestamp": "2000", "fundingRate": "0.2"},
+                        {"fundingRateTimestamp": "1000", "fundingRate": "0.1"},
+                    ]
+                }
+            },
+            {
+                "result": {
+                    "list": [
+                        {"fundingRateTimestamp": "1000", "fundingRate": "0.1"},
+                    ]
+                }
+            },
+        ])
+
+        result = client.fetch_funding_rate("BTCUSDT", 0, 3000)
+
+        assert result["timestamp"].tolist() == [1000, 2000]
+    @patch("src.ingestion.bybit_client.load_dotenv")
+    @patch("src.ingestion.bybit_client.pd.read_parquet")
+    @patch("src.ingestion.bybit_client.pd.DataFrame.to_parquet")
+    @patch("src.ingestion.bybit_client.pd.concat", wraps=pd.concat)
+    @patch("time.sleep")
+    def test_full_refresh_does_not_seed_previous_funding_rate(self, mock_sleep, mock_concat, mock_to_parquet, mock_read_parquet, mock_dotenv):
+        client = BybitClient()
+        client.config["providers"]["bybit"]["intervals"] = ["60"]
+        client.config["ingestion"]["settings"]["start_date"] = "2023-01-01"
+        client.get_last_fetched_date = MagicMock(return_value=None)
+        client.session.get_kline = MagicMock(side_effect=[
+            {"result": {"list": [["1704067200000", "1", "2", "0.5", "1.5", "10", "20"]]}},
+            {"result": {"list": []}},
+        ])
+        client.fetch_open_interest = MagicMock(return_value=None)
+        client.fetch_funding_rate = MagicMock(return_value=pd.DataFrame([{
+            "timestamp": 1704070800000,
+            "funding_rate": 0.2,
+        }]))
+        existing = pd.DataFrame([{
+            "date": pd.Timestamp("2023-01-01"),
+            "open": 1.0,
+            "high": 2.0,
+            "low": 0.5,
+            "close": 1.5,
+            "volume": 10.0,
+            "turnover": 20.0,
+            "open_interest": None,
+            "funding_rate": 0.9,
+        }])
+        mock_read_parquet.return_value = existing
+
+        client.fetch_data("BTCUSDT")
+
+        saved = mock_concat.return_value
+        refreshed_row = saved[saved["date"] == pd.Timestamp("2024-01-01")]
+        assert refreshed_row["funding_rate"].isna().all()

@@ -118,43 +118,42 @@ class BybitClient:
         return oi_df
 
     def fetch_funding_rate(self, symbol: str, start_ts: int, end_ts: int):
-        """Fetch historical funding rate data and resample to target interval."""
+        """Fetch funding events in bounded historical windows."""
         self.logger.info(f"  Fetching Funding Rate for {symbol}...")
 
         all_fr = []
-        cursor = None
+        request_end = end_ts
+        seen_oldest = set()
 
-        while True:
+        while request_end >= start_ts:
             try:
-                params = {
-                    "category": "linear",
-                    "symbol": symbol,
-                    "limit": 200
-                }
-                if cursor:
-                    params["cursor"] = cursor
-
-                response = self.session.get_funding_rate_history(**params)
-                raw_list = response.get('result', {}).get('list', [])
+                response = self.session.get_funding_rate_history(
+                    category="linear",
+                    symbol=symbol,
+                    startTime=start_ts,
+                    endTime=request_end,
+                    limit=200,
+                )
+                raw_list = response.get("result", {}).get("list", [])
 
                 if not raw_list:
                     break
 
+                page = []
                 for item in raw_list:
-                    ts = int(item["fundingRateTimestamp"])
-                    if ts < start_ts:
-                        continue
-                    if ts > end_ts:
-                        continue
-                    all_fr.append({
-                        "timestamp": ts,
-                        "funding_rate": float(item["fundingRate"])
+                    page.append({
+                        "timestamp": int(item["fundingRateTimestamp"]),
+                        "funding_rate": float(item["fundingRate"]),
                     })
 
-                cursor = response.get('result', {}).get('nextPageCursor')
-                if not cursor:
-                    break
+                page_df = pd.DataFrame(page).drop_duplicates(subset=["timestamp"])
+                all_fr.extend(page_df.to_dict("records"))
 
+                oldest = int(page_df["timestamp"].min())
+                if oldest in seen_oldest or oldest <= start_ts:
+                    break
+                seen_oldest.add(oldest)
+                request_end = oldest - 1
                 time.sleep(0.1)
 
             except Exception as e:
@@ -166,9 +165,13 @@ class BybitClient:
             return None
 
         fr_df = pd.DataFrame(all_fr)
+        fr_df = fr_df[
+            (fr_df["timestamp"] >= start_ts) &
+            (fr_df["timestamp"] <= end_ts)
+        ]
         fr_df = fr_df.sort_values("timestamp").drop_duplicates(subset=["timestamp"])
         self.logger.info(f"  Fetched {len(fr_df)} funding rate data points")
-        return fr_df
+        return fr_df.reset_index(drop=True)
 
     def fetch_data(self, symbol: str):
         """
@@ -187,6 +190,7 @@ class BybitClient:
             end_ts = int(datetime.now().timestamp() * 1000)
             
             last_date = self.get_last_fetched_date(symbol, interval)
+            incremental_load = last_date is not None
             if last_date:
                 start_ts = int(last_date.timestamp() * 1000)
                 self.logger.info(f"Incremental load [{interval}]: Resuming fetches from {last_date} to Now.")
@@ -259,8 +263,28 @@ class BybitClient:
                 df[col] = df[col].astype(float)
                 
             df["date"] = pd.to_datetime(df["timestamp"], unit="ms")
-            
+
             df = df.sort_values(by="date").reset_index(drop=True)
+
+            s3_bucket = self.config["paths"].get("s3_bucket", "raw-data")
+            file_path = f"s3://{s3_bucket}/{symbol}_{'1h' if interval == '60' else ('4h' if interval == '240' else ('1d' if interval == 'D' else interval))}.parquet"
+            s3_storage_options = {
+                "client_kwargs": {"endpoint_url": os.getenv("S3_ENDPOINT_URL", "http://localhost:9000")},
+                "key": os.getenv("AWS_ACCESS_KEY_ID"),
+                "secret": os.getenv("AWS_SECRET_ACCESS_KEY")
+            }
+            existing_df = pd.DataFrame()
+            try:
+                existing_df = pd.read_parquet(file_path, storage_options=s3_storage_options)
+                self.logger.info(f"Found existing {os.path.basename(file_path)} ({len(existing_df)} rows). Merging...")
+            except Exception:
+                self.logger.info(f"No existing file for {os.path.basename(file_path)}, creating a new one.")
+
+            previous_funding_rate = None
+            if incremental_load and not existing_df.empty and "funding_rate" in existing_df:
+                previous_values = pd.to_numeric(existing_df["funding_rate"], errors="coerce").dropna()
+                if not previous_values.empty:
+                    previous_funding_rate = float(previous_values.iloc[-1])
 
             oi_df = self.fetch_open_interest(symbol, interval, start_ts, end_ts)
             if oi_df is not None:
@@ -273,37 +297,30 @@ class BybitClient:
             fr_df = self.fetch_funding_rate(symbol, start_ts, end_ts)
             if fr_df is not None:
                 df = df.merge(fr_df, on="timestamp", how="left")
+                if previous_funding_rate is not None:
+                    df["funding_rate"] = df["funding_rate"].fillna(previous_funding_rate)
                 df["funding_rate"] = df["funding_rate"].ffill()
                 self.logger.info(f"  Merged funding rate data: {df['funding_rate'].notna().sum()} non-null rows")
             else:
-                df["funding_rate"] = None
+                df["funding_rate"] = previous_funding_rate
 
             output_columns = ["date", "open", "high", "low", "close", "volume", "turnover",
                               "open_interest", "funding_rate"]
             df = df[output_columns]
 
             readable_interval = "1h" if interval == "60" else ("4h" if interval == "240" else ("1d" if interval == "D" else interval))
-            
+
             filename = f"{symbol}_{readable_interval}.parquet"
-            s3_bucket = self.config["paths"].get("s3_bucket", "raw-data")
-            file_path = f"s3://{s3_bucket}/{filename}"
-            
-            s3_storage_options = {
-                "client_kwargs": {"endpoint_url": os.getenv("S3_ENDPOINT_URL", "http://localhost:9000")},
-                "key": os.getenv("AWS_ACCESS_KEY_ID"),
-                "secret": os.getenv("AWS_SECRET_ACCESS_KEY")
-            }
-            
             try:
                 existing_df = pd.read_parquet(file_path, storage_options=s3_storage_options)
                 self.logger.info(f"Found existing {filename} ({len(existing_df)} rows). Merging...")
                 df = pd.concat([existing_df, df])
-                df.drop_duplicates(subset=['date'], keep='last', inplace=True)
-                df.sort_values(by='date', inplace=True)
+                df.drop_duplicates(subset=["date"], keep="last", inplace=True)
+                df.sort_values(by="date", inplace=True)
                 df.reset_index(drop=True, inplace=True)
             except Exception:
                 self.logger.info(f"No existing file for {filename}, creating a new one.")
-            
+
             df.to_parquet(file_path, index=False, storage_options=s3_storage_options)
             self.logger.info(f"Success! Saved total {len(df)} rows to {file_path}")
             

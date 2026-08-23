@@ -1,0 +1,36 @@
+{
+  "symbol": "BTCUSDT",
+  "requested_start": "2012-01-01T00:00:00+00:00",
+  "requested_end": "2026-08-22T09:00:25.801000+00:00",
+  "api_requests": 37,
+  "funding_events": 7023,
+  "oldest_available": "2020-03-25T16:00:00+00:00",
+  "latest_available": "2026-08-22T08:00:00+00:00",
+  "intervals": {
+    "1h": {
+      "interval": "1h",
+      "candle_rows": 56177,
+      "aligned_rows": 56177,
+      "missing_rows": 0,
+      "coverage_percent": 100.0,
+      "funding_events": 7023
+    },
+    "4h": {
+      "interval": "4h",
+      "candle_rows": 14045,
+      "aligned_rows": 14045,
+      "missing_rows": 0,
+      "coverage_percent": 100.0,
+      "funding_events": 7023
+    },
+    "1d": {
+      "interval": "1d",
+      "candle_rows": 2343,
+      "aligned_rows": 2342,
+      "missing_rows": 1,
+      "coverage_percent": 99.95731967562953,
+      "funding_events": 7023
+    }
+  },
+  "daily_summary_rows": 2342
+}
