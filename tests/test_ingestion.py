@@ -242,8 +242,9 @@ class TestBybitFundingRate:
     @patch("src.ingestion.bybit_client.load_dotenv")
     @patch("src.ingestion.bybit_client.pd.read_parquet")
     @patch("src.ingestion.bybit_client.pd.DataFrame.to_parquet")
+    @patch("src.ingestion.bybit_client.pd.concat", wraps=pd.concat)
     @patch("time.sleep")
-    def test_full_refresh_does_not_seed_previous_funding_rate(self, mock_sleep, mock_to_parquet, mock_read_parquet, mock_dotenv):
+    def test_full_refresh_does_not_seed_previous_funding_rate(self, mock_sleep, mock_concat, mock_to_parquet, mock_read_parquet, mock_dotenv):
         client = BybitClient()
         client.config["providers"]["bybit"]["intervals"] = ["60"]
         client.config["ingestion"]["settings"]["start_date"] = "2023-01-01"
@@ -272,6 +273,6 @@ class TestBybitFundingRate:
 
         client.fetch_data("BTCUSDT")
 
-        saved = mock_to_parquet.call_args.args[0]
+        saved = mock_concat.return_value
         refreshed_row = saved[saved["date"] == pd.Timestamp("2024-01-01")]
         assert refreshed_row["funding_rate"].isna().all()
