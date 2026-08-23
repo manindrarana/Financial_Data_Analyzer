@@ -190,6 +190,7 @@ class BybitClient:
             end_ts = int(datetime.now().timestamp() * 1000)
             
             last_date = self.get_last_fetched_date(symbol, interval)
+            incremental_load = last_date is not None
             if last_date:
                 start_ts = int(last_date.timestamp() * 1000)
                 self.logger.info(f"Incremental load [{interval}]: Resuming fetches from {last_date} to Now.")
