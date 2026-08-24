@@ -1,11 +1,15 @@
+import json
 from unittest.mock import Mock
 
 import pandas as pd
 
+from scripts import investigate_funding
 from scripts.investigate_funding import (
     build_daily_summary,
     build_interval_alignment,
+    build_symbol_report,
     fetch_funding_history,
+    load_configured_symbols,
 )
 
 
@@ -113,3 +117,65 @@ def test_fetch_funding_history_stops_when_oldest_timestamp_repeats():
     assert session.get_funding_rate_history.call_args_list[0].kwargs["startTime"] == 0
     assert session.get_funding_rate_history.call_args_list[0].kwargs["endTime"] == 3000
     assert session.get_funding_rate_history.call_args_list[1].kwargs["endTime"] == 999
+
+
+def test_load_configured_symbols_returns_bybit_targets(tmp_path):
+    config_path = tmp_path / "settings.yml"
+    config_path.write_text(
+        "ingestion:\n  targets:\n    bybit:\n      - BTCUSDT\n      - ETHUSDT\n      - SOLUSDT\n",
+        encoding="utf-8",
+    )
+
+    assert load_configured_symbols(config_path) == ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+
+
+def test_build_symbol_report_writes_separate_known_value_outputs(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        investigate_funding,
+        "fetch_funding_history",
+        lambda session, symbol, start_ms, end_ms: (funding_history(), 2),
+    )
+
+    coverage = build_symbol_report(Mock(), "ETHUSDT", 0, 1585728000000, tmp_path)
+    symbol_dir = tmp_path / "ethusdt"
+
+    assert coverage["symbol"] == "ETHUSDT"
+    assert coverage["funding_events"] == 3
+    assert coverage["oldest_available"] == "2020-03-31T16:00:00+00:00"
+    assert coverage["intervals"]["1h"]["aligned_rows"] == 17
+    assert (symbol_dir / "funding_history.csv").exists()
+    assert (symbol_dir / "funding_alignment_1h.csv").exists()
+    assert (symbol_dir / "funding_alignment_4h.csv").exists()
+    assert (symbol_dir / "funding_alignment_1d.csv").exists()
+    assert (symbol_dir / "funding_daily_summary.csv").exists()
+    assert json.loads((symbol_dir / "funding_coverage.json").read_text(encoding="utf-8"))["symbol"] == "ETHUSDT"
+
+
+def test_main_excludes_btc_by_default_and_combines_remaining_reports(tmp_path, monkeypatch):
+    processed = []
+
+    monkeypatch.setattr(
+        investigate_funding,
+        "load_configured_symbols",
+        lambda config_path: ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
+    )
+    monkeypatch.setattr(investigate_funding, "load_dotenv", lambda: None)
+    monkeypatch.setattr(investigate_funding, "HTTP", lambda **kwargs: Mock())
+
+    def build_report(session, symbol, start_ms, end_ms, output_dir):
+        processed.append(symbol)
+        return {"symbol": symbol}
+
+    monkeypatch.setattr(investigate_funding, "build_symbol_report", build_report)
+    monkeypatch.setattr(
+        "sys.argv",
+        ["investigate_funding.py", "--output-dir", str(tmp_path)],
+    )
+
+    investigate_funding.main()
+
+    assert processed == ["ETHUSDT", "SOLUSDT"]
+    assert json.loads((tmp_path / "funding_coverage.json").read_text(encoding="utf-8")) == {
+        "ETHUSDT": {"symbol": "ETHUSDT"},
+        "SOLUSDT": {"symbol": "SOLUSDT"},
+    }
