@@ -1,7 +1,7 @@
 {
   "symbol": "1000PEPEUSDT",
   "requested_start": "2012-01-01T00:00:00+00:00",
-  "requested_end": "2026-08-24T07:31:53.121000+00:00",
+  "requested_end": "2026-08-24T07:40:28.639000+00:00",
   "api_requests": 20,
   "funding_events": 3627,
   "oldest_available": "2023-05-03T08:00:00+00:00",
@@ -13,6 +13,10 @@
       "aligned_rows": 28990,
       "missing_rows": 0,
       "coverage_percent": 100.0,
+      "post_listing_candle_rows": 28990,
+      "post_listing_aligned_rows": 28990,
+      "post_listing_missing_rows": 0,
+      "post_listing_coverage_percent": 100.0,
       "funding_events": 3627,
       "first_candle": "2023-05-03T11:00:00+00:00",
       "last_candle": "2026-08-23T08:00:00+00:00"
@@ -23,6 +27,10 @@
       "aligned_rows": 7249,
       "missing_rows": 0,
       "coverage_percent": 100.0,
+      "post_listing_candle_rows": 7249,
+      "post_listing_aligned_rows": 7249,
+      "post_listing_missing_rows": 0,
+      "post_listing_coverage_percent": 100.0,
       "funding_events": 3627,
       "first_candle": "2023-05-03T08:00:00+00:00",
       "last_candle": "2026-08-23T08:00:00+00:00"
@@ -33,6 +41,10 @@
       "aligned_rows": 1208,
       "missing_rows": 1,
       "coverage_percent": 99.9172870140612,
+      "post_listing_candle_rows": 1208,
+      "post_listing_aligned_rows": 1208,
+      "post_listing_missing_rows": 0,
+      "post_listing_coverage_percent": 100.0,
       "funding_events": 3627,
       "first_candle": "2023-05-03T00:00:00+00:00",
       "last_candle": "2026-08-23T00:00:00+00:00"

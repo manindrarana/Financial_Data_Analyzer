@@ -1,7 +1,7 @@
 {
   "symbol": "XRPUSDT",
   "requested_start": "2012-01-01T00:00:00+00:00",
-  "requested_end": "2026-08-24T07:31:53.121000+00:00",
+  "requested_end": "2026-08-24T07:40:28.639000+00:00",
   "api_requests": 30,
   "funding_events": 5786,
   "oldest_available": "2021-05-13T16:00:00+00:00",
@@ -13,6 +13,10 @@
       "aligned_rows": 46265,
       "missing_rows": 7,
       "coverage_percent": 99.98487206085753,
+      "post_listing_candle_rows": 46265,
+      "post_listing_aligned_rows": 46265,
+      "post_listing_missing_rows": 0,
+      "post_listing_coverage_percent": 100.0,
       "funding_events": 5786,
       "first_candle": "2021-05-13T09:00:00+00:00",
       "last_candle": "2026-08-23T08:00:00+00:00"
@@ -23,6 +27,10 @@
       "aligned_rows": 11567,
       "missing_rows": 2,
       "coverage_percent": 99.98271242112541,
+      "post_listing_candle_rows": 11567,
+      "post_listing_aligned_rows": 11567,
+      "post_listing_missing_rows": 0,
+      "post_listing_coverage_percent": 100.0,
       "funding_events": 5786,
       "first_candle": "2021-05-13T08:00:00+00:00",
       "last_candle": "2026-08-23T08:00:00+00:00"
@@ -33,6 +41,10 @@
       "aligned_rows": 1928,
       "missing_rows": 1,
       "coverage_percent": 99.94815966822188,
+      "post_listing_candle_rows": 1928,
+      "post_listing_aligned_rows": 1928,
+      "post_listing_missing_rows": 0,
+      "post_listing_coverage_percent": 100.0,
       "funding_events": 5786,
       "first_candle": "2021-05-13T00:00:00+00:00",
       "last_candle": "2026-08-23T00:00:00+00:00"

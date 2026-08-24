@@ -1,7 +1,7 @@
 {
   "symbol": "SOLUSDT",
   "requested_start": "2012-01-01T00:00:00+00:00",
-  "requested_end": "2026-08-24T07:31:53.121000+00:00",
+  "requested_end": "2026-08-24T07:40:28.639000+00:00",
   "api_requests": 32,
   "funding_events": 6006,
   "oldest_available": "2021-06-29T08:00:00+00:00",
@@ -13,6 +13,10 @@
       "aligned_rows": 42561,
       "missing_rows": 0,
       "coverage_percent": 100.0,
+      "post_listing_candle_rows": 42561,
+      "post_listing_aligned_rows": 42561,
+      "post_listing_missing_rows": 0,
+      "post_listing_coverage_percent": 100.0,
       "funding_events": 6006,
       "first_candle": "2021-10-15T00:00:00+00:00",
       "last_candle": "2026-08-23T08:00:00+00:00"
@@ -23,6 +27,10 @@
       "aligned_rows": 10641,
       "missing_rows": 0,
       "coverage_percent": 100.0,
+      "post_listing_candle_rows": 10641,
+      "post_listing_aligned_rows": 10641,
+      "post_listing_missing_rows": 0,
+      "post_listing_coverage_percent": 100.0,
       "funding_events": 6006,
       "first_candle": "2021-10-15T00:00:00+00:00",
       "last_candle": "2026-08-23T08:00:00+00:00"
@@ -33,6 +41,10 @@
       "aligned_rows": 1774,
       "missing_rows": 0,
       "coverage_percent": 100.0,
+      "post_listing_candle_rows": 1774,
+      "post_listing_aligned_rows": 1774,
+      "post_listing_missing_rows": 0,
+      "post_listing_coverage_percent": 100.0,
       "funding_events": 6006,
       "first_candle": "2021-10-15T00:00:00+00:00",
       "last_candle": "2026-08-23T00:00:00+00:00"
