@@ -133,12 +133,20 @@ def build_daily_summary(history):
 def build_coverage(history, aligned, interval):
     total = len(aligned)
     available = int(aligned["funding_rate"].notna().sum()) if total else 0
+    first_funding_event = history["event_time"].min() if not history.empty else None
+    post_listing = aligned[aligned["candle_time"] >= first_funding_event] if first_funding_event is not None else aligned.iloc[0:0]
+    post_listing_total = len(post_listing)
+    post_listing_available = int(post_listing["funding_rate"].notna().sum()) if post_listing_total else 0
     return {
         "interval": interval,
         "candle_rows": total,
         "aligned_rows": available,
         "missing_rows": total - available,
         "coverage_percent": (available / total * 100) if total else 0.0,
+        "post_listing_candle_rows": post_listing_total,
+        "post_listing_aligned_rows": post_listing_available,
+        "post_listing_missing_rows": post_listing_total - post_listing_available,
+        "post_listing_coverage_percent": (post_listing_available / post_listing_total * 100) if post_listing_total else 0.0,
         "funding_events": int(len(history)),
         "first_candle": aligned["candle_time"].min().isoformat() if total else None,
         "last_candle": aligned["candle_time"].max().isoformat() if total else None,
