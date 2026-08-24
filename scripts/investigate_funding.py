@@ -16,7 +16,6 @@ INTERVALS = {
     "4h": pd.Timedelta(hours=4),
     "1d": pd.Timedelta(days=1),
 }
-BYBIT_INTERVALS = {"1h": "60", "4h": "240", "1d": "D"}
 
 
 def parse_timestamp(value):
@@ -112,7 +111,7 @@ def build_interval_alignment(history, interval):
 
     start = history["event_time"].min().floor(interval)
     end = history["event_time"].max().ceil(interval)
-    candle_times = pd.date_range(start, end, freq=INTERVALS[interval], tz="UTC")
+    candle_times = pd.date_range(start, end, freq=interval, tz="UTC")
     return align_funding_to_candles(history, candle_times)
 
 
@@ -153,22 +152,47 @@ def build_coverage(history, aligned, interval):
     }
 
 
-def load_actual_candle_times(symbol, interval, config):
-    bucket = config["paths"].get("s3_bucket", "raw-data")
-    readable_interval = interval
-    file_path = f"s3://{bucket}/{symbol}_{readable_interval}.parquet"
-    storage_options = {
+def parquet_storage_options():
+    return {
         "client_kwargs": {
             "endpoint_url": os.getenv("S3_ENDPOINT_URL", "http://localhost:9000")
         },
         "key": os.getenv("AWS_ACCESS_KEY_ID"),
         "secret": os.getenv("AWS_SECRET_ACCESS_KEY"),
     }
-    candles = pd.read_parquet(file_path, columns=["date"], storage_options=storage_options)
+
+
+def production_parquet_path(symbol, interval, config):
+    bucket = config["paths"].get("s3_bucket", "raw-data")
+    return f"s3://{bucket}/{symbol}_{interval}.parquet"
+
+
+def load_actual_candle_times(symbol, interval, config):
+    candles = pd.read_parquet(
+        production_parquet_path(symbol, interval, config),
+        columns=["date"],
+        storage_options=parquet_storage_options(),
+    )
     return pd.to_datetime(candles["date"], utc=True).drop_duplicates().sort_values().reset_index(drop=True)
 
 
-def build_symbol_report(session, symbol, start_ms, end_ms, output_dir, config_path="configs/settings.yml"):
+def backfill_production_parquet(symbol, interval, aligned, config):
+    file_path = production_parquet_path(symbol, interval, config)
+    data = pd.read_parquet(file_path, storage_options=parquet_storage_options())
+    if "funding_rate" not in data.columns:
+        data["funding_rate"] = None
+
+    data_dates = pd.to_datetime(data["date"], utc=True)
+    aligned_rates = aligned.set_index("candle_time")["funding_rate"]
+    candidate_rates = data_dates.map(aligned_rates)
+    fill_mask = data["funding_rate"].isna() & candidate_rates.notna()
+    filled_rows = int(fill_mask.sum())
+    data.loc[fill_mask, "funding_rate"] = candidate_rates.loc[fill_mask].to_numpy()
+    data.to_parquet(file_path, index=False, storage_options=parquet_storage_options())
+    return filled_rows
+
+
+def build_symbol_report(session, symbol, start_ms, end_ms, output_dir, config_path="configs/settings.yml", backfill=False):
     history, request_count = fetch_funding_history(session, symbol, start_ms, end_ms)
     symbol_dir = os.path.join(output_dir, symbol.lower())
     os.makedirs(symbol_dir, exist_ok=True)
@@ -190,7 +214,10 @@ def build_symbol_report(session, symbol, start_ms, end_ms, output_dir, config_pa
         candle_times = load_actual_candle_times(symbol, interval, config)
         aligned = align_funding_to_candles(history, candle_times)
         aligned.to_csv(os.path.join(symbol_dir, f"funding_alignment_{interval}.csv"), index=False)
-        coverage["intervals"][interval] = build_coverage(history, aligned, interval)
+        interval_coverage = build_coverage(history, aligned, interval)
+        if backfill:
+            interval_coverage["backfilled_rows"] = backfill_production_parquet(symbol, interval, aligned, config)
+        coverage["intervals"][interval] = interval_coverage
 
     daily_summary = build_daily_summary(history)
     daily_summary.to_csv(os.path.join(symbol_dir, "funding_daily_summary.csv"), index=False)
@@ -205,6 +232,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--symbols", nargs="+", default=None)
     parser.add_argument("--include-btc", action="store_true")
+    parser.add_argument("--backfill", action="store_true")
     parser.add_argument("--start-date", default="2012-01-01T00:00:00Z")
     parser.add_argument("--end-date", default=datetime.now(timezone.utc).isoformat())
     parser.add_argument("--output-dir", default="reports/funding")
@@ -224,7 +252,7 @@ def main():
     start_ms = to_milliseconds(args.start_date)
     end_ms = to_milliseconds(args.end_date)
     reports = {
-        symbol: build_symbol_report(session, symbol, start_ms, end_ms, args.output_dir, args.config)
+        symbol: build_symbol_report(session, symbol, start_ms, end_ms, args.output_dir, args.config, args.backfill)
         for symbol in symbols
     }
 
