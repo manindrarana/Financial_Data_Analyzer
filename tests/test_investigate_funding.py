@@ -5,6 +5,7 @@ import pandas as pd
 
 from scripts import investigate_funding
 from scripts.investigate_funding import (
+    align_funding_to_candles,
     build_daily_summary,
     build_interval_alignment,
     build_symbol_report,
@@ -55,6 +56,20 @@ def test_build_interval_alignment_does_not_use_future_event():
     future_rows = aligned[aligned["candle_time"] < "2020-04-01 00:00:00+00:00"]
 
     assert future_rows["funding_rate"].eq(0.0001).all()
+
+
+def test_align_funding_to_actual_candles_counts_pre_event_rows_as_missing():
+    candle_times = pd.to_datetime([
+        "2020-03-31 15:00:00+00:00",
+        "2020-03-31 16:00:00+00:00",
+        "2020-03-31 17:00:00+00:00",
+    ])
+
+    aligned = align_funding_to_candles(funding_history(), candle_times)
+
+    assert aligned["funding_rate"].isna().sum() == 1
+    assert aligned.loc[1, "funding_rate"] == 0.0001
+    assert aligned.loc[2, "funding_rate"] == 0.0001
 
 
 def test_build_daily_summary_returns_known_values():
@@ -129,22 +144,33 @@ def test_load_configured_symbols_returns_bybit_targets(tmp_path):
     assert load_configured_symbols(config_path) == ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
 
 
-def test_build_symbol_report_writes_separate_known_value_outputs(tmp_path, monkeypatch):
+def test_build_symbol_report_uses_actual_candle_rows(tmp_path, monkeypatch):
     monkeypatch.setattr(
         investigate_funding,
         "fetch_funding_history",
         lambda session, symbol, start_ms, end_ms: (funding_history(), 2),
     )
+    monkeypatch.setattr(
+        investigate_funding,
+        "load_actual_candle_times",
+        lambda symbol, interval, config: pd.to_datetime([
+            "2020-03-31 15:00:00+00:00",
+            "2020-03-31 16:00:00+00:00",
+            "2020-03-31 17:00:00+00:00",
+        ]),
+    )
 
     coverage = build_symbol_report(Mock(), "ETHUSDT", 0, 1585728000000, tmp_path)
     symbol_dir = tmp_path / "ethusdt"
+    saved_alignment = pd.read_csv(symbol_dir / "funding_alignment_1h.csv")
 
     assert coverage["symbol"] == "ETHUSDT"
-    assert coverage["funding_events"] == 3
-    assert coverage["oldest_available"] == "2020-03-31T16:00:00+00:00"
-    assert coverage["intervals"]["1h"]["aligned_rows"] == 17
+    assert coverage["intervals"]["1h"]["candle_rows"] == 3
+    assert coverage["intervals"]["1h"]["aligned_rows"] == 2
+    assert coverage["intervals"]["1h"]["missing_rows"] == 1
+    assert coverage["intervals"]["1h"]["coverage_percent"] == 200 / 3 * 1.5
+    assert saved_alignment["funding_rate"].isna().sum() == 1
     assert (symbol_dir / "funding_history.csv").exists()
-    assert (symbol_dir / "funding_alignment_1h.csv").exists()
     assert (symbol_dir / "funding_alignment_4h.csv").exists()
     assert (symbol_dir / "funding_alignment_1d.csv").exists()
     assert (symbol_dir / "funding_daily_summary.csv").exists()
@@ -162,7 +188,7 @@ def test_main_excludes_btc_by_default_and_combines_remaining_reports(tmp_path, m
     monkeypatch.setattr(investigate_funding, "load_dotenv", lambda: None)
     monkeypatch.setattr(investigate_funding, "HTTP", lambda **kwargs: Mock())
 
-    def build_report(session, symbol, start_ms, end_ms, output_dir):
+    def build_report(session, symbol, start_ms, end_ms, output_dir, config_path):
         processed.append(symbol)
         return {"symbol": symbol}
 
