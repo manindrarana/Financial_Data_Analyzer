@@ -205,10 +205,13 @@ def test_backfill_production_parquet_fills_only_null_values(monkeypatch):
     )
 
     assert filled_rows == 1
-    assert saved[0]["funding_rate"].tolist() == [None, 0.9, 0.0001]
+    assert pd.isna(saved[0]["funding_rate"].iloc[0])
+    assert saved[0]["funding_rate"].iloc[1] == 0.9
+    assert saved[0]["funding_rate"].iloc[2] == 0.0001
     assert saved[0]["close"].tolist() == [100.0, 101.0, 102.0]
 
 
+def test_main_excludes_btc_by_default_and_combines_remaining_reports(tmp_path, monkeypatch):
     processed = []
 
     monkeypatch.setattr(
@@ -219,7 +222,7 @@ def test_backfill_production_parquet_fills_only_null_values(monkeypatch):
     monkeypatch.setattr(investigate_funding, "load_dotenv", lambda: None)
     monkeypatch.setattr(investigate_funding, "HTTP", lambda **kwargs: Mock())
 
-    def build_report(session, symbol, start_ms, end_ms, output_dir, config_path):
+    def build_report(session, symbol, start_ms, end_ms, output_dir, config_path, backfill):
         processed.append(symbol)
         return {"symbol": symbol}
 
