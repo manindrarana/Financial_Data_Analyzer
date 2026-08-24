@@ -177,7 +177,38 @@ def test_build_symbol_report_uses_actual_candle_rows(tmp_path, monkeypatch):
     assert json.loads((symbol_dir / "funding_coverage.json").read_text(encoding="utf-8"))["symbol"] == "ETHUSDT"
 
 
-def test_main_excludes_btc_by_default_and_combines_remaining_reports(tmp_path, monkeypatch):
+def test_backfill_production_parquet_fills_only_null_values(monkeypatch):
+    data = pd.DataFrame({
+        "date": pd.to_datetime([
+            "2020-03-31 15:00:00+00:00",
+            "2020-03-31 16:00:00+00:00",
+            "2020-03-31 17:00:00+00:00",
+        ]),
+        "close": [100.0, 101.0, 102.0],
+        "funding_rate": [None, 0.9, None],
+    })
+    saved = []
+
+    monkeypatch.setattr(investigate_funding.pd, "read_parquet", lambda *args, **kwargs: data.copy())
+    monkeypatch.setattr(
+        investigate_funding.pd.DataFrame,
+        "to_parquet",
+        lambda frame, *args, **kwargs: saved.append(frame.copy()),
+    )
+
+    aligned = align_funding_to_candles(funding_history(), data["date"])
+    filled_rows = investigate_funding.backfill_production_parquet(
+        "ETHUSDT",
+        "1h",
+        aligned,
+        {"paths": {"s3_bucket": "raw-data"}},
+    )
+
+    assert filled_rows == 1
+    assert saved[0]["funding_rate"].tolist() == [None, 0.9, 0.0001]
+    assert saved[0]["close"].tolist() == [100.0, 101.0, 102.0]
+
+
     processed = []
 
     monkeypatch.setattr(
