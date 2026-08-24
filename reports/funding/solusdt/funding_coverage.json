@@ -1,7 +1,7 @@
 {
   "symbol": "SOLUSDT",
   "requested_start": "2012-01-01T00:00:00+00:00",
-  "requested_end": "2026-08-24T07:13:59.925000+00:00",
+  "requested_end": "2026-08-24T07:31:53.121000+00:00",
   "api_requests": 32,
   "funding_events": 6006,
   "oldest_available": "2021-06-29T08:00:00+00:00",
@@ -9,27 +9,33 @@
   "intervals": {
     "1h": {
       "interval": "1h",
-      "candle_rows": 45161,
-      "aligned_rows": 45161,
+      "candle_rows": 42561,
+      "aligned_rows": 42561,
       "missing_rows": 0,
       "coverage_percent": 100.0,
-      "funding_events": 6006
+      "funding_events": 6006,
+      "first_candle": "2021-10-15T00:00:00+00:00",
+      "last_candle": "2026-08-23T08:00:00+00:00"
     },
     "4h": {
       "interval": "4h",
-      "candle_rows": 11291,
-      "aligned_rows": 11291,
+      "candle_rows": 10641,
+      "aligned_rows": 10641,
       "missing_rows": 0,
       "coverage_percent": 100.0,
-      "funding_events": 6006
+      "funding_events": 6006,
+      "first_candle": "2021-10-15T00:00:00+00:00",
+      "last_candle": "2026-08-23T08:00:00+00:00"
     },
     "1d": {
       "interval": "1d",
-      "candle_rows": 1883,
-      "aligned_rows": 1882,
-      "missing_rows": 1,
-      "coverage_percent": 99.94689325544344,
-      "funding_events": 6006
+      "candle_rows": 1774,
+      "aligned_rows": 1774,
+      "missing_rows": 0,
+      "coverage_percent": 100.0,
+      "funding_events": 6006,
+      "first_candle": "2021-10-15T00:00:00+00:00",
+      "last_candle": "2026-08-23T00:00:00+00:00"
     }
   },
   "daily_summary_rows": 1883

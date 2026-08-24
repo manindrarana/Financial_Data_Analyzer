@@ -1,7 +1,7 @@
 {
   "symbol": "AVAXUSDT",
   "requested_start": "2012-01-01T00:00:00+00:00",
-  "requested_end": "2026-08-24T07:13:59.925000+00:00",
+  "requested_end": "2026-08-24T07:31:53.121000+00:00",
   "api_requests": 29,
   "funding_events": 5411,
   "oldest_available": "2021-09-15T16:00:00+00:00",
@@ -9,27 +9,33 @@
   "intervals": {
     "1h": {
       "interval": "1h",
-      "candle_rows": 43281,
-      "aligned_rows": 43281,
-      "missing_rows": 0,
-      "coverage_percent": 100.0,
-      "funding_events": 5411
+      "candle_rows": 43273,
+      "aligned_rows": 43265,
+      "missing_rows": 8,
+      "coverage_percent": 99.98151272155847,
+      "funding_events": 5411,
+      "first_candle": "2021-09-15T08:00:00+00:00",
+      "last_candle": "2026-08-23T08:00:00+00:00"
     },
     "4h": {
       "interval": "4h",
-      "candle_rows": 10821,
-      "aligned_rows": 10821,
-      "missing_rows": 0,
-      "coverage_percent": 100.0,
-      "funding_events": 5411
+      "candle_rows": 10819,
+      "aligned_rows": 10817,
+      "missing_rows": 2,
+      "coverage_percent": 99.98151400314262,
+      "funding_events": 5411,
+      "first_candle": "2021-09-15T08:00:00+00:00",
+      "last_candle": "2026-08-23T08:00:00+00:00"
     },
     "1d": {
       "interval": "1d",
-      "candle_rows": 1805,
-      "aligned_rows": 1804,
+      "candle_rows": 1804,
+      "aligned_rows": 1803,
       "missing_rows": 1,
-      "coverage_percent": 99.94459833795014,
-      "funding_events": 5411
+      "coverage_percent": 99.94456762749445,
+      "funding_events": 5411,
+      "first_candle": "2021-09-15T00:00:00+00:00",
+      "last_candle": "2026-08-23T00:00:00+00:00"
     }
   },
   "daily_summary_rows": 1805
