@@ -1,0 +1,362 @@
+{
+  "ETHUSDT": {
+    "symbol": "ETHUSDT",
+    "requested_start": "2012-01-01T00:00:00+00:00",
+    "requested_end": "2026-08-24T07:13:59.925000+00:00",
+    "api_requests": 33,
+    "funding_events": 6399,
+    "oldest_available": "2020-10-21T08:00:00+00:00",
+    "latest_available": "2026-08-24T00:00:00+00:00",
+    "intervals": {
+      "1h": {
+        "interval": "1h",
+        "candle_rows": 51185,
+        "aligned_rows": 51185,
+        "missing_rows": 0,
+        "coverage_percent": 100.0,
+        "funding_events": 6399
+      },
+      "4h": {
+        "interval": "4h",
+        "candle_rows": 12797,
+        "aligned_rows": 12797,
+        "missing_rows": 0,
+        "coverage_percent": 100.0,
+        "funding_events": 6399
+      },
+      "1d": {
+        "interval": "1d",
+        "candle_rows": 2134,
+        "aligned_rows": 2133,
+        "missing_rows": 1,
+        "coverage_percent": 99.95313964386129,
+        "funding_events": 6399
+      }
+    },
+    "daily_summary_rows": 2134
+  },
+  "SOLUSDT": {
+    "symbol": "SOLUSDT",
+    "requested_start": "2012-01-01T00:00:00+00:00",
+    "requested_end": "2026-08-24T07:13:59.925000+00:00",
+    "api_requests": 32,
+    "funding_events": 6006,
+    "oldest_available": "2021-06-29T08:00:00+00:00",
+    "latest_available": "2026-08-24T00:00:00+00:00",
+    "intervals": {
+      "1h": {
+        "interval": "1h",
+        "candle_rows": 45161,
+        "aligned_rows": 45161,
+        "missing_rows": 0,
+        "coverage_percent": 100.0,
+        "funding_events": 6006
+      },
+      "4h": {
+        "interval": "4h",
+        "candle_rows": 11291,
+        "aligned_rows": 11291,
+        "missing_rows": 0,
+        "coverage_percent": 100.0,
+        "funding_events": 6006
+      },
+      "1d": {
+        "interval": "1d",
+        "candle_rows": 1883,
+        "aligned_rows": 1882,
+        "missing_rows": 1,
+        "coverage_percent": 99.94689325544344,
+        "funding_events": 6006
+      }
+    },
+    "daily_summary_rows": 1883
+  },
+  "ADAUSDT": {
+    "symbol": "ADAUSDT",
+    "requested_start": "2012-01-01T00:00:00+00:00",
+    "requested_end": "2026-08-24T07:13:59.925000+00:00",
+    "api_requests": 31,
+    "funding_events": 5955,
+    "oldest_available": "2021-03-18T08:00:00+00:00",
+    "latest_available": "2026-08-24T00:00:00+00:00",
+    "intervals": {
+      "1h": {
+        "interval": "1h",
+        "candle_rows": 47633,
+        "aligned_rows": 47633,
+        "missing_rows": 0,
+        "coverage_percent": 100.0,
+        "funding_events": 5955
+      },
+      "4h": {
+        "interval": "4h",
+        "candle_rows": 11909,
+        "aligned_rows": 11909,
+        "missing_rows": 0,
+        "coverage_percent": 100.0,
+        "funding_events": 5955
+      },
+      "1d": {
+        "interval": "1d",
+        "candle_rows": 1986,
+        "aligned_rows": 1985,
+        "missing_rows": 1,
+        "coverage_percent": 99.9496475327291,
+        "funding_events": 5955
+      }
+    },
+    "daily_summary_rows": 1986
+  },
+  "XRPUSDT": {
+    "symbol": "XRPUSDT",
+    "requested_start": "2012-01-01T00:00:00+00:00",
+    "requested_end": "2026-08-24T07:13:59.925000+00:00",
+    "api_requests": 30,
+    "funding_events": 5786,
+    "oldest_available": "2021-05-13T16:00:00+00:00",
+    "latest_available": "2026-08-24T00:00:00+00:00",
+    "intervals": {
+      "1h": {
+        "interval": "1h",
+        "candle_rows": 46281,
+        "aligned_rows": 46281,
+        "missing_rows": 0,
+        "coverage_percent": 100.0,
+        "funding_events": 5786
+      },
+      "4h": {
+        "interval": "4h",
+        "candle_rows": 11571,
+        "aligned_rows": 11571,
+        "missing_rows": 0,
+        "coverage_percent": 100.0,
+        "funding_events": 5786
+      },
+      "1d": {
+        "interval": "1d",
+        "candle_rows": 1930,
+        "aligned_rows": 1929,
+        "missing_rows": 1,
+        "coverage_percent": 99.9481865284974,
+        "funding_events": 5786
+      }
+    },
+    "daily_summary_rows": 1930
+  },
+  "LTCUSDT": {
+    "symbol": "LTCUSDT",
+    "requested_start": "2012-01-01T00:00:00+00:00",
+    "requested_end": "2026-08-24T07:13:59.925000+00:00",
+    "api_requests": 33,
+    "funding_events": 6399,
+    "oldest_available": "2020-10-21T08:00:00+00:00",
+    "latest_available": "2026-08-24T00:00:00+00:00",
+    "intervals": {
+      "1h": {
+        "interval": "1h",
+        "candle_rows": 51185,
+        "aligned_rows": 51185,
+        "missing_rows": 0,
+        "coverage_percent": 100.0,
+        "funding_events": 6399
+      },
+      "4h": {
+        "interval": "4h",
+        "candle_rows": 12797,
+        "aligned_rows": 12797,
+        "missing_rows": 0,
+        "coverage_percent": 100.0,
+        "funding_events": 6399
+      },
+      "1d": {
+        "interval": "1d",
+        "candle_rows": 2134,
+        "aligned_rows": 2133,
+        "missing_rows": 1,
+        "coverage_percent": 99.95313964386129,
+        "funding_events": 6399
+      }
+    },
+    "daily_summary_rows": 2134
+  },
+  "DOGEUSDT": {
+    "symbol": "DOGEUSDT",
+    "requested_start": "2012-01-01T00:00:00+00:00",
+    "requested_end": "2026-08-24T07:13:59.925000+00:00",
+    "api_requests": 30,
+    "funding_events": 5726,
+    "oldest_available": "2021-06-02T16:00:00+00:00",
+    "latest_available": "2026-08-24T00:00:00+00:00",
+    "intervals": {
+      "1h": {
+        "interval": "1h",
+        "candle_rows": 45801,
+        "aligned_rows": 45801,
+        "missing_rows": 0,
+        "coverage_percent": 100.0,
+        "funding_events": 5726
+      },
+      "4h": {
+        "interval": "4h",
+        "candle_rows": 11451,
+        "aligned_rows": 11451,
+        "missing_rows": 0,
+        "coverage_percent": 100.0,
+        "funding_events": 5726
+      },
+      "1d": {
+        "interval": "1d",
+        "candle_rows": 1910,
+        "aligned_rows": 1909,
+        "missing_rows": 1,
+        "coverage_percent": 99.94764397905759,
+        "funding_events": 5726
+      }
+    },
+    "daily_summary_rows": 1910
+  },
+  "DOTUSDT": {
+    "symbol": "DOTUSDT",
+    "requested_start": "2012-01-01T00:00:00+00:00",
+    "requested_end": "2026-08-24T07:13:59.925000+00:00",
+    "api_requests": 31,
+    "funding_events": 5955,
+    "oldest_available": "2021-03-18T08:00:00+00:00",
+    "latest_available": "2026-08-24T00:00:00+00:00",
+    "intervals": {
+      "1h": {
+        "interval": "1h",
+        "candle_rows": 47633,
+        "aligned_rows": 47633,
+        "missing_rows": 0,
+        "coverage_percent": 100.0,
+        "funding_events": 5955
+      },
+      "4h": {
+        "interval": "4h",
+        "candle_rows": 11909,
+        "aligned_rows": 11909,
+        "missing_rows": 0,
+        "coverage_percent": 100.0,
+        "funding_events": 5955
+      },
+      "1d": {
+        "interval": "1d",
+        "candle_rows": 1986,
+        "aligned_rows": 1985,
+        "missing_rows": 1,
+        "coverage_percent": 99.9496475327291,
+        "funding_events": 5955
+      }
+    },
+    "daily_summary_rows": 1986
+  },
+  "AVAXUSDT": {
+    "symbol": "AVAXUSDT",
+    "requested_start": "2012-01-01T00:00:00+00:00",
+    "requested_end": "2026-08-24T07:13:59.925000+00:00",
+    "api_requests": 29,
+    "funding_events": 5411,
+    "oldest_available": "2021-09-15T16:00:00+00:00",
+    "latest_available": "2026-08-24T00:00:00+00:00",
+    "intervals": {
+      "1h": {
+        "interval": "1h",
+        "candle_rows": 43281,
+        "aligned_rows": 43281,
+        "missing_rows": 0,
+        "coverage_percent": 100.0,
+        "funding_events": 5411
+      },
+      "4h": {
+        "interval": "4h",
+        "candle_rows": 10821,
+        "aligned_rows": 10821,
+        "missing_rows": 0,
+        "coverage_percent": 100.0,
+        "funding_events": 5411
+      },
+      "1d": {
+        "interval": "1d",
+        "candle_rows": 1805,
+        "aligned_rows": 1804,
+        "missing_rows": 1,
+        "coverage_percent": 99.94459833795014,
+        "funding_events": 5411
+      }
+    },
+    "daily_summary_rows": 1805
+  },
+  "DYDXUSDT": {
+    "symbol": "DYDXUSDT",
+    "requested_start": "2012-01-01T00:00:00+00:00",
+    "requested_end": "2026-08-24T07:13:59.925000+00:00",
+    "api_requests": 28,
+    "funding_events": 5334,
+    "oldest_available": "2021-10-11T08:00:00+00:00",
+    "latest_available": "2026-08-24T00:00:00+00:00",
+    "intervals": {
+      "1h": {
+        "interval": "1h",
+        "candle_rows": 42665,
+        "aligned_rows": 42665,
+        "missing_rows": 0,
+        "coverage_percent": 100.0,
+        "funding_events": 5334
+      },
+      "4h": {
+        "interval": "4h",
+        "candle_rows": 10667,
+        "aligned_rows": 10667,
+        "missing_rows": 0,
+        "coverage_percent": 100.0,
+        "funding_events": 5334
+      },
+      "1d": {
+        "interval": "1d",
+        "candle_rows": 1779,
+        "aligned_rows": 1778,
+        "missing_rows": 1,
+        "coverage_percent": 99.94378864530636,
+        "funding_events": 5334
+      }
+    },
+    "daily_summary_rows": 1779
+  },
+  "1000PEPEUSDT": {
+    "symbol": "1000PEPEUSDT",
+    "requested_start": "2012-01-01T00:00:00+00:00",
+    "requested_end": "2026-08-24T07:13:59.925000+00:00",
+    "api_requests": 20,
+    "funding_events": 3627,
+    "oldest_available": "2023-05-03T08:00:00+00:00",
+    "latest_available": "2026-08-24T00:00:00+00:00",
+    "intervals": {
+      "1h": {
+        "interval": "1h",
+        "candle_rows": 29009,
+        "aligned_rows": 29009,
+        "missing_rows": 0,
+        "coverage_percent": 100.0,
+        "funding_events": 3627
+      },
+      "4h": {
+        "interval": "4h",
+        "candle_rows": 7253,
+        "aligned_rows": 7253,
+        "missing_rows": 0,
+        "coverage_percent": 100.0,
+        "funding_events": 3627
+      },
+      "1d": {
+        "interval": "1d",
+        "candle_rows": 1210,
+        "aligned_rows": 1209,
+        "missing_rows": 1,
+        "coverage_percent": 99.91735537190083,
+        "funding_events": 3627
+      }
+    },
+    "daily_summary_rows": 1210
+  }
+}

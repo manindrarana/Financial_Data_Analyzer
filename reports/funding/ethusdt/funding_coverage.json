@@ -1,0 +1,36 @@
+{
+  "symbol": "ETHUSDT",
+  "requested_start": "2012-01-01T00:00:00+00:00",
+  "requested_end": "2026-08-24T07:13:59.925000+00:00",
+  "api_requests": 33,
+  "funding_events": 6399,
+  "oldest_available": "2020-10-21T08:00:00+00:00",
+  "latest_available": "2026-08-24T00:00:00+00:00",
+  "intervals": {
+    "1h": {
+      "interval": "1h",
+      "candle_rows": 51185,
+      "aligned_rows": 51185,
+      "missing_rows": 0,
+      "coverage_percent": 100.0,
+      "funding_events": 6399
+    },
+    "4h": {
+      "interval": "4h",
+      "candle_rows": 12797,
+      "aligned_rows": 12797,
+      "missing_rows": 0,
+      "coverage_percent": 100.0,
+      "funding_events": 6399
+    },
+    "1d": {
+      "interval": "1d",
+      "candle_rows": 2134,
+      "aligned_rows": 2133,
+      "missing_rows": 1,
+      "coverage_percent": 99.95313964386129,
+      "funding_events": 6399
+    }
+  },
+  "daily_summary_rows": 2134
+}

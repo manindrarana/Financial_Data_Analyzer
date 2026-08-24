@@ -1,0 +1,36 @@
+{
+  "symbol": "AVAXUSDT",
+  "requested_start": "2012-01-01T00:00:00+00:00",
+  "requested_end": "2026-08-24T07:13:59.925000+00:00",
+  "api_requests": 29,
+  "funding_events": 5411,
+  "oldest_available": "2021-09-15T16:00:00+00:00",
+  "latest_available": "2026-08-24T00:00:00+00:00",
+  "intervals": {
+    "1h": {
+      "interval": "1h",
+      "candle_rows": 43281,
+      "aligned_rows": 43281,
+      "missing_rows": 0,
+      "coverage_percent": 100.0,
+      "funding_events": 5411
+    },
+    "4h": {
+      "interval": "4h",
+      "candle_rows": 10821,
+      "aligned_rows": 10821,
+      "missing_rows": 0,
+      "coverage_percent": 100.0,
+      "funding_events": 5411
+    },
+    "1d": {
+      "interval": "1d",
+      "candle_rows": 1805,
+      "aligned_rows": 1804,
+      "missing_rows": 1,
+      "coverage_percent": 99.94459833795014,
+      "funding_events": 5411
+    }
+  },
+  "daily_summary_rows": 1805
+}

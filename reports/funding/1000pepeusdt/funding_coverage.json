@@ -1,0 +1,36 @@
+{
+  "symbol": "1000PEPEUSDT",
+  "requested_start": "2012-01-01T00:00:00+00:00",
+  "requested_end": "2026-08-24T07:13:59.925000+00:00",
+  "api_requests": 20,
+  "funding_events": 3627,
+  "oldest_available": "2023-05-03T08:00:00+00:00",
+  "latest_available": "2026-08-24T00:00:00+00:00",
+  "intervals": {
+    "1h": {
+      "interval": "1h",
+      "candle_rows": 29009,
+      "aligned_rows": 29009,
+      "missing_rows": 0,
+      "coverage_percent": 100.0,
+      "funding_events": 3627
+    },
+    "4h": {
+      "interval": "4h",
+      "candle_rows": 7253,
+      "aligned_rows": 7253,
+      "missing_rows": 0,
+      "coverage_percent": 100.0,
+      "funding_events": 3627
+    },
+    "1d": {
+      "interval": "1d",
+      "candle_rows": 1210,
+      "aligned_rows": 1209,
+      "missing_rows": 1,
+      "coverage_percent": 99.91735537190083,
+      "funding_events": 3627
+    }
+  },
+  "daily_summary_rows": 1210
+}

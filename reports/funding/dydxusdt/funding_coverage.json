@@ -1,0 +1,36 @@
+{
+  "symbol": "DYDXUSDT",
+  "requested_start": "2012-01-01T00:00:00+00:00",
+  "requested_end": "2026-08-24T07:13:59.925000+00:00",
+  "api_requests": 28,
+  "funding_events": 5334,
+  "oldest_available": "2021-10-11T08:00:00+00:00",
+  "latest_available": "2026-08-24T00:00:00+00:00",
+  "intervals": {
+    "1h": {
+      "interval": "1h",
+      "candle_rows": 42665,
+      "aligned_rows": 42665,
+      "missing_rows": 0,
+      "coverage_percent": 100.0,
+      "funding_events": 5334
+    },
+    "4h": {
+      "interval": "4h",
+      "candle_rows": 10667,
+      "aligned_rows": 10667,
+      "missing_rows": 0,
+      "coverage_percent": 100.0,
+      "funding_events": 5334
+    },
+    "1d": {
+      "interval": "1d",
+      "candle_rows": 1779,
+      "aligned_rows": 1778,
+      "missing_rows": 1,
+      "coverage_percent": 99.94378864530636,
+      "funding_events": 5334
+    }
+  },
+  "daily_summary_rows": 1779
+}
