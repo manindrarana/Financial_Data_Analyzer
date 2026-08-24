@@ -1,0 +1,57 @@
+{
+  "symbol": "AVAXUSDT",
+  "requested_start": "2012-01-01T00:00:00+00:00",
+  "requested_end": "2026-08-24T07:53:45.051000+00:00",
+  "api_requests": 29,
+  "funding_events": 5411,
+  "oldest_available": "2021-09-15T16:00:00+00:00",
+  "latest_available": "2026-08-24T00:00:00+00:00",
+  "intervals": {
+    "1h": {
+      "interval": "1h",
+      "candle_rows": 43273,
+      "aligned_rows": 43265,
+      "missing_rows": 8,
+      "coverage_percent": 99.98151272155847,
+      "post_listing_candle_rows": 43265,
+      "post_listing_aligned_rows": 43265,
+      "post_listing_missing_rows": 0,
+      "post_listing_coverage_percent": 100.0,
+      "funding_events": 5411,
+      "first_candle": "2021-09-15T08:00:00+00:00",
+      "last_candle": "2026-08-23T08:00:00+00:00",
+      "backfilled_rows": 40731
+    },
+    "4h": {
+      "interval": "4h",
+      "candle_rows": 10819,
+      "aligned_rows": 10817,
+      "missing_rows": 2,
+      "coverage_percent": 99.98151400314262,
+      "post_listing_candle_rows": 10817,
+      "post_listing_aligned_rows": 10817,
+      "post_listing_missing_rows": 0,
+      "post_listing_coverage_percent": 100.0,
+      "funding_events": 5411,
+      "first_candle": "2021-09-15T08:00:00+00:00",
+      "last_candle": "2026-08-23T08:00:00+00:00",
+      "backfilled_rows": 10154
+    },
+    "1d": {
+      "interval": "1d",
+      "candle_rows": 1804,
+      "aligned_rows": 1803,
+      "missing_rows": 1,
+      "coverage_percent": 99.94456762749445,
+      "post_listing_candle_rows": 1803,
+      "post_listing_aligned_rows": 1803,
+      "post_listing_missing_rows": 0,
+      "post_listing_coverage_percent": 100.0,
+      "funding_events": 5411,
+      "first_candle": "2021-09-15T00:00:00+00:00",
+      "last_candle": "2026-08-23T00:00:00+00:00",
+      "backfilled_rows": 1689
+    }
+  },
+  "daily_summary_rows": 1805
+}

@@ -1,4 +1,5 @@
 import os
+
 import pytest
 import duckdb
 import yaml
@@ -6,6 +7,8 @@ from dotenv import load_dotenv
 from src.utils.s3 import configure_s3_access
 
 load_dotenv(dotenv_path=".env")
+if os.name == "nt" and os.getenv("S3_ENDPOINT_URL", "").endswith("minio:9000"):
+    os.environ["S3_ENDPOINT_URL"] = "http://localhost:9000"
 
 with open("configs/settings.yml", "r") as f:
     _config = yaml.safe_load(f)

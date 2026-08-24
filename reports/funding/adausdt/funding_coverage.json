@@ -1,0 +1,57 @@
+{
+  "symbol": "ADAUSDT",
+  "requested_start": "2012-01-01T00:00:00+00:00",
+  "requested_end": "2026-08-24T07:53:45.051000+00:00",
+  "api_requests": 31,
+  "funding_events": 5955,
+  "oldest_available": "2021-03-18T08:00:00+00:00",
+  "latest_available": "2026-08-24T00:00:00+00:00",
+  "intervals": {
+    "1h": {
+      "interval": "1h",
+      "candle_rows": 47618,
+      "aligned_rows": 47617,
+      "missing_rows": 1,
+      "coverage_percent": 99.99789995379899,
+      "post_listing_candle_rows": 47617,
+      "post_listing_aligned_rows": 47617,
+      "post_listing_missing_rows": 0,
+      "post_listing_coverage_percent": 100.0,
+      "funding_events": 5955,
+      "first_candle": "2021-03-18T07:00:00+00:00",
+      "last_candle": "2026-08-23T08:00:00+00:00",
+      "backfilled_rows": 45054
+    },
+    "4h": {
+      "interval": "4h",
+      "candle_rows": 11906,
+      "aligned_rows": 11905,
+      "missing_rows": 1,
+      "coverage_percent": 99.99160087350916,
+      "post_listing_candle_rows": 11905,
+      "post_listing_aligned_rows": 11905,
+      "post_listing_missing_rows": 0,
+      "post_listing_coverage_percent": 100.0,
+      "funding_events": 5955,
+      "first_candle": "2021-03-18T04:00:00+00:00",
+      "last_candle": "2026-08-23T08:00:00+00:00",
+      "backfilled_rows": 11244
+    },
+    "1d": {
+      "interval": "1d",
+      "candle_rows": 1985,
+      "aligned_rows": 1984,
+      "missing_rows": 1,
+      "coverage_percent": 99.94962216624685,
+      "post_listing_candle_rows": 1984,
+      "post_listing_aligned_rows": 1984,
+      "post_listing_missing_rows": 0,
+      "post_listing_coverage_percent": 100.0,
+      "funding_events": 5955,
+      "first_candle": "2021-03-18T00:00:00+00:00",
+      "last_candle": "2026-08-23T00:00:00+00:00",
+      "backfilled_rows": 1870
+    }
+  },
+  "daily_summary_rows": 1986
+}
