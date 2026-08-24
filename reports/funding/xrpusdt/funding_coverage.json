@@ -1,7 +1,7 @@
 {
   "symbol": "XRPUSDT",
   "requested_start": "2012-01-01T00:00:00+00:00",
-  "requested_end": "2026-08-24T07:40:28.639000+00:00",
+  "requested_end": "2026-08-24T07:53:45.051000+00:00",
   "api_requests": 30,
   "funding_events": 5786,
   "oldest_available": "2021-05-13T16:00:00+00:00",
@@ -19,7 +19,8 @@
       "post_listing_coverage_percent": 100.0,
       "funding_events": 5786,
       "first_candle": "2021-05-13T09:00:00+00:00",
-      "last_candle": "2026-08-23T08:00:00+00:00"
+      "last_candle": "2026-08-23T08:00:00+00:00",
+      "backfilled_rows": 43709
     },
     "4h": {
       "interval": "4h",
@@ -33,7 +34,8 @@
       "post_listing_coverage_percent": 100.0,
       "funding_events": 5786,
       "first_candle": "2021-05-13T08:00:00+00:00",
-      "last_candle": "2026-08-23T08:00:00+00:00"
+      "last_candle": "2026-08-23T08:00:00+00:00",
+      "backfilled_rows": 10906
     },
     "1d": {
       "interval": "1d",
@@ -47,7 +49,8 @@
       "post_listing_coverage_percent": 100.0,
       "funding_events": 5786,
       "first_candle": "2021-05-13T00:00:00+00:00",
-      "last_candle": "2026-08-23T00:00:00+00:00"
+      "last_candle": "2026-08-23T00:00:00+00:00",
+      "backfilled_rows": 1814
     }
   },
   "daily_summary_rows": 1930

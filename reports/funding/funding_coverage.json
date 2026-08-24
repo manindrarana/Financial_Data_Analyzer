@@ -2,7 +2,7 @@
   "ETHUSDT": {
     "symbol": "ETHUSDT",
     "requested_start": "2012-01-01T00:00:00+00:00",
-    "requested_end": "2026-08-24T07:40:28.639000+00:00",
+    "requested_end": "2026-08-24T07:53:45.051000+00:00",
     "api_requests": 33,
     "funding_events": 6399,
     "oldest_available": "2020-10-21T08:00:00+00:00",
@@ -20,7 +20,8 @@
         "post_listing_coverage_percent": 100.0,
         "funding_events": 6399,
         "first_candle": "2021-03-15T00:00:00+00:00",
-        "last_candle": "2026-08-23T08:00:00+00:00"
+        "last_candle": "2026-08-23T08:00:00+00:00",
+        "backfilled_rows": 45138
       },
       "4h": {
         "interval": "4h",
@@ -34,7 +35,8 @@
         "post_listing_coverage_percent": 100.0,
         "funding_events": 6399,
         "first_candle": "2021-03-15T00:00:00+00:00",
-        "last_candle": "2026-08-23T08:00:00+00:00"
+        "last_candle": "2026-08-23T08:00:00+00:00",
+        "backfilled_rows": 11263
       },
       "1d": {
         "interval": "1d",
@@ -48,7 +50,8 @@
         "post_listing_coverage_percent": 100.0,
         "funding_events": 6399,
         "first_candle": "2021-03-15T00:00:00+00:00",
-        "last_candle": "2026-08-23T00:00:00+00:00"
+        "last_candle": "2026-08-23T00:00:00+00:00",
+        "backfilled_rows": 1874
       }
     },
     "daily_summary_rows": 2134
@@ -56,7 +59,7 @@
   "SOLUSDT": {
     "symbol": "SOLUSDT",
     "requested_start": "2012-01-01T00:00:00+00:00",
-    "requested_end": "2026-08-24T07:40:28.639000+00:00",
+    "requested_end": "2026-08-24T07:53:45.051000+00:00",
     "api_requests": 32,
     "funding_events": 6006,
     "oldest_available": "2021-06-29T08:00:00+00:00",
@@ -74,7 +77,8 @@
         "post_listing_coverage_percent": 100.0,
         "funding_events": 6006,
         "first_candle": "2021-10-15T00:00:00+00:00",
-        "last_candle": "2026-08-23T08:00:00+00:00"
+        "last_candle": "2026-08-23T08:00:00+00:00",
+        "backfilled_rows": 40000
       },
       "4h": {
         "interval": "4h",
@@ -88,7 +92,8 @@
         "post_listing_coverage_percent": 100.0,
         "funding_events": 6006,
         "first_candle": "2021-10-15T00:00:00+00:00",
-        "last_candle": "2026-08-23T08:00:00+00:00"
+        "last_candle": "2026-08-23T08:00:00+00:00",
+        "backfilled_rows": 9979
       },
       "1d": {
         "interval": "1d",
@@ -102,7 +107,8 @@
         "post_listing_coverage_percent": 100.0,
         "funding_events": 6006,
         "first_candle": "2021-10-15T00:00:00+00:00",
-        "last_candle": "2026-08-23T00:00:00+00:00"
+        "last_candle": "2026-08-23T00:00:00+00:00",
+        "backfilled_rows": 1660
       }
     },
     "daily_summary_rows": 1883
@@ -110,7 +116,7 @@
   "ADAUSDT": {
     "symbol": "ADAUSDT",
     "requested_start": "2012-01-01T00:00:00+00:00",
-    "requested_end": "2026-08-24T07:40:28.639000+00:00",
+    "requested_end": "2026-08-24T07:53:45.051000+00:00",
     "api_requests": 31,
     "funding_events": 5955,
     "oldest_available": "2021-03-18T08:00:00+00:00",
@@ -128,7 +134,8 @@
         "post_listing_coverage_percent": 100.0,
         "funding_events": 5955,
         "first_candle": "2021-03-18T07:00:00+00:00",
-        "last_candle": "2026-08-23T08:00:00+00:00"
+        "last_candle": "2026-08-23T08:00:00+00:00",
+        "backfilled_rows": 45054
       },
       "4h": {
         "interval": "4h",
@@ -142,7 +149,8 @@
         "post_listing_coverage_percent": 100.0,
         "funding_events": 5955,
         "first_candle": "2021-03-18T04:00:00+00:00",
-        "last_candle": "2026-08-23T08:00:00+00:00"
+        "last_candle": "2026-08-23T08:00:00+00:00",
+        "backfilled_rows": 11244
       },
       "1d": {
         "interval": "1d",
@@ -156,7 +164,8 @@
         "post_listing_coverage_percent": 100.0,
         "funding_events": 5955,
         "first_candle": "2021-03-18T00:00:00+00:00",
-        "last_candle": "2026-08-23T00:00:00+00:00"
+        "last_candle": "2026-08-23T00:00:00+00:00",
+        "backfilled_rows": 1870
       }
     },
     "daily_summary_rows": 1986
@@ -164,7 +173,7 @@
   "XRPUSDT": {
     "symbol": "XRPUSDT",
     "requested_start": "2012-01-01T00:00:00+00:00",
-    "requested_end": "2026-08-24T07:40:28.639000+00:00",
+    "requested_end": "2026-08-24T07:53:45.051000+00:00",
     "api_requests": 30,
     "funding_events": 5786,
     "oldest_available": "2021-05-13T16:00:00+00:00",
@@ -182,7 +191,8 @@
         "post_listing_coverage_percent": 100.0,
         "funding_events": 5786,
         "first_candle": "2021-05-13T09:00:00+00:00",
-        "last_candle": "2026-08-23T08:00:00+00:00"
+        "last_candle": "2026-08-23T08:00:00+00:00",
+        "backfilled_rows": 43709
       },
       "4h": {
         "interval": "4h",
@@ -196,7 +206,8 @@
         "post_listing_coverage_percent": 100.0,
         "funding_events": 5786,
         "first_candle": "2021-05-13T08:00:00+00:00",
-        "last_candle": "2026-08-23T08:00:00+00:00"
+        "last_candle": "2026-08-23T08:00:00+00:00",
+        "backfilled_rows": 10906
       },
       "1d": {
         "interval": "1d",
@@ -210,7 +221,8 @@
         "post_listing_coverage_percent": 100.0,
         "funding_events": 5786,
         "first_candle": "2021-05-13T00:00:00+00:00",
-        "last_candle": "2026-08-23T00:00:00+00:00"
+        "last_candle": "2026-08-23T00:00:00+00:00",
+        "backfilled_rows": 1814
       }
     },
     "daily_summary_rows": 1930
@@ -218,7 +230,7 @@
   "LTCUSDT": {
     "symbol": "LTCUSDT",
     "requested_start": "2012-01-01T00:00:00+00:00",
-    "requested_end": "2026-08-24T07:40:28.639000+00:00",
+    "requested_end": "2026-08-24T07:53:45.051000+00:00",
     "api_requests": 33,
     "funding_events": 6399,
     "oldest_available": "2020-10-21T08:00:00+00:00",
@@ -236,7 +248,8 @@
         "post_listing_coverage_percent": 100.0,
         "funding_events": 6399,
         "first_candle": "2020-10-21T09:00:00+00:00",
-        "last_candle": "2026-08-23T08:00:00+00:00"
+        "last_candle": "2026-08-23T08:00:00+00:00",
+        "backfilled_rows": 48631
       },
       "4h": {
         "interval": "4h",
@@ -250,7 +263,8 @@
         "post_listing_coverage_percent": 100.0,
         "funding_events": 6399,
         "first_candle": "2020-10-21T08:00:00+00:00",
-        "last_candle": "2026-08-23T08:00:00+00:00"
+        "last_candle": "2026-08-23T08:00:00+00:00",
+        "backfilled_rows": 12131
       },
       "1d": {
         "interval": "1d",
@@ -264,7 +278,8 @@
         "post_listing_coverage_percent": 100.0,
         "funding_events": 6399,
         "first_candle": "2020-10-21T00:00:00+00:00",
-        "last_candle": "2026-08-23T00:00:00+00:00"
+        "last_candle": "2026-08-23T00:00:00+00:00",
+        "backfilled_rows": 2018
       }
     },
     "daily_summary_rows": 2134
@@ -272,7 +287,7 @@
   "DOGEUSDT": {
     "symbol": "DOGEUSDT",
     "requested_start": "2012-01-01T00:00:00+00:00",
-    "requested_end": "2026-08-24T07:40:28.639000+00:00",
+    "requested_end": "2026-08-24T07:53:45.051000+00:00",
     "api_requests": 30,
     "funding_events": 5726,
     "oldest_available": "2021-06-02T16:00:00+00:00",
@@ -290,7 +305,8 @@
         "post_listing_coverage_percent": 100.0,
         "funding_events": 5726,
         "first_candle": "2021-06-02T10:00:00+00:00",
-        "last_candle": "2026-08-23T08:00:00+00:00"
+        "last_candle": "2026-08-23T08:00:00+00:00",
+        "backfilled_rows": 43253
       },
       "4h": {
         "interval": "4h",
@@ -304,7 +320,8 @@
         "post_listing_coverage_percent": 100.0,
         "funding_events": 5726,
         "first_candle": "2021-06-02T08:00:00+00:00",
-        "last_candle": "2026-08-23T08:00:00+00:00"
+        "last_candle": "2026-08-23T08:00:00+00:00",
+        "backfilled_rows": 10784
       },
       "1d": {
         "interval": "1d",
@@ -318,7 +335,8 @@
         "post_listing_coverage_percent": 100.0,
         "funding_events": 5726,
         "first_candle": "2021-06-02T00:00:00+00:00",
-        "last_candle": "2026-08-23T00:00:00+00:00"
+        "last_candle": "2026-08-23T00:00:00+00:00",
+        "backfilled_rows": 1794
       }
     },
     "daily_summary_rows": 1910
@@ -326,7 +344,7 @@
   "DOTUSDT": {
     "symbol": "DOTUSDT",
     "requested_start": "2012-01-01T00:00:00+00:00",
-    "requested_end": "2026-08-24T07:40:28.639000+00:00",
+    "requested_end": "2026-08-24T07:53:45.051000+00:00",
     "api_requests": 31,
     "funding_events": 5955,
     "oldest_available": "2021-03-18T08:00:00+00:00",
@@ -344,7 +362,8 @@
         "post_listing_coverage_percent": 100.0,
         "funding_events": 5955,
         "first_candle": "2021-03-18T09:00:00+00:00",
-        "last_candle": "2026-08-23T08:00:00+00:00"
+        "last_candle": "2026-08-23T08:00:00+00:00",
+        "backfilled_rows": 45084
       },
       "4h": {
         "interval": "4h",
@@ -358,7 +377,8 @@
         "post_listing_coverage_percent": 100.0,
         "funding_events": 5955,
         "first_candle": "2021-03-18T08:00:00+00:00",
-        "last_candle": "2026-08-23T08:00:00+00:00"
+        "last_candle": "2026-08-23T08:00:00+00:00",
+        "backfilled_rows": 11242
       },
       "1d": {
         "interval": "1d",
@@ -372,7 +392,8 @@
         "post_listing_coverage_percent": 100.0,
         "funding_events": 5955,
         "first_candle": "2021-03-18T00:00:00+00:00",
-        "last_candle": "2026-08-23T00:00:00+00:00"
+        "last_candle": "2026-08-23T00:00:00+00:00",
+        "backfilled_rows": 1870
       }
     },
     "daily_summary_rows": 1986
@@ -380,7 +401,7 @@
   "AVAXUSDT": {
     "symbol": "AVAXUSDT",
     "requested_start": "2012-01-01T00:00:00+00:00",
-    "requested_end": "2026-08-24T07:40:28.639000+00:00",
+    "requested_end": "2026-08-24T07:53:45.051000+00:00",
     "api_requests": 29,
     "funding_events": 5411,
     "oldest_available": "2021-09-15T16:00:00+00:00",
@@ -398,7 +419,8 @@
         "post_listing_coverage_percent": 100.0,
         "funding_events": 5411,
         "first_candle": "2021-09-15T08:00:00+00:00",
-        "last_candle": "2026-08-23T08:00:00+00:00"
+        "last_candle": "2026-08-23T08:00:00+00:00",
+        "backfilled_rows": 40731
       },
       "4h": {
         "interval": "4h",
@@ -412,7 +434,8 @@
         "post_listing_coverage_percent": 100.0,
         "funding_events": 5411,
         "first_candle": "2021-09-15T08:00:00+00:00",
-        "last_candle": "2026-08-23T08:00:00+00:00"
+        "last_candle": "2026-08-23T08:00:00+00:00",
+        "backfilled_rows": 10154
       },
       "1d": {
         "interval": "1d",
@@ -426,7 +449,8 @@
         "post_listing_coverage_percent": 100.0,
         "funding_events": 5411,
         "first_candle": "2021-09-15T00:00:00+00:00",
-        "last_candle": "2026-08-23T00:00:00+00:00"
+        "last_candle": "2026-08-23T00:00:00+00:00",
+        "backfilled_rows": 1689
       }
     },
     "daily_summary_rows": 1805
@@ -434,7 +458,7 @@
   "DYDXUSDT": {
     "symbol": "DYDXUSDT",
     "requested_start": "2012-01-01T00:00:00+00:00",
-    "requested_end": "2026-08-24T07:40:28.639000+00:00",
+    "requested_end": "2026-08-24T07:53:45.051000+00:00",
     "api_requests": 28,
     "funding_events": 5334,
     "oldest_available": "2021-10-11T08:00:00+00:00",
@@ -452,7 +476,8 @@
         "post_listing_coverage_percent": 100.0,
         "funding_events": 5334,
         "first_candle": "2021-10-11T06:00:00+00:00",
-        "last_candle": "2026-08-23T08:00:00+00:00"
+        "last_candle": "2026-08-23T08:00:00+00:00",
+        "backfilled_rows": 40115
       },
       "4h": {
         "interval": "4h",
@@ -466,7 +491,8 @@
         "post_listing_coverage_percent": 100.0,
         "funding_events": 5334,
         "first_candle": "2021-10-11T04:00:00+00:00",
-        "last_candle": "2026-08-23T08:00:00+00:00"
+        "last_candle": "2026-08-23T08:00:00+00:00",
+        "backfilled_rows": 10000
       },
       "1d": {
         "interval": "1d",
@@ -480,7 +506,8 @@
         "post_listing_coverage_percent": 100.0,
         "funding_events": 5334,
         "first_candle": "2021-10-11T00:00:00+00:00",
-        "last_candle": "2026-08-23T00:00:00+00:00"
+        "last_candle": "2026-08-23T00:00:00+00:00",
+        "backfilled_rows": 1663
       }
     },
     "daily_summary_rows": 1779
@@ -488,7 +515,7 @@
   "1000PEPEUSDT": {
     "symbol": "1000PEPEUSDT",
     "requested_start": "2012-01-01T00:00:00+00:00",
-    "requested_end": "2026-08-24T07:40:28.639000+00:00",
+    "requested_end": "2026-08-24T07:53:45.051000+00:00",
     "api_requests": 20,
     "funding_events": 3627,
     "oldest_available": "2023-05-03T08:00:00+00:00",
@@ -506,7 +533,8 @@
         "post_listing_coverage_percent": 100.0,
         "funding_events": 3627,
         "first_candle": "2023-05-03T11:00:00+00:00",
-        "last_candle": "2026-08-23T08:00:00+00:00"
+        "last_candle": "2026-08-23T08:00:00+00:00",
+        "backfilled_rows": 26462
       },
       "4h": {
         "interval": "4h",
@@ -520,7 +548,8 @@
         "post_listing_coverage_percent": 100.0,
         "funding_events": 3627,
         "first_candle": "2023-05-03T08:00:00+00:00",
-        "last_candle": "2026-08-23T08:00:00+00:00"
+        "last_candle": "2026-08-23T08:00:00+00:00",
+        "backfilled_rows": 6584
       },
       "1d": {
         "interval": "1d",
@@ -534,7 +563,8 @@
         "post_listing_coverage_percent": 100.0,
         "funding_events": 3627,
         "first_candle": "2023-05-03T00:00:00+00:00",
-        "last_candle": "2026-08-23T00:00:00+00:00"
+        "last_candle": "2026-08-23T00:00:00+00:00",
+        "backfilled_rows": 1094
       }
     },
     "daily_summary_rows": 1210
