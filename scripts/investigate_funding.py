@@ -16,6 +16,7 @@ INTERVALS = {
     "4h": pd.Timedelta(hours=4),
     "1d": pd.Timedelta(days=1),
 }
+BYBIT_INTERVALS = {"1h": "60", "4h": "240", "1d": "D"}
 
 
 def parse_timestamp(value):
@@ -30,6 +31,11 @@ def load_configured_symbols(config_path="configs/settings.yml"):
     with open(config_path, "r", encoding="utf-8") as config_file:
         config = yaml.safe_load(config_file)
     return config["ingestion"]["targets"].get("bybit", [])
+
+
+def load_config(config_path="configs/settings.yml"):
+    with open(config_path, "r", encoding="utf-8") as config_file:
+        return yaml.safe_load(config_file)
 
 
 def fetch_funding_history(session, symbol, start_ms, end_ms, pause_seconds=0.1):
@@ -80,13 +86,16 @@ def fetch_funding_history(session, symbol, start_ms, end_ms, pause_seconds=0.1):
     return history.reset_index(drop=True), request_count
 
 
-def build_interval_alignment(history, interval):
+def align_funding_to_candles(history, candle_times):
+    columns = ["candle_time", "funding_rate", "funding_timestamp"]
+    candles = pd.DataFrame({"candle_time": pd.to_datetime(candle_times, utc=True)})
+    if candles.empty:
+        return pd.DataFrame(columns=columns)
     if history.empty:
-        return pd.DataFrame(columns=["candle_time", "funding_rate", "funding_timestamp"])
+        candles["funding_rate"] = None
+        candles["funding_timestamp"] = None
+        return candles[columns]
 
-    start = history["event_time"].min().floor(interval)
-    end = history["event_time"].max().ceil(interval)
-    candles = pd.DataFrame({"candle_time": pd.date_range(start, end, freq=INTERVALS[interval], tz="UTC")})
     events = history[["event_time", "funding_timestamp", "funding_rate"]].sort_values("event_time")
     return pd.merge_asof(
         candles.sort_values("candle_time"),
@@ -94,7 +103,17 @@ def build_interval_alignment(history, interval):
         left_on="candle_time",
         right_on="event_time",
         direction="backward",
-    )
+    )[columns]
+
+
+def build_interval_alignment(history, interval):
+    if history.empty:
+        return pd.DataFrame(columns=["candle_time", "funding_rate", "funding_timestamp"])
+
+    start = history["event_time"].min().floor(interval)
+    end = history["event_time"].max().ceil(interval)
+    candle_times = pd.date_range(start, end, freq=INTERVALS[interval], tz="UTC")
+    return align_funding_to_candles(history, candle_times)
 
 
 def build_daily_summary(history):
@@ -121,14 +140,32 @@ def build_coverage(history, aligned, interval):
         "missing_rows": total - available,
         "coverage_percent": (available / total * 100) if total else 0.0,
         "funding_events": int(len(history)),
+        "first_candle": aligned["candle_time"].min().isoformat() if total else None,
+        "last_candle": aligned["candle_time"].max().isoformat() if total else None,
     }
 
 
-def build_symbol_report(session, symbol, start_ms, end_ms, output_dir):
+def load_actual_candle_times(symbol, interval, config):
+    bucket = config["paths"].get("s3_bucket", "raw-data")
+    readable_interval = interval
+    file_path = f"s3://{bucket}/{symbol}_{readable_interval}.parquet"
+    storage_options = {
+        "client_kwargs": {
+            "endpoint_url": os.getenv("S3_ENDPOINT_URL", "http://localhost:9000")
+        },
+        "key": os.getenv("AWS_ACCESS_KEY_ID"),
+        "secret": os.getenv("AWS_SECRET_ACCESS_KEY"),
+    }
+    candles = pd.read_parquet(file_path, columns=["date"], storage_options=storage_options)
+    return pd.to_datetime(candles["date"], utc=True).drop_duplicates().sort_values().reset_index(drop=True)
+
+
+def build_symbol_report(session, symbol, start_ms, end_ms, output_dir, config_path="configs/settings.yml"):
     history, request_count = fetch_funding_history(session, symbol, start_ms, end_ms)
     symbol_dir = os.path.join(output_dir, symbol.lower())
     os.makedirs(symbol_dir, exist_ok=True)
     history.to_csv(os.path.join(symbol_dir, "funding_history.csv"), index=False)
+    config = load_config(config_path)
 
     coverage = {
         "symbol": symbol,
@@ -142,7 +179,8 @@ def build_symbol_report(session, symbol, start_ms, end_ms, output_dir):
     }
 
     for interval in INTERVALS:
-        aligned = build_interval_alignment(history, interval)
+        candle_times = load_actual_candle_times(symbol, interval, config)
+        aligned = align_funding_to_candles(history, candle_times)
         aligned.to_csv(os.path.join(symbol_dir, f"funding_alignment_{interval}.csv"), index=False)
         coverage["intervals"][interval] = build_coverage(history, aligned, interval)
 
@@ -178,7 +216,7 @@ def main():
     start_ms = to_milliseconds(args.start_date)
     end_ms = to_milliseconds(args.end_date)
     reports = {
-        symbol: build_symbol_report(session, symbol, start_ms, end_ms, args.output_dir)
+        symbol: build_symbol_report(session, symbol, start_ms, end_ms, args.output_dir, args.config)
         for symbol in symbols
     }
 
