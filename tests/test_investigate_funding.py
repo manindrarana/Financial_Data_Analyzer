@@ -168,7 +168,7 @@ def test_build_symbol_report_uses_actual_candle_rows(tmp_path, monkeypatch):
     assert coverage["intervals"]["1h"]["candle_rows"] == 3
     assert coverage["intervals"]["1h"]["aligned_rows"] == 2
     assert coverage["intervals"]["1h"]["missing_rows"] == 1
-    assert coverage["intervals"]["1h"]["coverage_percent"] == 200 / 3 * 1.5
+    assert coverage["intervals"]["1h"]["coverage_percent"] == 2 / 3 * 100
     assert saved_alignment["funding_rate"].isna().sum() == 1
     assert (symbol_dir / "funding_history.csv").exists()
     assert (symbol_dir / "funding_alignment_4h.csv").exists()
