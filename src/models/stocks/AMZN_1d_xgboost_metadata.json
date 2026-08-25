@@ -2,10 +2,10 @@
   "asset": "AMZN",
   "interval": "1d",
   "asset_class": "stocks",
-  "train_end_date": "2023-11-08T00:00:00",
-  "train_rows": 2784,
+  "train_end_date": "2023-11-09T00:00:00",
+  "train_rows": 2785,
   "test_rows": 697,
-  "test_accuracy": 0.46915351506456243,
+  "test_accuracy": 0.48637015781922527,
   "features": [
     "rsi_14",
     "roc_10",
@@ -39,19 +39,19 @@
   ],
   "best_params": {
     "learning_rate": 0.01,
-    "max_depth": 3,
+    "max_depth": 5,
     "n_estimators": 200,
     "subsample": 1.0,
     "eval_metric": "logloss",
     "random_state": 42
   },
-  "best_cv_score": 0.5087601078167115,
+  "best_cv_score": 0.5249326145552561,
   "calibration": {
     "method": "platt_scaling",
-    "coefficient": 0.3916247684122913,
-    "intercept": -0.2139859364693676,
+    "coefficient": 0.5800900071624325,
+    "intercept": -0.31820235686951326,
     "rows": 557
   },
-  "trained_at": "2026-08-24T08:53:54.678542",
-  "mlflow_run_id": "45e2b528be1a4444ac96690098cedb31"
+  "trained_at": "2026-08-25T08:57:12.779533",
+  "mlflow_run_id": "3aa5ded2628e4f629342ab688ba937a5"
 }
