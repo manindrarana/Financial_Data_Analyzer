@@ -307,6 +307,69 @@ class TestStockFreshness:
         assert "2026-08-16 13:00 WEST" in text
 
 
+class TestFundingCoverage:
+    @staticmethod
+    def _connection(rows):
+        connection = dashboard_app.duckdb.connect(":memory:")
+        connection.execute(
+            """
+            CREATE TABLE gold_crypto_analytics (
+                asset_symbol VARCHAR,
+                interval VARCHAR,
+                date TIMESTAMP,
+                funding_rate DOUBLE
+            )
+            """
+        )
+        connection.executemany(
+            "INSERT INTO gold_crypto_analytics VALUES (?, ?, ?, ?)",
+            rows,
+        )
+        return connection
+
+    def test_calculates_known_coverage_and_separates_null_types(self):
+        connection = self._connection([
+            ("BTC", "1h", "2026-01-01 00:00:00", None),
+            ("BTC", "1h", "2026-01-02 00:00:00", 0.0001),
+            ("BTC", "1h", "2026-01-03 00:00:00", 0.0002),
+            ("BTC", "1h", "2026-01-04 00:00:00", None),
+        ])
+
+        coverage = dashboard_app._load_funding_coverage(connection)
+
+        assert coverage.loc[0, "post_listing_rows"] == 3
+        assert coverage.loc[0, "funded_rows"] == 2
+        assert coverage.loc[0, "pre_listing_nulls"] == 1
+        assert coverage.loc[0, "unexpected_nulls"] == 1
+
+        table = dashboard_app._build_funding_coverage_table(coverage)
+        text = " ".join(_collect_text(table))
+        assert "66.67%" in text
+        assert "Partial" in text
+        connection.close()
+
+    def test_counts_duplicate_dates(self):
+        connection = self._connection([
+            ("ETH", "4h", "2026-01-02 00:00:00", 0.0001),
+            ("ETH", "4h", "2026-01-02 00:00:00", 0.0002),
+            ("ETH", "4h", "2026-01-03 00:00:00", 0.0003),
+        ])
+
+        coverage = dashboard_app._load_funding_coverage(connection)
+
+        assert coverage.loc[0, "duplicate_count"] == 1
+        assert coverage.loc[0, "unexpected_nulls"] == 0
+        connection.close()
+
+    def test_formats_lisbon_timestamp_and_handles_empty_data(self):
+        timestamp = pd.Timestamp("2026-08-16 12:00:00", tz="UTC")
+
+        assert dashboard_app._format_lisbon_timestamp(timestamp) == "2026-08-16 13:00 WEST"
+        assert "Funding data is unavailable" in " ".join(
+            _collect_text(dashboard_app._build_funding_coverage_table(pd.DataFrame()))
+        )
+
+
 class TestPredictionCards:
     def test_next_prediction_card_uses_latest_prediction(self):
         prediction_rows = pd.DataFrame({
