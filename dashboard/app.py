@@ -1347,6 +1347,128 @@ def update_explorer_table(table_name, selected_asset, selected_interval):
     except Exception as e:
         return dbc.Alert(f"Error loading table '{table_name}': {e}", color="danger"), ""
 
+
+def _format_lisbon_timestamp(value):
+    if value is None or pd.isna(value):
+        return "N/A"
+    timestamp = pd.Timestamp(value)
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.tz_localize("UTC")
+    return timestamp.tz_convert(ZoneInfo("Europe/Lisbon")).strftime(
+        "%Y-%m-%d %H:%M %Z"
+    )
+
+
+def _load_funding_coverage(conn):
+    return conn.execute(
+        """
+        WITH first_funding AS (
+            SELECT asset_symbol, interval, MIN(date) AS first_funding_date
+            FROM gold_crypto_analytics
+            WHERE funding_rate IS NOT NULL
+            GROUP BY asset_symbol, interval
+        ),
+        duplicate_dates AS (
+            SELECT asset_symbol, interval, SUM(date_rows - 1) AS duplicate_count
+            FROM (
+                SELECT asset_symbol, interval, date, COUNT(*) AS date_rows
+                FROM gold_crypto_analytics
+                GROUP BY asset_symbol, interval, date
+                HAVING COUNT(*) > 1
+            )
+            GROUP BY asset_symbol, interval
+        )
+        SELECT
+            data.asset_symbol,
+            data.interval,
+            first_funding.first_funding_date,
+            MAX(data.date) FILTER (WHERE data.funding_rate IS NOT NULL) AS latest_funding_date,
+            COUNT(*) FILTER (
+                WHERE data.date < first_funding.first_funding_date
+                  AND data.funding_rate IS NULL
+            ) AS pre_listing_nulls,
+            COUNT(*) FILTER (
+                WHERE data.date >= first_funding.first_funding_date
+            ) AS post_listing_rows,
+            COUNT(data.funding_rate) FILTER (
+                WHERE data.date >= first_funding.first_funding_date
+            ) AS funded_rows,
+            COUNT(*) FILTER (
+                WHERE data.date >= first_funding.first_funding_date
+                  AND data.funding_rate IS NULL
+            ) AS unexpected_nulls,
+            COALESCE(duplicate_dates.duplicate_count, 0) AS duplicate_count
+        FROM gold_crypto_analytics AS data
+        LEFT JOIN first_funding
+            ON data.asset_symbol = first_funding.asset_symbol
+           AND data.interval = first_funding.interval
+        LEFT JOIN duplicate_dates
+            ON data.asset_symbol = duplicate_dates.asset_symbol
+           AND data.interval = duplicate_dates.interval
+        GROUP BY
+            data.asset_symbol,
+            data.interval,
+            first_funding.first_funding_date,
+            duplicate_dates.duplicate_count
+        ORDER BY data.asset_symbol, data.interval
+        """
+    ).df()
+
+
+def _build_funding_coverage_table(coverage):
+    if coverage.empty:
+        return dbc.Alert("Funding data is unavailable", color="secondary")
+
+    rows = []
+    for _, item in coverage.iterrows():
+        post_listing_rows = int(item["post_listing_rows"])
+        funded_rows = int(item["funded_rows"])
+        unexpected_nulls = int(item["unexpected_nulls"])
+        duplicate_count = int(item["duplicate_count"])
+        available = post_listing_rows > 0
+        coverage_pct = funded_rows / post_listing_rows * 100 if available else None
+        status = "Healthy" if available and unexpected_nulls == 0 and duplicate_count == 0 else "Partial"
+        if not available:
+            status = "Unavailable"
+        status_color = {
+            "Healthy": "text-success",
+            "Partial": "text-warning",
+            "Unavailable": "text-muted",
+        }[status]
+        rows.append(html.Tr([
+            html.Td(item["asset_symbol"]),
+            html.Td(item["interval"]),
+            html.Td(f"{coverage_pct:.2f}%" if coverage_pct is not None else "N/A"),
+            html.Td(_format_lisbon_timestamp(item["first_funding_date"])),
+            html.Td(_format_lisbon_timestamp(item["latest_funding_date"])),
+            html.Td(f"{int(item['pre_listing_nulls']):,}"),
+            html.Td(f"{unexpected_nulls:,}"),
+            html.Td(f"{duplicate_count:,}"),
+            html.Td(status, className=status_color),
+        ]))
+
+    header = html.Thead(html.Tr([
+        html.Th("Asset"),
+        html.Th("Interval"),
+        html.Th("Coverage"),
+        html.Th("First Funding"),
+        html.Th("Latest Funding"),
+        html.Th("Pre-listing Nulls"),
+        html.Th("Unexpected Nulls"),
+        html.Th("Duplicates"),
+        html.Th("Status"),
+    ]))
+    return dbc.Table(
+        [header, html.Tbody(rows)],
+        color="dark",
+        hover=True,
+        striped=True,
+        responsive=True,
+        size="sm",
+        className="mb-4",
+    )
+
+
 def render_overview():
     conn = duckdb.connect(DB_PATH, read_only=True)
 
@@ -1389,6 +1511,11 @@ def render_overview():
         ORDER BY close DESC
         LIMIT 5
     """).df()
+
+    try:
+        funding_coverage = _load_funding_coverage(conn)
+    except (duckdb.CatalogException, duckdb.BinderException):
+        funding_coverage = pd.DataFrame()
 
     conn.close()
 
