@@ -1634,6 +1634,12 @@ def render_overview():
             className="text-muted small mb-3",
         ),
         freshness_row,
+        html.H5("Funding Data Quality", className="text-light mb-2"),
+        html.P(
+            "Funding coverage by crypto asset and interval. Pre-listing nulls occurred before the first available funding event and are not data-quality failures.",
+            className="text-muted small mb-2",
+        ),
+        _build_funding_coverage_table(funding_coverage),
         html.H5("Most Recently Updated", className="text-light mb-2"),
         top5_row,
         html.Hr(),
