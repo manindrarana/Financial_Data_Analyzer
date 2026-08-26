@@ -6,28 +6,28 @@
   ],
   "target": "next_4h_direction",
   "ensemble_method": "mean_probability",
-  "generated_at": "2026-08-25T08:58:03.374639+00:00",
-  "source_data_end_date": "2026-08-25T08:00:00+00:00",
-  "train_rows": 11087,
-  "test_rows": 2772,
-  "test_start_date": "2025-05-20T12:00:00+00:00",
-  "test_end_date": "2026-08-25T08:00:00+00:00",
+  "generated_at": "2026-08-26T09:26:59.480061+00:00",
+  "source_data_end_date": "2026-08-26T08:00:00+00:00",
+  "train_rows": 11092,
+  "test_rows": 2773,
+  "test_start_date": "2025-05-21T08:00:00+00:00",
+  "test_end_date": "2026-08-26T08:00:00+00:00",
   "models": {
     "1h": {
-      "accuracy": 0.5277777777777778,
-      "balanced_accuracy": 0.5277699837844451,
+      "accuracy": 0.5243418680129823,
+      "balanced_accuracy": 0.5243357699014137,
       "coverage": 1.0
     },
     "4h": {
-      "accuracy": 0.5324675324675324,
-      "balanced_accuracy": 0.5324896733203366,
+      "accuracy": 0.5283086909484312,
+      "balanced_accuracy": 0.5283448711386326,
       "coverage": 1.0
     },
     "ensemble": {
-      "accuracy": 0.5324675324675324,
-      "balanced_accuracy": 0.5324745769770354,
+      "accuracy": 0.5311936530833032,
+      "balanced_accuracy": 0.5312103355430988,
       "coverage": 1.0,
-      "difference_from_best_individual": -1.5096343301213011e-05
+      "difference_from_best_individual": 0.0028654644044662225
     }
   }
 }
