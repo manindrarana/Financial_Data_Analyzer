@@ -329,10 +329,10 @@ class TestFundingCoverage:
 
     def test_calculates_known_coverage_and_separates_null_types(self):
         connection = self._connection([
-            ("BTCUSDT", "1h", "2026-01-01 00:00:00", None),
-            ("BTCUSDT", "1h", "2026-01-02 00:00:00", 0.0001),
-            ("BTCUSDT", "1h", "2026-01-03 00:00:00", 0.0002),
-            ("BTCUSDT", "1h", "2026-01-04 00:00:00", None),
+            ("TESTUSDT", "1h", "2026-01-01 00:00:00", None),
+            ("TESTUSDT", "1h", "2026-01-02 00:00:00", 0.0001),
+            ("TESTUSDT", "1h", "2026-01-03 00:00:00", 0.0002),
+            ("TESTUSDT", "1h", "2026-01-04 00:00:00", None),
         ])
 
         coverage = dashboard_app._load_funding_coverage(connection)
