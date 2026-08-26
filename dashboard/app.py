@@ -1347,6 +1347,146 @@ def update_explorer_table(table_name, selected_asset, selected_interval):
     except Exception as e:
         return dbc.Alert(f"Error loading table '{table_name}': {e}", color="danger"), ""
 
+
+def _format_lisbon_timestamp(value):
+    if value is None or pd.isna(value):
+        return "N/A"
+    timestamp = pd.Timestamp(value)
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.tz_localize("UTC")
+    return timestamp.tz_convert(ZoneInfo("Europe/Lisbon")).strftime(
+        "%Y-%m-%d %H:%M %Z"
+    )
+
+
+def _load_funding_coverage(conn):
+    rows = conn.execute(
+        """
+        SELECT symbol AS asset_symbol, interval, date, funding_rate
+        FROM clean_bybit_crypto
+        WHERE interval IN ('1h', '4h', '1d')
+        ORDER BY symbol, interval, date
+        """
+    ).df()
+    if rows.empty:
+        return pd.DataFrame()
+
+    report_paths = [
+        os.path.join(_project_root, "reports", "funding", "funding_coverage.json"),
+        os.path.join(_project_root, "reports", "btc_funding_coverage.json"),
+    ]
+    boundaries = {}
+    for report_path in report_paths:
+        if not os.path.exists(report_path):
+            continue
+        with open(report_path, encoding="utf-8") as report_file:
+            report = json.load(report_file)
+        if isinstance(report, dict) and report.get("symbol") and report.get("oldest_available"):
+            boundaries[report["symbol"]] = pd.Timestamp(report["oldest_available"])
+            continue
+        if not isinstance(report, dict):
+            continue
+        for symbol, details in report.items():
+            if not isinstance(details, dict):
+                continue
+            oldest_available = details.get("oldest_available")
+            if oldest_available:
+                boundaries[symbol] = pd.Timestamp(oldest_available)
+
+    records = []
+    for (asset_symbol, interval), group in rows.groupby(
+        ["asset_symbol", "interval"], sort=True
+    ):
+        group = group.sort_values("date")
+        boundary = boundaries.get(asset_symbol)
+        if boundary is None:
+            funding_dates = group.loc[group["funding_rate"].notna(), "date"]
+            boundary = pd.Timestamp(funding_dates.min()) if not funding_dates.empty else None
+
+        dates = pd.to_datetime(group["date"], utc=True)
+        if boundary is None or pd.isna(boundary):
+            post_listing = group.iloc[0:0]
+            pre_listing_nulls = len(group)
+            first_funding = None
+        else:
+            boundary = pd.Timestamp(boundary)
+            if boundary.tzinfo is None:
+                boundary = boundary.tz_localize("UTC")
+            pre_listing_nulls = int((dates < boundary).sum())
+            post_listing = group.loc[dates >= boundary]
+            first_funding = boundary
+
+        funded_rows = int(post_listing["funding_rate"].notna().sum())
+        post_listing_rows = len(post_listing)
+        records.append({
+            "asset_symbol": asset_symbol.removesuffix("USDT"),
+            "interval": interval,
+            "first_funding_date": first_funding,
+            "latest_funding_date": group.loc[group["funding_rate"].notna(), "date"].max(),
+            "pre_listing_nulls": pre_listing_nulls,
+            "post_listing_rows": post_listing_rows,
+            "funded_rows": funded_rows,
+            "unexpected_nulls": post_listing_rows - funded_rows,
+            "duplicate_count": int(group.duplicated(subset=["date"]).sum()),
+        })
+
+    return pd.DataFrame(records)
+
+
+def _build_funding_coverage_table(coverage):
+    if coverage.empty:
+        return dbc.Alert("Funding data is unavailable", color="secondary")
+
+    rows = []
+    for _, item in coverage.iterrows():
+        post_listing_rows = int(item["post_listing_rows"])
+        funded_rows = int(item["funded_rows"])
+        unexpected_nulls = int(item["unexpected_nulls"])
+        duplicate_count = int(item["duplicate_count"])
+        available = post_listing_rows > 0
+        coverage_pct = funded_rows / post_listing_rows * 100 if available else None
+        status = "Healthy" if available and unexpected_nulls == 0 and duplicate_count == 0 else "Partial"
+        if not available:
+            status = "Unavailable"
+        status_color = {
+            "Healthy": "text-success",
+            "Partial": "text-warning",
+            "Unavailable": "text-muted",
+        }[status]
+        rows.append(html.Tr([
+            html.Td(item["asset_symbol"]),
+            html.Td(item["interval"]),
+            html.Td(f"{coverage_pct:.2f}%" if coverage_pct is not None else "N/A"),
+            html.Td(_format_lisbon_timestamp(item["first_funding_date"])),
+            html.Td(_format_lisbon_timestamp(item["latest_funding_date"])),
+            html.Td(f"{int(item['pre_listing_nulls']):,}"),
+            html.Td(f"{unexpected_nulls:,}"),
+            html.Td(f"{duplicate_count:,}"),
+            html.Td(status, className=status_color),
+        ]))
+
+    header = html.Thead(html.Tr([
+        html.Th("Asset"),
+        html.Th("Interval"),
+        html.Th("Coverage"),
+        html.Th("First Funding"),
+        html.Th("Latest Funding"),
+        html.Th("Pre-listing Nulls"),
+        html.Th("Unexpected Nulls"),
+        html.Th("Duplicates"),
+        html.Th("Status"),
+    ]))
+    return dbc.Table(
+        [header, html.Tbody(rows)],
+        color="dark",
+        hover=True,
+        striped=True,
+        responsive=True,
+        size="sm",
+        className="mb-4",
+    )
+
+
 def render_overview():
     conn = duckdb.connect(DB_PATH, read_only=True)
 
@@ -1389,6 +1529,11 @@ def render_overview():
         ORDER BY close DESC
         LIMIT 5
     """).df()
+
+    try:
+        funding_coverage = _load_funding_coverage(conn)
+    except (duckdb.CatalogException, duckdb.BinderException):
+        funding_coverage = pd.DataFrame()
 
     conn.close()
 
@@ -1520,6 +1665,13 @@ def render_overview():
                 ),
             )
         ),
+        html.Hr(),
+        html.H5("Funding Data Quality", className="text-light mb-2"),
+        html.P(
+            "Funding coverage by crypto asset and interval. Pre-listing nulls occurred before the first available funding event and are not data-quality failures.",
+            className="text-muted small mb-2",
+        ),
+        _build_funding_coverage_table(funding_coverage),
     ])
 
 def _calculate_model_quality(predictions):

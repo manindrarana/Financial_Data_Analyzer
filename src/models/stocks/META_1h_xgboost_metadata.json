@@ -2,10 +2,10 @@
   "asset": "META",
   "interval": "1h",
   "asset_class": "stocks",
-  "train_end_date": "2026-03-11T16:30:00",
-  "train_rows": 3176,
-  "test_rows": 794,
-  "test_accuracy": 0.5264483627204031,
+  "train_end_date": "2026-03-12T14:30:00",
+  "train_rows": 3181,
+  "test_rows": 796,
+  "test_accuracy": 0.5251256281407035,
   "features": [
     "rsi_14",
     "roc_10",
@@ -38,20 +38,20 @@
     "volatility_pct"
   ],
   "best_params": {
-    "learning_rate": 0.01,
+    "learning_rate": 0.1,
     "max_depth": 5,
-    "n_estimators": 100,
+    "n_estimators": 200,
     "subsample": 1.0,
     "eval_metric": "logloss",
     "random_state": 42
   },
-  "best_cv_score": 0.510047281323877,
+  "best_cv_score": 0.5100235849056604,
   "calibration": {
     "method": "platt_scaling",
-    "coefficient": -0.1290517782575915,
-    "intercept": -0.022168957929092528,
-    "rows": 636
+    "coefficient": 0.20163887699555738,
+    "intercept": -0.1999837068007374,
+    "rows": 637
   },
-  "trained_at": "2026-08-24T08:54:13.880869",
-  "mlflow_run_id": "724f5cdbf1bd45e2b622eef13425a10c"
+  "trained_at": "2026-08-26T09:26:13.272292",
+  "mlflow_run_id": "844d05e52da043869c5bee69967f641c"
 }
