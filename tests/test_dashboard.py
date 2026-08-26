@@ -350,9 +350,9 @@ class TestFundingCoverage:
 
     def test_counts_duplicate_dates(self):
         connection = self._connection([
-            ("ETH", "4h", "2026-01-02 00:00:00", 0.0001),
-            ("ETH", "4h", "2026-01-02 00:00:00", 0.0002),
-            ("ETH", "4h", "2026-01-03 00:00:00", 0.0003),
+            ("ETHUSDT", "4h", "2026-01-02 00:00:00", 0.0001),
+            ("ETHUSDT", "4h", "2026-01-02 00:00:00", 0.0002),
+            ("ETHUSDT", "4h", "2026-01-03 00:00:00", 0.0003),
         ])
 
         coverage = dashboard_app._load_funding_coverage(connection)
