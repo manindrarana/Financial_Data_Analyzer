@@ -1381,8 +1381,14 @@ def _load_funding_coverage(conn):
             continue
         with open(report_path, encoding="utf-8") as report_file:
             report = json.load(report_file)
-        report_items = report.items() if isinstance(report, dict) else []
-        for symbol, details in report_items:
+        if isinstance(report, dict) and report.get("symbol") and report.get("oldest_available"):
+            boundaries[report["symbol"]] = pd.Timestamp(report["oldest_available"])
+            continue
+        if not isinstance(report, dict):
+            continue
+        for symbol, details in report.items():
+            if not isinstance(details, dict):
+                continue
             oldest_available = details.get("oldest_available")
             if oldest_available:
                 boundaries[symbol] = pd.Timestamp(oldest_available)
