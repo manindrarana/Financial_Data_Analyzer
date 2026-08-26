@@ -313,8 +313,8 @@ class TestFundingCoverage:
         connection = dashboard_app.duckdb.connect(":memory:")
         connection.execute(
             """
-            CREATE TABLE gold_crypto_analytics (
-                asset_symbol VARCHAR,
+            CREATE TABLE clean_bybit_crypto (
+                symbol VARCHAR,
                 interval VARCHAR,
                 date TIMESTAMP,
                 funding_rate DOUBLE
@@ -322,7 +322,7 @@ class TestFundingCoverage:
             """
         )
         connection.executemany(
-            "INSERT INTO gold_crypto_analytics VALUES (?, ?, ?, ?)",
+            "INSERT INTO clean_bybit_crypto VALUES (?, ?, ?, ?)",
             rows,
         )
         return connection
