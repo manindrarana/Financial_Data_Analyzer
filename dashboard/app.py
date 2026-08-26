@@ -1371,14 +1371,18 @@ def _load_funding_coverage(conn):
     if rows.empty:
         return pd.DataFrame()
 
-    report_path = os.path.join(
-        _project_root, "reports", "funding", "funding_coverage.json"
-    )
+    report_paths = [
+        os.path.join(_project_root, "reports", "funding", "funding_coverage.json"),
+        os.path.join(_project_root, "reports", "btc_funding_coverage.json"),
+    ]
     boundaries = {}
-    if os.path.exists(report_path):
+    for report_path in report_paths:
+        if not os.path.exists(report_path):
+            continue
         with open(report_path, encoding="utf-8") as report_file:
             report = json.load(report_file)
-        for symbol, details in report.items():
+        report_items = report.items() if isinstance(report, dict) else []
+        for symbol, details in report_items:
             oldest_available = details.get("oldest_available")
             if oldest_available:
                 boundaries[symbol] = pd.Timestamp(oldest_available)
