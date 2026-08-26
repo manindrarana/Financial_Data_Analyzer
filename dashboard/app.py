@@ -1360,59 +1360,67 @@ def _format_lisbon_timestamp(value):
 
 
 def _load_funding_coverage(conn):
-    return conn.execute(
+    rows = conn.execute(
         """
-        WITH first_funding AS (
-            SELECT asset_symbol, interval, MIN(date) AS first_funding_date
-            FROM gold_crypto_analytics
-            WHERE funding_rate IS NOT NULL
-            GROUP BY asset_symbol, interval
-        ),
-        duplicate_dates AS (
-            SELECT asset_symbol, interval, SUM(date_rows - 1) AS duplicate_count
-            FROM (
-                SELECT asset_symbol, interval, date, COUNT(*) AS date_rows
-                FROM gold_crypto_analytics
-                GROUP BY asset_symbol, interval, date
-                HAVING COUNT(*) > 1
-            )
-            GROUP BY asset_symbol, interval
-        )
-        SELECT
-            data.asset_symbol,
-            data.interval,
-            first_funding.first_funding_date,
-            MAX(data.date) FILTER (WHERE data.funding_rate IS NOT NULL) AS latest_funding_date,
-            COUNT(*) FILTER (
-                WHERE data.date < first_funding.first_funding_date
-                  AND data.funding_rate IS NULL
-            ) AS pre_listing_nulls,
-            COUNT(*) FILTER (
-                WHERE data.date >= first_funding.first_funding_date
-            ) AS post_listing_rows,
-            COUNT(data.funding_rate) FILTER (
-                WHERE data.date >= first_funding.first_funding_date
-            ) AS funded_rows,
-            COUNT(*) FILTER (
-                WHERE data.date >= first_funding.first_funding_date
-                  AND data.funding_rate IS NULL
-            ) AS unexpected_nulls,
-            COALESCE(duplicate_dates.duplicate_count, 0) AS duplicate_count
-        FROM gold_crypto_analytics AS data
-        LEFT JOIN first_funding
-            ON data.asset_symbol = first_funding.asset_symbol
-           AND data.interval = first_funding.interval
-        LEFT JOIN duplicate_dates
-            ON data.asset_symbol = duplicate_dates.asset_symbol
-           AND data.interval = duplicate_dates.interval
-        GROUP BY
-            data.asset_symbol,
-            data.interval,
-            first_funding.first_funding_date,
-            duplicate_dates.duplicate_count
-        ORDER BY data.asset_symbol, data.interval
+        SELECT symbol AS asset_symbol, interval, date, funding_rate
+        FROM clean_bybit_crypto
+        WHERE interval IN ('1h', '4h', '1d')
+        ORDER BY symbol, interval, date
         """
     ).df()
+    if rows.empty:
+        return pd.DataFrame()
+
+    report_path = os.path.join(
+        _project_root, "reports", "funding", "funding_coverage.json"
+    )
+    boundaries = {}
+    if os.path.exists(report_path):
+        with open(report_path, encoding="utf-8") as report_file:
+            report = json.load(report_file)
+        for symbol, details in report.items():
+            oldest_available = details.get("oldest_available")
+            if oldest_available:
+                boundaries[symbol] = pd.Timestamp(oldest_available)
+
+    records = []
+    for (asset_symbol, interval), group in rows.groupby(
+        ["asset_symbol", "interval"], sort=True
+    ):
+        group = group.sort_values("date")
+        boundary = boundaries.get(asset_symbol)
+        if boundary is None:
+            funding_dates = group.loc[group["funding_rate"].notna(), "date"]
+            boundary = pd.Timestamp(funding_dates.min()) if not funding_dates.empty else None
+
+        dates = pd.to_datetime(group["date"], utc=True)
+        if boundary is None or pd.isna(boundary):
+            post_listing = group.iloc[0:0]
+            pre_listing_nulls = len(group)
+            first_funding = None
+        else:
+            boundary = pd.Timestamp(boundary)
+            if boundary.tzinfo is None:
+                boundary = boundary.tz_localize("UTC")
+            pre_listing_nulls = int((dates < boundary).sum())
+            post_listing = group.loc[dates >= boundary]
+            first_funding = boundary
+
+        funded_rows = int(post_listing["funding_rate"].notna().sum())
+        post_listing_rows = len(post_listing)
+        records.append({
+            "asset_symbol": asset_symbol.removesuffix("USDT"),
+            "interval": interval,
+            "first_funding_date": first_funding,
+            "latest_funding_date": group.loc[group["funding_rate"].notna(), "date"].max(),
+            "pre_listing_nulls": pre_listing_nulls,
+            "post_listing_rows": post_listing_rows,
+            "funded_rows": funded_rows,
+            "unexpected_nulls": post_listing_rows - funded_rows,
+            "duplicate_count": int(group.duplicated(subset=["date"]).sum()),
+        })
+
+    return pd.DataFrame(records)
 
 
 def _build_funding_coverage_table(coverage):
