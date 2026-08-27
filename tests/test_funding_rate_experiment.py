@@ -186,3 +186,41 @@ def test_save_experiment_results_writes_metric_and_prediction_values(tmp_path):
     assert metadata["variants"]["baseline"]["brier_score"] == 0.25
     assert metadata["test_start"] == "2026-01-05T00:00:00"
     assert predictions.loc[0, "baseline_up_probability"] == pytest.approx(0.6)
+
+
+def test_wilson_accuracy_interval_matches_known_values():
+    interval = wilson_accuracy_interval(60, 100)
+
+    assert interval == pytest.approx([0.5020025868, 0.6905987136])
+    assert wilson_accuracy_interval(0, 0) is None
+
+
+def test_exact_mcnemar_p_value_matches_known_discordant_counts():
+    assert exact_mcnemar_p_value(10, 0) == pytest.approx(0.001953125)
+    assert exact_mcnemar_p_value(4, 4) == pytest.approx(1.0)
+    assert exact_mcnemar_p_value(0, 0) == pytest.approx(1.0)
+
+
+def test_paired_bootstrap_interval_is_zero_for_identical_results():
+    correct = np.array([True, False, True, True, False])
+
+    assert paired_bootstrap_interval(correct, correct) == pytest.approx([0.0, 0.0])
+
+
+def test_compare_variant_significance_reports_clear_improvement():
+    actual = np.array([1] * 20)
+    baseline_predictions = np.array([0] * 10 + [1] * 10)
+    model_predictions = np.array([1] * 20)
+
+    result = compare_variant_significance(
+        model_predictions,
+        baseline_predictions,
+        actual,
+    )
+
+    assert result["difference"] == pytest.approx(0.5)
+    assert result["difference_interval"][0] > 0
+    assert result["model_only"] == 10
+    assert result["baseline_only"] == 0
+    assert result["mcnemar_p_value"] == pytest.approx(0.001953125)
+    assert result["model_accuracy_interval"][1] == pytest.approx(1.0)
