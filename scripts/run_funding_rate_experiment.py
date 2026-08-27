@@ -342,6 +342,20 @@ def compare_multiple_funding_variants(
                         "accuracy_difference_from_baseline": metrics[
                             "accuracy_difference_from_baseline"
                         ],
+                        "significance_difference": metrics["significance"][
+                            "difference"
+                        ],
+                        "significance_interval_low": metrics["significance"][
+                            "difference_interval"
+                        ][0],
+                        "significance_interval_high": metrics["significance"][
+                            "difference_interval"
+                        ][1],
+                        "mcnemar_p_value": metrics["significance"][
+                            "mcnemar_p_value"
+                        ],
+                        "model_only": metrics["significance"]["model_only"],
+                        "baseline_only": metrics["significance"]["baseline_only"],
                     }
                 )
 
