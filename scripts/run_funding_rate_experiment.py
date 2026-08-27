@@ -235,10 +235,34 @@ def compare_funding_variants(db_path, asset="BTC", interval="1h"):
         }
 
     baseline_accuracy = variants["baseline"]["accuracy"]
+    baseline_predictions = prediction_data["baseline_prediction"]
+    actual = prediction_data["actual_direction"]
     for name, metrics in variants.items():
         metrics["accuracy_difference_from_baseline"] = (
             metrics["accuracy"] - baseline_accuracy
         )
+        if name == "baseline":
+            metrics["significance"] = {
+                "difference": 0.0,
+                "difference_interval": [0.0, 0.0],
+                "model_only": 0,
+                "baseline_only": 0,
+                "mcnemar_p_value": 1.0,
+                "model_accuracy_interval": wilson_accuracy_interval(
+                    int(np.sum(prediction_data["baseline_prediction"] == actual)),
+                    len(actual),
+                ),
+                "baseline_accuracy_interval": wilson_accuracy_interval(
+                    int(np.sum(prediction_data["baseline_prediction"] == actual)),
+                    len(actual),
+                ),
+            }
+        else:
+            metrics["significance"] = compare_variant_significance(
+                prediction_data[f"{name}_prediction"],
+                baseline_predictions,
+                actual,
+            )
 
     return {
         "asset": asset,
