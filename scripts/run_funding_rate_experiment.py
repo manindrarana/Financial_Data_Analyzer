@@ -147,6 +147,72 @@ def evaluate_variant(search, test, features):
     }
 
 
+def wilson_accuracy_interval(correct, total):
+    if total <= 0:
+        return None
+    z = 1.959963984540054
+    proportion = correct / total
+    denominator = 1 + z**2 / total
+    centre = (proportion + z**2 / (2 * total)) / denominator
+    margin = z * np.sqrt(
+        (proportion * (1 - proportion) + z**2 / (4 * total)) / total
+    ) / denominator
+    return [
+        max(0.0, centre - margin),
+        min(1.0, centre + margin),
+    ]
+
+
+def paired_bootstrap_interval(model_correct, baseline_correct, iterations=2000, seed=42):
+    values = np.asarray(model_correct, dtype=float) - np.asarray(
+        baseline_correct, dtype=float
+    )
+    if len(values) < 2:
+        return None
+    rng = np.random.default_rng(seed)
+    samples = rng.choice(values, size=(iterations, len(values)), replace=True)
+    interval = np.quantile(samples.mean(axis=1), [0.025, 0.975])
+    return [float(interval[0]), float(interval[1])]
+
+
+def exact_mcnemar_p_value(model_only, baseline_only):
+    discordant = model_only + baseline_only
+    if discordant == 0:
+        return 1.0
+    smaller = min(model_only, baseline_only)
+    probability = sum(
+        np.math.comb(discordant, successes)
+        for successes in range(smaller + 1)
+    ) / (2**discordant)
+    return float(min(1.0, 2 * probability))
+
+
+def compare_variant_significance(model_predictions, baseline_predictions, actual):
+    model_correct = (
+        np.asarray(model_predictions).astype(int) == np.asarray(actual).astype(int)
+    )
+    baseline_correct = (
+        np.asarray(baseline_predictions).astype(int) == np.asarray(actual).astype(int)
+    )
+    model_only = int(np.sum(model_correct & ~baseline_correct))
+    baseline_only = int(np.sum(~model_correct & baseline_correct))
+    return {
+        "difference": float(model_correct.mean() - baseline_correct.mean()),
+        "difference_interval": paired_bootstrap_interval(
+            model_correct, baseline_correct
+        ),
+        "model_only": model_only,
+        "baseline_only": baseline_only,
+        "mcnemar_p_value": exact_mcnemar_p_value(model_only, baseline_only),
+        "model_accuracy_interval": wilson_accuracy_interval(
+            int(model_correct.sum()), len(model_correct)
+        ),
+        "baseline_accuracy_interval": wilson_accuracy_interval(
+            int(baseline_correct.sum()), len(baseline_correct)
+        ),
+    }
+
+
 def compare_funding_variants(db_path, asset="BTC", interval="1h"):
     dataset = prepare_experiment_dataset(
         load_crypto_features(db_path, asset, interval)
