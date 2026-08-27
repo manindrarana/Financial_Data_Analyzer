@@ -213,3 +213,68 @@ def save_experiment_results(result, output_dir):
         encoding="utf-8",
     )
     return {"metadata": metadata_path, "predictions": predictions_path}
+
+
+def compare_multiple_funding_variants(
+    db_path,
+    assets=("BTC", "ETH", "SOL"),
+    intervals=("1h", "4h", "1d"),
+):
+    results = []
+    skipped = []
+    for asset in assets:
+        for interval in intervals:
+            try:
+                result = compare_funding_variants(db_path, asset, interval)
+            except ValueError as error:
+                skipped.append(
+                    {"asset": asset, "interval": interval, "reason": str(error)}
+                )
+                continue
+
+            for variant, metrics in result["variants"].items():
+                results.append(
+                    {
+                        "asset": asset,
+                        "interval": interval,
+                        "variant": variant,
+                        "total_rows": result["total_rows"],
+                        "train_rows": result["train_rows"],
+                        "test_rows": result["test_rows"],
+                        "test_start": result["test_start"],
+                        "test_end": result["test_end"],
+                        "accuracy": metrics["accuracy"],
+                        "balanced_accuracy": metrics["balanced_accuracy"],
+                        "f1": metrics["f1"],
+                        "mcc": metrics["mcc"],
+                        "brier_score": metrics["brier_score"],
+                        "accuracy_difference_from_baseline": metrics[
+                            "accuracy_difference_from_baseline"
+                        ],
+                    }
+                )
+
+    return {
+        "results": pd.DataFrame(results),
+        "skipped": skipped,
+    }
+
+
+def save_multiple_experiment_results(result, output_dir):
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    results = result["results"].copy()
+    for column in ["test_start", "test_end"]:
+        if column in results:
+            results[column] = pd.to_datetime(results[column]).dt.strftime(
+                "%Y-%m-%dT%H:%M:%S"
+            )
+    results_path = output_path / "multi_asset_interval_comparison.csv"
+    results.to_csv(results_path, index=False)
+
+    skipped_path = output_path / "multi_asset_interval_skipped.json"
+    skipped_path.write_text(
+        json.dumps(result["skipped"], indent=2),
+        encoding="utf-8",
+    )
+    return {"results": results_path, "skipped": skipped_path}
