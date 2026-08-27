@@ -1,0 +1,17 @@
+[
+  {
+    "asset": "BTC",
+    "interval": "1d",
+    "reason": "insufficient funding experiment rows: train=90, test=23"
+  },
+  {
+    "asset": "ETH",
+    "interval": "1d",
+    "reason": "insufficient funding experiment rows: train=90, test=23"
+  },
+  {
+    "asset": "SOL",
+    "interval": "1d",
+    "reason": "insufficient funding experiment rows: train=90, test=23"
+  }
+]
