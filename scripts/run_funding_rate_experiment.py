@@ -1,4 +1,5 @@
 import json
+import math
 from pathlib import Path
 
 import duckdb
@@ -181,7 +182,7 @@ def exact_mcnemar_p_value(model_only, baseline_only):
         return 1.0
     smaller = min(model_only, baseline_only)
     probability = sum(
-        np.math.comb(discordant, successes)
+        math.comb(discordant, successes)
         for successes in range(smaller + 1)
     ) / (2**discordant)
     return float(min(1.0, 2 * probability))
