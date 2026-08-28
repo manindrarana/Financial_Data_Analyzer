@@ -294,3 +294,104 @@ def test_backtest_variant_costs_exits_at_stop_loss_with_known_loss():
     assert result["total_trades"] == 1
     assert result["losing_trades"] == 1
     assert result["total_pnl"] == pytest.approx(expected_pnl, abs=0.01)
+
+
+def make_variant_metrics(accuracy, cost_pnl, cost_trades):
+    return {
+        "accuracy": accuracy,
+        "balanced_accuracy": accuracy,
+        "f1": accuracy,
+        "mcc": 0.0,
+        "brier_score": 0.25,
+        "best_cv_score": 0.5,
+        "best_params": {"max_depth": 3},
+        "features": list(MODEL_FEATURES),
+        "accuracy_difference_from_baseline": 0.0,
+        "significance": {
+            "difference": 0.0,
+            "difference_interval": [0.0, 0.0],
+            "model_only": 0,
+            "baseline_only": 0,
+            "mcnemar_p_value": 1.0,
+            "model_accuracy_interval": [0.4, 0.6],
+            "baseline_accuracy_interval": [0.4, 0.6],
+        },
+        "cost_aware": {
+            "total_return_pct": cost_pnl / 100,
+            "total_pnl": cost_pnl,
+            "total_cost": 0.4,
+            "sharpe_ratio": 1.2,
+            "volatility_pct": 20.0,
+            "max_drawdown_pct": 5.0,
+            "win_rate": 60.0,
+            "profit_factor": 1.5,
+            "total_trades": cost_trades,
+        },
+    }
+
+
+def test_compare_multiple_funding_variants_includes_cost_aware_columns(monkeypatch):
+    fake_result = {
+        "total_rows": 200,
+        "train_rows": 160,
+        "test_rows": 40,
+        "test_start": pd.Timestamp("2026-02-01"),
+        "test_end": pd.Timestamp("2026-03-01"),
+        "variants": {
+            "baseline": make_variant_metrics(0.55, 120.0, 8),
+            "raw_funding": make_variant_metrics(0.56, 180.0, 11),
+        },
+    }
+
+    def fake_compare(db_path, asset, interval):
+        if (asset, interval) == ("BTC", "1h"):
+            return fake_result
+        raise ValueError("insufficient funding experiment rows: train=90, test=23")
+
+    monkeypatch.setattr(
+        "scripts.run_funding_rate_experiment.compare_funding_variants",
+        fake_compare,
+    )
+
+    result = compare_multiple_funding_variants("unused.duckdb")
+
+    frame = result["results"]
+    raw = frame[frame["variant"] == "raw_funding"].iloc[0]
+    assert frame["cost_aware_total_pnl"].tolist() == [120.0, 180.0]
+    assert frame["cost_aware_total_trades"].tolist() == [8, 11]
+    assert raw["cost_aware_sharpe_ratio"] == 1.2
+    assert raw["cost_aware_win_rate"] == 60.0
+    assert result["skipped"] == [
+        {
+            "asset": "ETH",
+            "interval": "1h",
+            "reason": "insufficient funding experiment rows: train=90, test=23",
+        }
+    ]
+
+
+def test_save_multiple_experiment_results_writes_cost_aware_csv(tmp_path):
+    result = {
+        "results": pd.DataFrame(
+            [
+                {
+                    "asset": "BTC",
+                    "interval": "1h",
+                    "variant": "baseline",
+                    "test_start": pd.Timestamp("2026-02-01"),
+                    "test_end": pd.Timestamp("2026-03-01"),
+                    "cost_aware_total_pnl": 120.0,
+                    "cost_aware_total_trades": 8,
+                }
+            ]
+        ),
+        "skipped": [],
+    }
+
+    paths = save_multiple_experiment_results(result, tmp_path)
+    saved = pd.read_csv(paths["results"])
+
+    assert saved.loc[0, "cost_aware_total_pnl"] == pytest.approx(120.0)
+    assert saved.loc[0, "cost_aware_total_trades"] == 8
+    assert saved.loc[0, "test_start"] == "2026-02-01T00:00:00"
+    assert json.loads(paths["skipped"].read_text(encoding="utf-8")) == []
