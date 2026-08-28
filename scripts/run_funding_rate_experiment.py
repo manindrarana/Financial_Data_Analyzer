@@ -363,6 +363,7 @@ def compare_multiple_funding_variants(
                 continue
 
             for variant, metrics in result["variants"].items():
+                cost_aware = metrics["cost_aware"]
                 results.append(
                     {
                         "asset": asset,
@@ -395,6 +396,21 @@ def compare_multiple_funding_variants(
                         ],
                         "model_only": metrics["significance"]["model_only"],
                         "baseline_only": metrics["significance"]["baseline_only"],
+                        "cost_aware_total_return_pct": cost_aware[
+                            "total_return_pct"
+                        ],
+                        "cost_aware_total_pnl": cost_aware["total_pnl"],
+                        "cost_aware_total_cost": cost_aware["total_cost"],
+                        "cost_aware_sharpe_ratio": cost_aware["sharpe_ratio"],
+                        "cost_aware_volatility_pct": cost_aware[
+                            "volatility_pct"
+                        ],
+                        "cost_aware_max_drawdown_pct": cost_aware[
+                            "max_drawdown_pct"
+                        ],
+                        "cost_aware_win_rate": cost_aware["win_rate"],
+                        "cost_aware_profit_factor": cost_aware["profit_factor"],
+                        "cost_aware_total_trades": cost_aware["total_trades"],
                     }
                 )
 
