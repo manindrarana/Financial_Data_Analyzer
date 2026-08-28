@@ -7,6 +7,7 @@ import pytest
 from scripts.run_funding_rate_experiment import (
     DERIVED_FUNDING_FEATURES,
     VARIANT_FEATURES,
+    backtest_variant_costs,
     build_funding_features,
     compare_funding_variants,
     compare_variant_significance,
@@ -224,3 +225,70 @@ def test_compare_variant_significance_reports_clear_improvement():
     assert result["baseline_only"] == 0
     assert result["mcnemar_p_value"] == pytest.approx(0.001953125)
     assert result["model_accuracy_interval"][1] == pytest.approx(1.0)
+
+
+def test_backtest_variant_costs_matches_manual_trade_calculation():
+    frame = pd.DataFrame(
+        {
+            "date": pd.date_range("2026-01-01", periods=3, freq="h"),
+            "close": [100.0, 101.0, 104.5],
+            "baseline_prediction": [1, 1, 1],
+            "baseline_up_probability": [0.6, 0.6, 0.6],
+        }
+    )
+
+    result = backtest_variant_costs(frame, "baseline", "1h")
+
+    entry_cost = 100.0 * 0.001
+    exit_cost = 104.0 * 0.001
+    expected_pnl = 104.0 - 100.0 - entry_cost - exit_cost
+    assert result["total_trades"] == 1
+    assert result["winning_trades"] == 1
+    assert result["total_pnl"] == pytest.approx(expected_pnl, abs=0.01)
+    assert result["total_return_pct"] == pytest.approx(
+        expected_pnl / 10000 * 100, abs=0.01
+    )
+    assert result["win_rate"] == 100.0
+    assert result["max_drawdown_pct"] == 0.0
+
+
+def test_backtest_variant_costs_charges_both_variants_same_cost_rate():
+    dates = pd.date_range("2026-01-01", periods=5, freq="h")
+    frame = pd.DataFrame(
+        {
+            "date": dates,
+            "close": [100.0, 102.0, 100.5, 103.0, 104.0],
+            "baseline_prediction": [1, 1, 1, 1, 1],
+            "baseline_up_probability": [0.9, 0.9, 0.9, 0.9, 0.9],
+            "raw_funding_prediction": [1, 1, 1, 1, 1],
+            "raw_funding_up_probability": [0.4, 0.4, 0.4, 0.4, 0.4],
+        }
+    )
+
+    baseline = backtest_variant_costs(frame, "baseline", "1h")
+    raw_funding = backtest_variant_costs(frame, "raw_funding", "1h")
+
+    assert baseline["total_trades"] == 1
+    assert raw_funding["total_trades"] == 0
+    assert raw_funding["total_pnl"] == 0.0
+    assert raw_funding["sharpe_ratio"] == 0.0
+
+
+def test_backtest_variant_costs_exits_at_stop_loss_with_known_loss():
+    frame = pd.DataFrame(
+        {
+            "date": pd.date_range("2026-01-01", periods=3, freq="h"),
+            "close": [100.0, 97.9, 99.0],
+            "baseline_prediction": [1, 1, 1],
+            "baseline_up_probability": [0.8, 0.8, 0.8],
+        }
+    )
+
+    result = backtest_variant_costs(frame, "baseline", "1h")
+
+    entry_cost = 100.0 * 0.001
+    exit_cost = 98.0 * 0.001
+    expected_pnl = 98.0 - 100.0 - entry_cost - exit_cost
+    assert result["total_trades"] == 1
+    assert result["losing_trades"] == 1
+    assert result["total_pnl"] == pytest.approx(expected_pnl, abs=0.01)
