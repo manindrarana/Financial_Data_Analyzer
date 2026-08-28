@@ -10,11 +10,13 @@ from scripts.run_funding_rate_experiment import (
     backtest_variant_costs,
     build_funding_features,
     compare_funding_variants,
+    compare_multiple_funding_variants,
     compare_variant_significance,
     exact_mcnemar_p_value,
     paired_bootstrap_interval,
     prepare_experiment_dataset,
     save_experiment_results,
+    save_multiple_experiment_results,
     split_experiment_data,
     wilson_accuracy_interval,
 )
