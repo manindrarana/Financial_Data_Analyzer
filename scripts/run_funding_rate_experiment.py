@@ -224,6 +224,28 @@ def compare_variant_significance(model_predictions, baseline_predictions, actual
     }
 
 
+def backtest_variant_costs(test_predictions, variant, interval):
+    prediction = test_predictions[f"{variant}_prediction"].astype(int)
+    up_probability = test_predictions[f"{variant}_up_probability"].astype(float)
+    confidence = np.where(prediction == 1, up_probability, 1 - up_probability)
+    frame = pd.DataFrame(
+        {
+            "date": test_predictions["date"],
+            "close": test_predictions["close"],
+            "prediction": prediction,
+            "confidence": confidence,
+        }
+    )
+    trades, equity = simulate_trades(frame, **COST_AWARE_SETTINGS)
+    return compute_metrics(
+        trades,
+        equity,
+        initial_capital=COST_AWARE_SETTINGS["initial_capital"],
+        interval=interval,
+        asset_class="crypto",
+    )
+
+
 def compare_funding_variants(db_path, asset="BTC", interval="1h"):
     dataset = prepare_experiment_dataset(
         load_crypto_features(db_path, asset, interval)
