@@ -254,6 +254,7 @@ def compare_funding_variants(db_path, asset="BTC", interval="1h"):
     variants = {}
     prediction_data = {
         "date": test["date"].to_numpy(),
+        "close": test["close"].to_numpy(),
         "actual_direction": test["target_direction"].to_numpy(),
     }
 
