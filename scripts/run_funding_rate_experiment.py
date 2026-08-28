@@ -438,3 +438,37 @@ def save_multiple_experiment_results(result, output_dir):
         encoding="utf-8",
     )
     return {"results": results_path, "skipped": skipped_path}
+
+
+def run_experiment(
+    db_path,
+    output_dir="reports/funding/experiment",
+    assets=("BTC", "ETH", "SOL"),
+    intervals=("1h", "4h", "1d"),
+):
+    result = compare_multiple_funding_variants(db_path, assets, intervals)
+    paths = save_multiple_experiment_results(result, output_dir)
+    for row in result["skipped"]:
+        print(f"skipped {row['asset']} {row['interval']}: {row['reason']}")
+    print(f"results saved: {paths['results']}")
+    print(f"skipped saved: {paths['skipped']}")
+    return result
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="compare funding variants with cost-aware backtests"
+    )
+    parser.add_argument("db_path")
+    parser.add_argument("--output-dir", default="reports/funding/experiment")
+    parser.add_argument("--assets", nargs="+", default=["BTC", "ETH", "SOL"])
+    parser.add_argument("--intervals", nargs="+", default=["1h", "4h", "1d"])
+    arguments = parser.parse_args()
+    run_experiment(
+        arguments.db_path,
+        arguments.output_dir,
+        tuple(arguments.assets),
+        tuple(arguments.intervals),
+    )
