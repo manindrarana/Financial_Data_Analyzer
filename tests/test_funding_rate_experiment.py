@@ -233,7 +233,7 @@ def test_backtest_variant_costs_matches_manual_trade_calculation():
             "date": pd.date_range("2026-01-01", periods=3, freq="h"),
             "close": [100.0, 101.0, 104.5],
             "baseline_prediction": [1, 1, 1],
-            "baseline_up_probability": [0.6, 0.6, 0.6],
+            "baseline_up_probability": [0.9, 0.9, 0.4],
         }
     )
 
@@ -259,7 +259,7 @@ def test_backtest_variant_costs_charges_both_variants_same_cost_rate():
             "date": dates,
             "close": [100.0, 102.0, 100.5, 103.0, 104.0],
             "baseline_prediction": [1, 1, 1, 1, 1],
-            "baseline_up_probability": [0.9, 0.9, 0.9, 0.9, 0.9],
+            "baseline_up_probability": [0.9, 0.9, 0.9, 0.9, 0.4],
             "raw_funding_prediction": [1, 1, 1, 1, 1],
             "raw_funding_up_probability": [0.4, 0.4, 0.4, 0.4, 0.4],
         }
@@ -280,7 +280,7 @@ def test_backtest_variant_costs_exits_at_stop_loss_with_known_loss():
             "date": pd.date_range("2026-01-01", periods=3, freq="h"),
             "close": [100.0, 97.9, 99.0],
             "baseline_prediction": [1, 1, 1],
-            "baseline_up_probability": [0.8, 0.8, 0.8],
+            "baseline_up_probability": [0.9, 0.4, 0.4],
         }
     )
 
