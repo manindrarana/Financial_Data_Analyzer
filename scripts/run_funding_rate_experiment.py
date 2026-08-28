@@ -1,5 +1,6 @@
 import json
 import math
+import sys
 from pathlib import Path
 
 import duckdb
@@ -14,6 +15,8 @@ from sklearn.metrics import (
     matthews_corrcoef,
 )
 from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from backtesting.metrics import compute_metrics
 from backtesting.strategy import simulate_trades
