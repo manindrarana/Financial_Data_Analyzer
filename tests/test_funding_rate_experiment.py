@@ -353,7 +353,9 @@ def test_compare_multiple_funding_variants_includes_cost_aware_columns(monkeypat
         fake_compare,
     )
 
-    result = compare_multiple_funding_variants("unused.duckdb")
+    result = compare_multiple_funding_variants(
+        "unused.duckdb", assets=("BTC", "ETH"), intervals=("1h",)
+    )
 
     frame = result["results"]
     raw = frame[frame["variant"] == "raw_funding"].iloc[0]
