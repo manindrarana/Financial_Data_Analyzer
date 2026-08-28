@@ -298,6 +298,12 @@ def compare_funding_variants(db_path, asset="BTC", interval="1h"):
                 actual,
             )
 
+    test_predictions = pd.DataFrame(prediction_data)
+    for name, metrics in variants.items():
+        metrics["cost_aware"] = backtest_variant_costs(
+            test_predictions, name, interval
+        )
+
     return {
         "asset": asset,
         "interval": interval,
