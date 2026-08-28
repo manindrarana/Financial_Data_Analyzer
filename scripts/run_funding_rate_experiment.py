@@ -15,6 +15,8 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
 
+from backtesting.metrics import compute_metrics
+from backtesting.strategy import simulate_trades
 from src.models.feature_engineering import MODEL_FEATURES, NEEDED_COLS, make_stationary
 
 
@@ -22,6 +24,14 @@ PARAM_GRID = {
     "learning_rate": [0.01, 0.05, 0.1],
     "max_depth": [3, 5],
     "n_estimators": [100, 200],
+}
+COST_AWARE_SETTINGS = {
+    "confidence_threshold": 0.52,
+    "stop_loss_pct": 0.02,
+    "take_profit_pct": 0.04,
+    "max_hold_bars": 24,
+    "initial_capital": 10000,
+    "transaction_cost_pct": 0.001,
 }
 RAW_FUNDING_FEATURES = ["funding_rate"]
 DERIVED_FUNDING_FEATURES = [
