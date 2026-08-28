@@ -1,5 +1,6 @@
 import json
 import math
+import sys
 from pathlib import Path
 
 import duckdb
@@ -15,6 +16,10 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from backtesting.metrics import compute_metrics
+from backtesting.strategy import simulate_trades
 from src.models.feature_engineering import MODEL_FEATURES, NEEDED_COLS, make_stationary
 
 
@@ -22,6 +27,14 @@ PARAM_GRID = {
     "learning_rate": [0.01, 0.05, 0.1],
     "max_depth": [3, 5],
     "n_estimators": [100, 200],
+}
+COST_AWARE_SETTINGS = {
+    "confidence_threshold": 0.52,
+    "stop_loss_pct": 0.02,
+    "take_profit_pct": 0.04,
+    "max_hold_bars": 24,
+    "initial_capital": 10000,
+    "transaction_cost_pct": 0.001,
 }
 RAW_FUNDING_FEATURES = ["funding_rate"]
 DERIVED_FUNDING_FEATURES = [
@@ -214,6 +227,28 @@ def compare_variant_significance(model_predictions, baseline_predictions, actual
     }
 
 
+def backtest_variant_costs(test_predictions, variant, interval):
+    prediction = test_predictions[f"{variant}_prediction"].astype(int)
+    up_probability = test_predictions[f"{variant}_up_probability"].astype(float)
+    confidence = np.where(prediction == 1, up_probability, 1 - up_probability)
+    frame = pd.DataFrame(
+        {
+            "date": test_predictions["date"],
+            "close": test_predictions["close"],
+            "prediction": prediction,
+            "confidence": confidence,
+        }
+    )
+    trades, equity = simulate_trades(frame, **COST_AWARE_SETTINGS)
+    return compute_metrics(
+        trades,
+        equity,
+        initial_capital=COST_AWARE_SETTINGS["initial_capital"],
+        interval=interval,
+        asset_class="crypto",
+    )
+
+
 def compare_funding_variants(db_path, asset="BTC", interval="1h"):
     dataset = prepare_experiment_dataset(
         load_crypto_features(db_path, asset, interval)
@@ -222,6 +257,7 @@ def compare_funding_variants(db_path, asset="BTC", interval="1h"):
     variants = {}
     prediction_data = {
         "date": test["date"].to_numpy(),
+        "close": test["close"].to_numpy(),
         "actual_direction": test["target_direction"].to_numpy(),
     }
 
@@ -264,6 +300,12 @@ def compare_funding_variants(db_path, asset="BTC", interval="1h"):
                 baseline_predictions,
                 actual,
             )
+
+    test_predictions = pd.DataFrame(prediction_data)
+    for name, metrics in variants.items():
+        metrics["cost_aware"] = backtest_variant_costs(
+            test_predictions, name, interval
+        )
 
     return {
         "asset": asset,
@@ -324,6 +366,7 @@ def compare_multiple_funding_variants(
                 continue
 
             for variant, metrics in result["variants"].items():
+                cost_aware = metrics["cost_aware"]
                 results.append(
                     {
                         "asset": asset,
@@ -356,6 +399,21 @@ def compare_multiple_funding_variants(
                         ],
                         "model_only": metrics["significance"]["model_only"],
                         "baseline_only": metrics["significance"]["baseline_only"],
+                        "cost_aware_total_return_pct": cost_aware[
+                            "total_return_pct"
+                        ],
+                        "cost_aware_total_pnl": cost_aware["total_pnl"],
+                        "cost_aware_total_cost": cost_aware["total_cost"],
+                        "cost_aware_sharpe_ratio": cost_aware["sharpe_ratio"],
+                        "cost_aware_volatility_pct": cost_aware[
+                            "volatility_pct"
+                        ],
+                        "cost_aware_max_drawdown_pct": cost_aware[
+                            "max_drawdown_pct"
+                        ],
+                        "cost_aware_win_rate": cost_aware["win_rate"],
+                        "cost_aware_profit_factor": cost_aware["profit_factor"],
+                        "cost_aware_total_trades": cost_aware["total_trades"],
                     }
                 )
 
@@ -383,3 +441,37 @@ def save_multiple_experiment_results(result, output_dir):
         encoding="utf-8",
     )
     return {"results": results_path, "skipped": skipped_path}
+
+
+def run_experiment(
+    db_path,
+    output_dir="reports/funding/experiment",
+    assets=("BTC", "ETH", "SOL"),
+    intervals=("1h", "4h", "1d"),
+):
+    result = compare_multiple_funding_variants(db_path, assets, intervals)
+    paths = save_multiple_experiment_results(result, output_dir)
+    for row in result["skipped"]:
+        print(f"skipped {row['asset']} {row['interval']}: {row['reason']}")
+    print(f"results saved: {paths['results']}")
+    print(f"skipped saved: {paths['skipped']}")
+    return result
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="compare funding variants with cost-aware backtests"
+    )
+    parser.add_argument("db_path")
+    parser.add_argument("--output-dir", default="reports/funding/experiment")
+    parser.add_argument("--assets", nargs="+", default=["BTC", "ETH", "SOL"])
+    parser.add_argument("--intervals", nargs="+", default=["1h", "4h", "1d"])
+    arguments = parser.parse_args()
+    run_experiment(
+        arguments.db_path,
+        arguments.output_dir,
+        tuple(arguments.assets),
+        tuple(arguments.intervals),
+    )

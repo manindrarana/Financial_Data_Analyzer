@@ -7,13 +7,16 @@ import pytest
 from scripts.run_funding_rate_experiment import (
     DERIVED_FUNDING_FEATURES,
     VARIANT_FEATURES,
+    backtest_variant_costs,
     build_funding_features,
     compare_funding_variants,
+    compare_multiple_funding_variants,
     compare_variant_significance,
     exact_mcnemar_p_value,
     paired_bootstrap_interval,
     prepare_experiment_dataset,
     save_experiment_results,
+    save_multiple_experiment_results,
     split_experiment_data,
     wilson_accuracy_interval,
 )
@@ -224,3 +227,173 @@ def test_compare_variant_significance_reports_clear_improvement():
     assert result["baseline_only"] == 0
     assert result["mcnemar_p_value"] == pytest.approx(0.001953125)
     assert result["model_accuracy_interval"][1] == pytest.approx(1.0)
+
+
+def test_backtest_variant_costs_matches_manual_trade_calculation():
+    frame = pd.DataFrame(
+        {
+            "date": pd.date_range("2026-01-01", periods=3, freq="h"),
+            "close": [100.0, 101.0, 104.5],
+            "baseline_prediction": [1, 1, 1],
+            "baseline_up_probability": [0.9, 0.9, 0.4],
+        }
+    )
+
+    result = backtest_variant_costs(frame, "baseline", "1h")
+
+    entry_cost = 100.0 * 0.001
+    exit_cost = 104.0 * 0.001
+    expected_pnl = 104.0 - 100.0 - entry_cost - exit_cost
+    assert result["total_trades"] == 1
+    assert result["winning_trades"] == 1
+    assert result["total_pnl"] == pytest.approx(expected_pnl, abs=0.01)
+    assert result["total_return_pct"] == pytest.approx(
+        expected_pnl / 10000 * 100, abs=0.01
+    )
+    assert result["win_rate"] == 100.0
+    assert result["max_drawdown_pct"] == 0.0
+
+
+def test_backtest_variant_costs_charges_both_variants_same_cost_rate():
+    dates = pd.date_range("2026-01-01", periods=5, freq="h")
+    frame = pd.DataFrame(
+        {
+            "date": dates,
+            "close": [100.0, 102.0, 100.5, 103.0, 104.0],
+            "baseline_prediction": [1, 1, 1, 1, 1],
+            "baseline_up_probability": [0.9, 0.9, 0.9, 0.9, 0.4],
+            "raw_funding_prediction": [1, 1, 1, 1, 1],
+            "raw_funding_up_probability": [0.4, 0.4, 0.4, 0.4, 0.4],
+        }
+    )
+
+    baseline = backtest_variant_costs(frame, "baseline", "1h")
+    raw_funding = backtest_variant_costs(frame, "raw_funding", "1h")
+
+    assert baseline["total_trades"] == 1
+    assert raw_funding["total_trades"] == 0
+    assert raw_funding["total_pnl"] == 0.0
+    assert raw_funding["sharpe_ratio"] == 0.0
+
+
+def test_backtest_variant_costs_exits_at_stop_loss_with_known_loss():
+    frame = pd.DataFrame(
+        {
+            "date": pd.date_range("2026-01-01", periods=3, freq="h"),
+            "close": [100.0, 97.9, 99.0],
+            "baseline_prediction": [1, 1, 1],
+            "baseline_up_probability": [0.9, 0.4, 0.4],
+        }
+    )
+
+    result = backtest_variant_costs(frame, "baseline", "1h")
+
+    entry_cost = 100.0 * 0.001
+    exit_cost = 98.0 * 0.001
+    expected_pnl = 98.0 - 100.0 - entry_cost - exit_cost
+    assert result["total_trades"] == 1
+    assert result["losing_trades"] == 1
+    assert result["total_pnl"] == pytest.approx(expected_pnl, abs=0.01)
+
+
+def make_variant_metrics(accuracy, cost_pnl, cost_trades):
+    return {
+        "accuracy": accuracy,
+        "balanced_accuracy": accuracy,
+        "f1": accuracy,
+        "mcc": 0.0,
+        "brier_score": 0.25,
+        "best_cv_score": 0.5,
+        "best_params": {"max_depth": 3},
+        "features": list(MODEL_FEATURES),
+        "accuracy_difference_from_baseline": 0.0,
+        "significance": {
+            "difference": 0.0,
+            "difference_interval": [0.0, 0.0],
+            "model_only": 0,
+            "baseline_only": 0,
+            "mcnemar_p_value": 1.0,
+            "model_accuracy_interval": [0.4, 0.6],
+            "baseline_accuracy_interval": [0.4, 0.6],
+        },
+        "cost_aware": {
+            "total_return_pct": cost_pnl / 100,
+            "total_pnl": cost_pnl,
+            "total_cost": 0.4,
+            "sharpe_ratio": 1.2,
+            "volatility_pct": 20.0,
+            "max_drawdown_pct": 5.0,
+            "win_rate": 60.0,
+            "profit_factor": 1.5,
+            "total_trades": cost_trades,
+        },
+    }
+
+
+def test_compare_multiple_funding_variants_includes_cost_aware_columns(monkeypatch):
+    fake_result = {
+        "total_rows": 200,
+        "train_rows": 160,
+        "test_rows": 40,
+        "test_start": pd.Timestamp("2026-02-01"),
+        "test_end": pd.Timestamp("2026-03-01"),
+        "variants": {
+            "baseline": make_variant_metrics(0.55, 120.0, 8),
+            "raw_funding": make_variant_metrics(0.56, 180.0, 11),
+        },
+    }
+
+    def fake_compare(db_path, asset, interval):
+        if (asset, interval) == ("BTC", "1h"):
+            return fake_result
+        raise ValueError("insufficient funding experiment rows: train=90, test=23")
+
+    monkeypatch.setattr(
+        "scripts.run_funding_rate_experiment.compare_funding_variants",
+        fake_compare,
+    )
+
+    result = compare_multiple_funding_variants(
+        "unused.duckdb", assets=("BTC", "ETH"), intervals=("1h",)
+    )
+
+    frame = result["results"]
+    raw = frame[frame["variant"] == "raw_funding"].iloc[0]
+    assert frame["cost_aware_total_pnl"].tolist() == [120.0, 180.0]
+    assert frame["cost_aware_total_trades"].tolist() == [8, 11]
+    assert raw["cost_aware_sharpe_ratio"] == 1.2
+    assert raw["cost_aware_win_rate"] == 60.0
+    assert result["skipped"] == [
+        {
+            "asset": "ETH",
+            "interval": "1h",
+            "reason": "insufficient funding experiment rows: train=90, test=23",
+        }
+    ]
+
+
+def test_save_multiple_experiment_results_writes_cost_aware_csv(tmp_path):
+    result = {
+        "results": pd.DataFrame(
+            [
+                {
+                    "asset": "BTC",
+                    "interval": "1h",
+                    "variant": "baseline",
+                    "test_start": pd.Timestamp("2026-02-01"),
+                    "test_end": pd.Timestamp("2026-03-01"),
+                    "cost_aware_total_pnl": 120.0,
+                    "cost_aware_total_trades": 8,
+                }
+            ]
+        ),
+        "skipped": [],
+    }
+
+    paths = save_multiple_experiment_results(result, tmp_path)
+    saved = pd.read_csv(paths["results"])
+
+    assert saved.loc[0, "cost_aware_total_pnl"] == pytest.approx(120.0)
+    assert saved.loc[0, "cost_aware_total_trades"] == 8
+    assert saved.loc[0, "test_start"] == "2026-02-01T00:00:00"
+    assert json.loads(paths["skipped"].read_text(encoding="utf-8")) == []

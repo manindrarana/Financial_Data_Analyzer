@@ -1,14 +1,14 @@
 {
   "asset": "BTC",
   "interval": "1h",
-  "generated_at": "2026-08-27T11:07:18.768620+00:00",
-  "source_data_end_date": "2026-08-27T10:00:00",
-  "train_rows": 44864,
-  "test_rows": 11217,
+  "generated_at": "2026-08-28T10:08:29.862889+00:00",
+  "source_data_end_date": "2026-08-28T09:00:00",
+  "train_rows": 44883,
+  "test_rows": 11221,
   "train_start_date": "2020-04-02T17:00:00",
-  "train_end_date": "2025-05-17T00:00:00",
-  "test_start_date": "2025-05-17T01:00:00",
-  "test_end_date": "2026-08-27T09:00:00",
+  "train_end_date": "2025-05-17T19:00:00",
+  "test_start_date": "2025-05-17T20:00:00",
+  "test_end_date": "2026-08-28T08:00:00",
   "features": [
     "rsi_14",
     "roc_10",
@@ -43,25 +43,25 @@
   ],
   "models": {
     "xgboost": {
-      "accuracy": 0.5282161005616475,
-      "balanced_accuracy": 0.5282548369720304,
-      "precision": 0.52604078880836,
-      "recall": 0.5572219246563114,
-      "f1_score": 0.5411825906016994
+      "accuracy": 0.5287407539434988,
+      "balanced_accuracy": 0.5287837524359345,
+      "precision": 0.5263774912075029,
+      "recall": 0.5609494913439229,
+      "f1_score": 0.5431138759288059
     },
     "logistic_regression": {
-      "accuracy": 0.5301774092894713,
-      "balanced_accuracy": 0.5301801456394386,
-      "precision": 0.5293908719587995,
-      "recall": 0.5322263881449741,
-      "f1_score": 0.5308048433048433
+      "accuracy": 0.5295428214954104,
+      "balanced_accuracy": 0.5295435295146201,
+      "precision": 0.5288461538461539,
+      "recall": 0.530073175084776,
+      "f1_score": 0.5294589535609234
     },
     "random_forest": {
-      "accuracy": 0.5279486493714897,
-      "balanced_accuracy": 0.5279867892180425,
-      "precision": 0.5258097165991903,
-      "recall": 0.5565077664702731,
-      "f1_score": 0.5407233931824096
+      "accuracy": 0.5274039746903129,
+      "balanced_accuracy": 0.5274428011693628,
+      "precision": 0.5252695417789758,
+      "recall": 0.5564875959307514,
+      "f1_score": 0.5404281133547101
     }
   },
   "conclusion": "The models perform similarly, suggesting that the available data is the main limitation."

@@ -4,7 +4,7 @@ Project involves both  **Data Engineering** and **Data Science** to analyze fina
 
 ## How it Works (8-step ELT pipeline)
 
-1. **Extract**: Yahoo Finance and Bybit APIs run concurrently, fetching historical OHLCV data and saving to MinIO (S3) as Parquet files.
+1. **Extract**: Yahoo Finance and Bybit APIs run concurrently, fetching historical OHLCV data plus Open Interest and Funding Rate for crypto, saving to MinIO (S3) as Parquet files.
 2. **Load**: DuckDB reads raw Parquet files from MinIO into staging tables (`yahoo_stocks`, `bybit_crypto`).
 3. **Clean**: Removes duplicates, filters invalid prices, normalizes timestamps, enforces chronological ordering → `clean_*` tables.
 4. **Dimensions**: Builds a star schema (`dim_assets`, `dim_dates`) for analytical querying.
@@ -64,13 +64,21 @@ The project uses a **Medallion Data Lake Architecture** with three layers stored
   Contains the main Prefect flow and checkpoint/resume logic that runs the whole pipeline automatically.
 
 - **`scripts/`**
-  Legacy/manual training scripts (not used by the pipeline — pipeline uses `PipelineModelTrainer`):
-  - `train_all_models.py`: Trains one XGBoost per asset×interval combo.
-  - `train_btc_model.py`: Trains XGBoost model for BTC 1h.
-  - `train_aapl_model.py`: Trains XGBoost model for AAPL 1h.
-  - `eda_ml.py`: Checks data volume and readiness for ML.
-  - `top15_feat.py`: Finds top 15 important features.
-  - `target_analysis.py`: Analyzes the target variable (returns_1d).
+  Manual and research scripts (not used by the main pipeline):
+  - `investigate_funding.py`: Investigates and backfills historical funding-rate coverage for all configured Bybit assets.
+  - `run_funding_rate_experiment.py`: Leakage-safe funding feature experiment with accuracy significance tests and cost-aware backtest variant comparison.
+  - `run_cross_asset_experiment.py`: Leakage-safe cross-asset feature experiment comparing baseline and cross-asset variants.
+  - `run_feature_ablation.py`: Controlled BTC 1h feature-ablation experiment (auto-refreshed after BTC 1h retraining by orchestration).
+  - `compare_model_families.py`: BTC 1h model-family comparison across XGBoost, Logistic Regression, and Random Forest (auto-refreshed after BTC 1h retraining by orchestration).
+  - `compare_multitimeframe_models.py`: BTC 1h/4h multi-timeframe comparison with ensemble metrics (auto-refreshed after BTC 1h/4h retraining by orchestration).
+  - `build_macro_table.py`: Builds the macroeconomic table from FRED data.
+  - `data_health_check.py`: Checks data quality and coverage per asset and interval.
+  - `data_profiler.py`: Profiles raw market data for volume and readiness.
+  - `ml_profiler.py`: Profiles ML training data and feature distributions.
+  - `generate_figures.py`: Generates report figures from backtest and model results.
+  - `inspect_bybit_api.py`: Inspects raw Bybit API responses for debugging ingestion.
+  - Legacy training scripts (superseded by `PipelineModelTrainer`):
+    `train_all_models.py`, `train_btc_model.py`, `train_aapl_model.py`, `eda_ml.py`, `top15_feat.py`, `target_analysis.py`.
 
 - **`src/`**  
   The main source code for the project:
@@ -83,8 +91,8 @@ The project uses a **Medallion Data Lake Architecture** with three layers stored
 - **`tests/`**  
   Simple tests to make sure the code is working correctly.
 
-- **`reports/`**  
-  Generated market and ML profile reports.
+- **`reports/`**
+  Generated reports: market and ML profiles, funding coverage and experiment results, feature ablation, model-family and multi-timeframe comparisons.
 
 ## how to Run
 
