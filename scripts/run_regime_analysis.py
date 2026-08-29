@@ -150,6 +150,7 @@ def save_regime_results(asset, interval, results, summary, output_dir):
     results_path = output_path / f"{stem}_regime_accuracy.csv"
     results.to_csv(results_path, index=False)
 
+    summary_output = dict(summary)
     for key in [
         "source_data_start",
         "source_data_end",
@@ -158,9 +159,9 @@ def save_regime_results(asset, interval, results, summary, output_dir):
         "test_start",
         "test_end",
     ]:
-        summary[key] = pd.Timestamp(summary[key]).isoformat()
+        summary_output[key] = pd.Timestamp(summary[key]).isoformat()
     summary_path = output_path / f"{stem}_regime_summary.json"
-    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    summary_path.write_text(json.dumps(summary_output, indent=2), encoding="utf-8")
     return {"results": results_path, "summary": summary_path}
 
 
