@@ -1,0 +1,20 @@
+{
+  "asset": "BTC",
+  "interval": "1h",
+  "generated_at_utc": "2026-08-29T07:19:27.698712+00:00",
+  "source_data_start": "2026-05-02T08:00:00",
+  "source_data_end": "2026-08-29T05:00:00",
+  "train_start": "2026-05-02T08:00:00",
+  "train_end": "2026-08-02T09:00:00",
+  "test_start": "2026-08-02T10:00:00",
+  "test_end": "2026-08-29T05:00:00",
+  "total_rows": 2642,
+  "train_rows": 2113,
+  "test_rows": 529,
+  "overall_test_accuracy": 0.5085066162570888,
+  "trend_band": 0.01,
+  "volatility_quantile": 0.5,
+  "volatility_threshold": 0.004697892490537213,
+  "min_regime_rows": 20,
+  "skipped": []
+}
