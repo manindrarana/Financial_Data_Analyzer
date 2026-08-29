@@ -122,8 +122,9 @@ def test_analyze_regimes_computes_known_per_regime_values():
     assert rows.loc[("trend", "bull"), "accuracy"] == pytest.approx(0.75)
     assert rows.loc[("trend", "bear"), "accuracy"] == pytest.approx(0.75)
     assert rows.loc[("trend", "sideways"), "accuracy"] == pytest.approx(0.75)
-    assert rows.loc[("trend", "bear"), "best_baseline_accuracy"] == pytest.approx(0.5)
-    assert rows.loc[("trend", "bear"), "accuracy_difference_from_baseline"] == pytest.approx(0.25)
+    assert rows.loc[("trend", "bear"), "best_baseline_rule"] == "previous_direction"
+    assert rows.loc[("trend", "bear"), "best_baseline_accuracy"] == pytest.approx(1.0)
+    assert rows.loc[("trend", "bear"), "accuracy_difference_from_baseline"] == pytest.approx(-0.25)
     assert rows.loc[("trend", "bear"), "actual_up_pct"] == pytest.approx(0.5)
 
     assert rows.loc[("volatility", "high_volatility"), "rows"] == 40
