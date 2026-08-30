@@ -445,27 +445,6 @@ def run_experiment(
     return result
 
 
-if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(
-        description="compare cross-asset variants with significance tests and cost-aware backtests"
-    )
-    parser.add_argument("db_path")
-    parser.add_argument(
-        "--output-dir", default="reports/cross_asset/experiment"
-    )
-    parser.add_argument("--assets", nargs="+", default=["BTC", "ETH", "SOL"])
-    parser.add_argument("--intervals", nargs="+", default=["1h", "4h"])
-    arguments = parser.parse_args()
-    run_experiment(
-        arguments.db_path,
-        arguments.output_dir,
-        tuple(arguments.assets),
-        tuple(arguments.intervals),
-    )
-
-
 def calculate_asset_returns(candles):
     if candles.empty:
         return candles.assign(asset_return=pd.Series(dtype=float))
