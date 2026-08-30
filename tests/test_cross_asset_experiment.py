@@ -1,16 +1,25 @@
+import json
+
+import numpy as np
 import pandas as pd
 import pytest
 
 import scripts.run_cross_asset_experiment as cross_asset_experiment
 from scripts.run_cross_asset_experiment import (
+    COST_AWARE_SETTINGS,
     EXPERIMENT_FEATURES,
     build_cross_asset_features,
+    compare_multiple_cross_asset_variants,
     evaluate_experiment_model,
     load_target_features,
     merge_cross_asset_features,
     prepare_target_features,
+    save_multiple_experiment_results,
     split_experiment_data,
     train_experiment_model,
+)
+from scripts.run_funding_rate_experiment import (
+    COST_AWARE_SETTINGS as FUNDING_COST_AWARE_SETTINGS,
 )
 from src.models.feature_engineering import MODEL_FEATURES, NEEDED_COLS
 
@@ -22,6 +31,7 @@ def test_compare_experiment_variants_uses_identical_rows_and_returns_metadata(mo
         row.update(
             {
                 "date": pd.Timestamp("2026-01-01") + pd.Timedelta(hours=index),
+                "close": 100.0 + index,
                 "target_direction": index % 2,
                 "eth_btc_relative_return": 0.01,
                 "tracked_crypto_market_return": 0.02,
@@ -33,6 +43,8 @@ def test_compare_experiment_variants_uses_identical_rows_and_returns_metadata(mo
     dataset = pd.DataFrame(rows)
     split_features = []
     trained_rows = []
+    evaluate_calls = []
+    backtest_calls = []
 
     def fake_prepare(*args, **kwargs):
         return dataset
@@ -50,22 +62,51 @@ def test_compare_experiment_variants_uses_identical_rows_and_returns_metadata(mo
     def fake_train(X_train, y_train):
         trained_rows.append((len(X_train), len(y_train)))
 
-        class FixedEstimator:
-            def predict(self, X):
-                return [0] * len(X)
-
         class FixedSearch:
-            best_estimator_ = FixedEstimator()
+            pass
 
         return FixedSearch()
 
     def fake_evaluate(search, X_test, y_test):
-        return {"accuracy": len(X_test) / 100}
+        evaluate_calls.append(list(y_test))
+        if len(evaluate_calls) == 1:
+            predictions = np.zeros(len(y_test), dtype=int)
+        else:
+            predictions = (np.asarray(y_test) == 1).astype(int)
+        accuracy = float(np.mean(predictions == np.asarray(y_test)))
+        return {
+            "accuracy": accuracy,
+            "balanced_accuracy": accuracy,
+            "f1": accuracy,
+            "best_cv_score": 0.5,
+            "best_params": {
+                "learning_rate": 0.05,
+                "max_depth": 3,
+                "n_estimators": 100,
+            },
+            "predictions": predictions,
+            "probabilities": np.full(len(y_test), 0.6),
+        }
+
+    def fake_backtest(test_predictions, variant, interval):
+        backtest_calls.append((variant, interval, len(test_predictions)))
+        return {
+            "total_return_pct": 10.0,
+            "total_pnl": 1000.0,
+            "total_cost": 5.0,
+            "sharpe_ratio": 1.0,
+            "volatility_pct": 20.0,
+            "max_drawdown_pct": 5.0,
+            "win_rate": 0.6,
+            "profit_factor": 1.5,
+            "total_trades": 9,
+        }
 
     monkeypatch.setattr(cross_asset_experiment, "prepare_experiment_dataset", fake_prepare)
     monkeypatch.setattr(cross_asset_experiment, "split_experiment_data", fake_split)
     monkeypatch.setattr(cross_asset_experiment, "train_experiment_model", fake_train)
     monkeypatch.setattr(cross_asset_experiment, "evaluate_experiment_model", fake_evaluate)
+    monkeypatch.setattr(cross_asset_experiment, "backtest_variant_costs", fake_backtest)
 
     result = cross_asset_experiment.compare_experiment_variants("ignored.duckdb")
 
@@ -77,17 +118,43 @@ def test_compare_experiment_variants_uses_identical_rows_and_returns_metadata(mo
     assert result["total_rows"] == 125
     assert result["train_rows"] == 100
     assert result["test_rows"] == 25
+    assert result["train_start"] == pd.Timestamp("2026-01-01 00:00")
+    assert result["train_end"] == pd.Timestamp("2026-01-05 03:00")
     assert result["test_start"] == pd.Timestamp("2026-01-05 04:00")
     assert result["test_end"] == pd.Timestamp("2026-01-06 04:00")
-    assert result["baseline"]["accuracy"] == pytest.approx(0.25)
-    assert result["cross_asset"]["accuracy"] == pytest.approx(0.25)
+
+    baseline = result["variants"]["baseline"]
+    cross_asset = result["variants"]["cross_asset"]
+    assert baseline["accuracy"] == pytest.approx(0.52)
+    assert cross_asset["accuracy"] == pytest.approx(1.0)
+    assert baseline["cost_aware"]["total_pnl"] == 1000.0
+    assert cross_asset["cost_aware"]["total_trades"] == 9
+    assert backtest_calls == [("baseline", "1h", 25), ("cross_asset", "1h", 25)]
+
+    significance = cross_asset["significance"]
+    assert significance["difference"] == pytest.approx(0.48)
+    assert significance["model_only"] == 12
+    assert significance["baseline_only"] == 0
+    assert significance["mcnemar_p_value"] == pytest.approx(2 / 4096)
+    assert significance["difference_interval"][0] <= 0.48
+    assert significance["difference_interval"][1] >= 0.48
+    baseline_interval = baseline["significance"]["model_accuracy_interval"]
+    assert baseline["significance"]["baseline_accuracy_interval"] == baseline_interval
+    assert baseline_interval[0] <= 0.52 <= baseline_interval[1]
+
     assert result["test_predictions"].columns.tolist() == [
         "date",
+        "close",
         "actual_direction",
         "baseline_prediction",
+        "baseline_up_probability",
         "cross_asset_prediction",
+        "cross_asset_up_probability",
     ]
     assert len(result["test_predictions"]) == 25
+    assert result["test_predictions"]["close"].tolist() == [
+        100.0 + index for index in range(100, 125)
+    ]
     assert result["test_predictions"]["date"].tolist() == list(
         pd.date_range("2026-01-05 04:00", periods=25, freq="h")
     )
