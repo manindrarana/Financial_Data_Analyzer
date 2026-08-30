@@ -319,14 +319,151 @@ def save_experiment_results(result, output_dir):
         for key, value in result.items()
         if key != "test_predictions"
     }
-    metadata["test_start"] = pd.Timestamp(metadata["test_start"]).isoformat()
-    metadata["test_end"] = pd.Timestamp(metadata["test_end"]).isoformat()
+    for key in ["train_start", "train_end", "test_start", "test_end"]:
+        metadata[key] = pd.Timestamp(metadata[key]).isoformat()
     metadata_path = output_path / "comparison.json"
     metadata_path.write_text(
         json.dumps(metadata, indent=2, default=lambda value: value.item()),
         encoding="utf-8",
     )
     return {"metadata": metadata_path, "predictions": predictions_path}
+
+
+def compare_multiple_cross_asset_variants(
+    db_path,
+    assets=("BTC", "ETH", "SOL"),
+    intervals=("1h", "4h"),
+    min_market_assets=5,
+):
+    results = []
+    skipped = []
+    for asset in assets:
+        for interval in intervals:
+            try:
+                result = compare_experiment_variants(
+                    db_path,
+                    asset=asset,
+                    interval=interval,
+                    min_market_assets=min_market_assets,
+                )
+            except ValueError as error:
+                skipped.append(
+                    {"asset": asset, "interval": interval, "reason": str(error)}
+                )
+                continue
+
+            for variant, metrics in result["variants"].items():
+                cost_aware = metrics["cost_aware"]
+                results.append(
+                    {
+                        "asset": asset,
+                        "interval": interval,
+                        "variant": variant,
+                        "total_rows": result["total_rows"],
+                        "train_rows": result["train_rows"],
+                        "test_rows": result["test_rows"],
+                        "train_start": result["train_start"],
+                        "test_start": result["test_start"],
+                        "test_end": result["test_end"],
+                        "accuracy": metrics["accuracy"],
+                        "balanced_accuracy": metrics["balanced_accuracy"],
+                        "f1": metrics["f1"],
+                        "accuracy_difference_from_baseline": (
+                            metrics["accuracy"]
+                            - result["variants"]["baseline"]["accuracy"]
+                        ),
+                        "significance_difference": metrics["significance"][
+                            "difference"
+                        ],
+                        "significance_interval_low": metrics["significance"][
+                            "difference_interval"
+                        ][0],
+                        "significance_interval_high": metrics["significance"][
+                            "difference_interval"
+                        ][1],
+                        "mcnemar_p_value": metrics["significance"][
+                            "mcnemar_p_value"
+                        ],
+                        "model_only": metrics["significance"]["model_only"],
+                        "baseline_only": metrics["significance"]["baseline_only"],
+                        "cost_aware_total_return_pct": cost_aware[
+                            "total_return_pct"
+                        ],
+                        "cost_aware_total_pnl": cost_aware["total_pnl"],
+                        "cost_aware_total_cost": cost_aware["total_cost"],
+                        "cost_aware_sharpe_ratio": cost_aware["sharpe_ratio"],
+                        "cost_aware_volatility_pct": cost_aware[
+                            "volatility_pct"
+                        ],
+                        "cost_aware_max_drawdown_pct": cost_aware[
+                            "max_drawdown_pct"
+                        ],
+                        "cost_aware_win_rate": cost_aware["win_rate"],
+                        "cost_aware_profit_factor": cost_aware["profit_factor"],
+                        "cost_aware_total_trades": cost_aware["total_trades"],
+                    }
+                )
+
+    return {
+        "results": pd.DataFrame(results),
+        "skipped": skipped,
+    }
+
+
+def save_multiple_experiment_results(result, output_dir):
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    results = result["results"].copy()
+    for column in ["train_start", "test_start", "test_end"]:
+        if column in results:
+            results[column] = pd.to_datetime(results[column]).dt.strftime(
+                "%Y-%m-%dT%H:%M:%S"
+            )
+    results_path = output_path / "multi_asset_interval_comparison.csv"
+    results.to_csv(results_path, index=False)
+
+    skipped_path = output_path / "multi_asset_interval_skipped.json"
+    skipped_path.write_text(
+        json.dumps(result["skipped"], indent=2),
+        encoding="utf-8",
+    )
+    return {"results": results_path, "skipped": skipped_path}
+
+
+def run_experiment(
+    db_path,
+    output_dir="reports/cross_asset/experiment",
+    assets=("BTC", "ETH", "SOL"),
+    intervals=("1h", "4h"),
+):
+    result = compare_multiple_cross_asset_variants(db_path, assets, intervals)
+    paths = save_multiple_experiment_results(result, output_dir)
+    for row in result["skipped"]:
+        print(f"skipped {row['asset']} {row['interval']}: {row['reason']}")
+    print(f"results saved: {paths['results']}")
+    print(f"skipped saved: {paths['skipped']}")
+    return result
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="compare cross-asset variants with significance tests and cost-aware backtests"
+    )
+    parser.add_argument("db_path")
+    parser.add_argument(
+        "--output-dir", default="reports/cross_asset/experiment"
+    )
+    parser.add_argument("--assets", nargs="+", default=["BTC", "ETH", "SOL"])
+    parser.add_argument("--intervals", nargs="+", default=["1h", "4h"])
+    arguments = parser.parse_args()
+    run_experiment(
+        arguments.db_path,
+        arguments.output_dir,
+        tuple(arguments.assets),
+        tuple(arguments.intervals),
+    )
 
 
 def calculate_asset_returns(candles):
