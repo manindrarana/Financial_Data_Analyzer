@@ -1,5 +1,6 @@
 import duckdb
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -8,6 +9,14 @@ import xgboost as xgb
 from sklearn.metrics import accuracy_score, balanced_accuracy_score, f1_score
 from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from backtesting.metrics import compute_metrics
+from backtesting.strategy import simulate_trades
+from scripts.run_funding_rate_experiment import (
+    compare_variant_significance,
+    wilson_accuracy_interval,
+)
 from src.models.feature_engineering import MODEL_FEATURES, NEEDED_COLS, make_stationary
 
 
@@ -15,6 +24,14 @@ PARAM_GRID = {
     "learning_rate": [0.01, 0.05, 0.1],
     "max_depth": [3, 5],
     "n_estimators": [100, 200],
+}
+COST_AWARE_SETTINGS = {
+    "confidence_threshold": 0.52,
+    "stop_loss_pct": 0.02,
+    "take_profit_pct": 0.04,
+    "max_hold_bars": 24,
+    "initial_capital": 10000,
+    "transaction_cost_pct": 0.001,
 }
 CROSS_ASSET_COLUMNS = [
     "eth_btc_relative_return",
