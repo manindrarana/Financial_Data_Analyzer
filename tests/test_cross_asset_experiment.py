@@ -43,7 +43,6 @@ def test_compare_experiment_variants_uses_identical_rows_and_returns_metadata(mo
     dataset = pd.DataFrame(rows)
     split_features = []
     trained_rows = []
-    evaluate_calls = []
     backtest_calls = []
 
     def fake_prepare(*args, **kwargs):
@@ -68,8 +67,7 @@ def test_compare_experiment_variants_uses_identical_rows_and_returns_metadata(mo
         return FixedSearch()
 
     def fake_evaluate(search, X_test, y_test):
-        evaluate_calls.append(list(y_test))
-        if len(evaluate_calls) == 1:
+        if len(trained_rows) == 1:
             predictions = np.zeros(len(y_test), dtype=int)
         else:
             predictions = (np.asarray(y_test) == 1).astype(int)
@@ -167,36 +165,55 @@ def test_save_experiment_results_writes_metadata_and_predictions(tmp_path):
         "total_rows": 3,
         "train_rows": 2,
         "test_rows": 1,
+        "train_start": pd.Timestamp("2026-01-01 00:00"),
+        "train_end": pd.Timestamp("2026-01-01 01:00"),
         "test_start": pd.Timestamp("2026-01-01 02:00"),
         "test_end": pd.Timestamp("2026-01-01 02:00"),
         "baseline_features": ["feature"],
         "cross_asset_features": ["market_feature"],
-        "baseline": {"accuracy": 0.5},
-        "cross_asset": {"accuracy": 0.4},
+        "variants": {
+            "baseline": {
+                "accuracy": 0.5,
+                "significance": {"mcnemar_p_value": 1.0},
+                "cost_aware": {"total_pnl": 10.0},
+            },
+            "cross_asset": {
+                "accuracy": 0.4,
+                "significance": {"mcnemar_p_value": 0.3},
+                "cost_aware": {"total_pnl": 8.0},
+            },
+        },
         "test_predictions": pd.DataFrame(
             {
                 "date": [pd.Timestamp("2026-01-01 02:00")],
+                "close": [100.0],
                 "actual_direction": [1],
                 "baseline_prediction": [1],
+                "baseline_up_probability": [0.6],
                 "cross_asset_prediction": [0],
+                "cross_asset_up_probability": [0.4],
             }
         ),
     }
 
     paths = cross_asset_experiment.save_experiment_results(result, tmp_path)
 
-    metadata = __import__("json").loads(
-        paths["metadata"].read_text(encoding="utf-8")
-    )
+    metadata = json.loads(paths["metadata"].read_text(encoding="utf-8"))
     assert "test_predictions" not in metadata
     assert metadata["asset"] == "BTC"
+    assert metadata["train_start"] == "2026-01-01T00:00:00"
+    assert metadata["train_end"] == "2026-01-01T01:00:00"
     assert metadata["test_start"] == "2026-01-01T02:00:00"
+    assert metadata["variants"]["baseline"]["cost_aware"]["total_pnl"] == 10.0
     assert pd.read_csv(paths["predictions"]).to_dict("records") == [
         {
             "date": "2026-01-01T02:00:00",
+            "close": 100.0,
             "actual_direction": 1,
             "baseline_prediction": 1,
+            "baseline_up_probability": 0.6,
             "cross_asset_prediction": 0,
+            "cross_asset_up_probability": 0.4,
         }
     ]
 
