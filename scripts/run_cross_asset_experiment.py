@@ -220,37 +220,66 @@ def compare_experiment_variants(
         [*MODEL_FEATURES, *EXPERIMENT_FEATURES],
     )
 
-    baseline_search = train_experiment_model(
-        baseline_split[0],
-        baseline_split[1],
-    )
-    cross_asset_search = train_experiment_model(
-        cross_asset_split[0],
-        cross_asset_split[1],
-    )
+    prediction_data = {
+        "date": baseline_split[4].to_numpy(),
+        "close": dataset.set_index("date").loc[baseline_split[4], "close"].to_numpy(),
+        "actual_direction": baseline_split[3].to_numpy(),
+    }
+    variants = {
+        "baseline": {
+            "features": list(MODEL_FEATURES),
+            "split": baseline_split,
+        },
+        "cross_asset": {
+            "features": [*MODEL_FEATURES, *EXPERIMENT_FEATURES],
+            "split": cross_asset_split,
+        },
+    }
 
-    baseline_metrics = evaluate_experiment_model(
-        baseline_search,
-        baseline_split[2],
-        baseline_split[3],
-    )
-    cross_asset_metrics = evaluate_experiment_model(
-        cross_asset_search,
-        cross_asset_split[2],
-        cross_asset_split[3],
-    )
-    test_predictions = pd.DataFrame(
-        {
-            "date": baseline_split[4].to_numpy(),
-            "actual_direction": baseline_split[3].to_numpy(),
-            "baseline_prediction": baseline_search.best_estimator_.predict(
-                baseline_split[2]
-            ),
-            "cross_asset_prediction": cross_asset_search.best_estimator_.predict(
-                cross_asset_split[2]
-            ),
-        }
-    )
+    for name, variant in variants.items():
+        search = train_experiment_model(variant["split"][0], variant["split"][1])
+        evaluation = evaluate_experiment_model(
+            search,
+            variant["split"][2],
+            variant["split"][3],
+        )
+        prediction_data[f"{name}_prediction"] = evaluation.pop("predictions")
+        prediction_data[f"{name}_up_probability"] = evaluation.pop("probabilities")
+        variant["metrics"] = evaluation
+
+    actual = prediction_data["actual_direction"]
+    baseline_predictions = prediction_data["baseline_prediction"]
+    for name, variant in variants.items():
+        if name == "baseline":
+            variant["metrics"]["significance"] = {
+                "difference": 0.0,
+                "difference_interval": [0.0, 0.0],
+                "model_only": 0,
+                "baseline_only": 0,
+                "mcnemar_p_value": 1.0,
+                "model_accuracy_interval": wilson_accuracy_interval(
+                    int(np.sum(baseline_predictions == actual)),
+                    len(actual),
+                ),
+                "baseline_accuracy_interval": wilson_accuracy_interval(
+                    int(np.sum(baseline_predictions == actual)),
+                    len(actual),
+                ),
+            }
+        else:
+            variant["metrics"]["significance"] = compare_variant_significance(
+                prediction_data[f"{name}_prediction"],
+                baseline_predictions,
+                actual,
+            )
+
+    test_predictions = pd.DataFrame(prediction_data)
+    for name, variant in variants.items():
+        variant["metrics"]["cost_aware"] = backtest_variant_costs(
+            test_predictions,
+            name,
+            interval,
+        )
 
     return {
         "asset": asset,
@@ -258,12 +287,19 @@ def compare_experiment_variants(
         "total_rows": len(dataset),
         "train_rows": len(baseline_split[0]),
         "test_rows": len(baseline_split[2]),
+        "train_start": dataset["date"].iloc[0],
+        "train_end": dataset["date"].iloc[len(baseline_split[0]) - 1],
         "test_start": baseline_split[4].iloc[0],
         "test_end": baseline_split[4].iloc[-1],
         "baseline_features": list(MODEL_FEATURES),
         "cross_asset_features": list(EXPERIMENT_FEATURES),
-        "baseline": baseline_metrics,
-        "cross_asset": cross_asset_metrics,
+        "variants": {
+            name: {
+                "features": variant["features"],
+                **variant["metrics"],
+            }
+            for name, variant in variants.items()
+        },
         "test_predictions": test_predictions,
     }
 
