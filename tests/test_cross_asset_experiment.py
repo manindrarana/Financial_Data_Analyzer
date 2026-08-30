@@ -265,8 +265,10 @@ def test_train_experiment_model_returns_selected_parameters(monkeypatch):
 
 def test_evaluate_experiment_model_returns_known_metrics():
     class FixedModel:
-        def predict(self, X):
-            return [0, 1, 1, 0]
+        def predict_proba(self, X):
+            return np.array(
+                [[0.6, 0.4], [0.2, 0.8], [0.3, 0.7], [0.9, 0.1]]
+            )
 
     class FixedSearch:
         best_estimator_ = FixedModel()
@@ -283,10 +285,225 @@ def test_evaluate_experiment_model_returns_known_metrics():
         pd.Series([0, 1, 0, 0]),
     )
 
+    assert metrics["predictions"].tolist() == [0, 1, 1, 0]
+    assert metrics["probabilities"].tolist() == pytest.approx(
+        [0.4, 0.8, 0.7, 0.1]
+    )
     assert metrics["accuracy"] == pytest.approx(0.75)
-    assert metrics["balanced_accuracy"] == pytest.approx(5 / 6)
+    assert metrics["balanced_accuracy"] == pytest.approx(0.75)
     assert metrics["f1"] == pytest.approx(2 / 3)
     assert metrics["best_cv_score"] == pytest.approx(0.6)
+    assert metrics["best_params"] == {
+        "learning_rate": 0.05,
+        "max_depth": 3,
+        "n_estimators": 100,
+    }
+
+
+def test_backtest_variant_costs_uses_shared_settings_and_known_metrics():
+    rows = []
+    price = 100.0
+    for index in range(30):
+        row = {
+            "date": pd.Timestamp("2026-01-01") + pd.Timedelta(hours=index),
+            "close": price,
+            "prediction": 1,
+            "confidence": 0.9,
+        }
+        rows.append(row)
+        price *= 1.01
+    frame = pd.DataFrame(rows)
+
+    trades, equity = __import__(
+        "backtesting.strategy", fromlist=["simulate_trades"]
+    ).simulate_trades(frame, **COST_AWARE_SETTINGS)
+    expected = __import__(
+        "backtesting.metrics", fromlist=["compute_metrics"]
+    ).compute_metrics(
+        trades,
+        equity,
+        initial_capital=COST_AWARE_SETTINGS["initial_capital"],
+        interval="1h",
+        asset_class="crypto",
+    )
+
+    test_predictions = pd.DataFrame(
+        {
+            "date": frame["date"],
+            "close": frame["close"],
+            "baseline_prediction": frame["prediction"],
+            "baseline_up_probability": frame["confidence"],
+        }
+    )
+    result = cross_asset_experiment.backtest_variant_costs(
+        test_predictions, "baseline", "1h"
+    )
+
+    assert result["total_trades"] == expected["total_trades"]
+    assert result["total_pnl"] == pytest.approx(expected["total_pnl"])
+    assert result["total_cost"] == pytest.approx(expected["total_cost"])
+    assert result["total_return_pct"] == pytest.approx(expected["total_return_pct"])
+    assert result["total_trades"] >= 1
+    assert result["total_cost"] > 0
+
+
+def test_cost_aware_settings_match_funding_experiment():
+    assert COST_AWARE_SETTINGS == FUNDING_COST_AWARE_SETTINGS
+
+
+def test_compare_multiple_cross_asset_variants_aggregates_and_skips(monkeypatch):
+    calls = []
+
+    def fake_compare(db_path, asset, interval, min_market_assets):
+        calls.append((asset, interval))
+        if asset == "ETH":
+            raise ValueError("insufficient experiment rows: train=90, test=10")
+        return {
+            "asset": asset,
+            "interval": interval,
+            "total_rows": 125,
+            "train_rows": 100,
+            "test_rows": 25,
+            "train_start": pd.Timestamp("2026-01-01"),
+            "test_start": pd.Timestamp("2026-02-01"),
+            "test_end": pd.Timestamp("2026-02-02"),
+            "variants": {
+                "baseline": {
+                    "accuracy": 0.5,
+                    "balanced_accuracy": 0.5,
+                    "f1": 0.5,
+                    "significance": {
+                        "difference": 0.0,
+                        "difference_interval": [0.0, 0.0],
+                        "mcnemar_p_value": 1.0,
+                        "model_only": 0,
+                        "baseline_only": 0,
+                    },
+                    "cost_aware": {
+                        "total_return_pct": 1.0,
+                        "total_pnl": 100.0,
+                        "total_cost": 2.0,
+                        "sharpe_ratio": 0.5,
+                        "volatility_pct": 10.0,
+                        "max_drawdown_pct": 4.0,
+                        "win_rate": 0.55,
+                        "profit_factor": 1.2,
+                        "total_trades": 5,
+                    },
+                },
+                "cross_asset": {
+                    "accuracy": 0.52,
+                    "balanced_accuracy": 0.51,
+                    "f1": 0.53,
+                    "significance": {
+                        "difference": 0.02,
+                        "difference_interval": [-0.01, 0.05],
+                        "mcnemar_p_value": 0.4,
+                        "model_only": 3,
+                        "baseline_only": 2,
+                    },
+                    "cost_aware": {
+                        "total_return_pct": 2.0,
+                        "total_pnl": 200.0,
+                        "total_cost": 3.0,
+                        "sharpe_ratio": 0.6,
+                        "volatility_pct": 11.0,
+                        "max_drawdown_pct": 5.0,
+                        "win_rate": 0.6,
+                        "profit_factor": 1.3,
+                        "total_trades": 6,
+                    },
+                },
+            },
+        }
+
+    monkeypatch.setattr(
+        cross_asset_experiment, "compare_experiment_variants", fake_compare
+    )
+
+    result = compare_multiple_cross_asset_variants(
+        "ignored.duckdb", assets=("BTC", "ETH", "SOL"), intervals=("1h", "4h")
+    )
+
+    assert calls == [
+        ("BTC", "1h"),
+        ("BTC", "4h"),
+        ("ETH", "1h"),
+        ("ETH", "4h"),
+        ("SOL", "1h"),
+        ("SOL", "4h"),
+    ]
+    assert result["skipped"] == [
+        {
+            "asset": "ETH",
+            "interval": "1h",
+            "reason": "insufficient experiment rows: train=90, test=10",
+        },
+        {
+            "asset": "ETH",
+            "interval": "4h",
+            "reason": "insufficient experiment rows: train=90, test=10",
+        },
+    ]
+    results = result["results"]
+    assert len(results) == 8
+    btc_cross_asset = results.loc[
+        (results["asset"] == "BTC")
+        & (results["interval"] == "1h")
+        & (results["variant"] == "cross_asset")
+    ].iloc[0]
+    assert btc_cross_asset["accuracy"] == pytest.approx(0.52)
+    assert btc_cross_asset["accuracy_difference_from_baseline"] == pytest.approx(
+        0.02
+    )
+    assert btc_cross_asset["significance_difference"] == pytest.approx(0.02)
+    assert btc_cross_asset["significance_interval_low"] == pytest.approx(-0.01)
+    assert btc_cross_asset["significance_interval_high"] == pytest.approx(0.05)
+    assert btc_cross_asset["mcnemar_p_value"] == pytest.approx(0.4)
+    assert btc_cross_asset["model_only"] == 3
+    assert btc_cross_asset["baseline_only"] == 2
+    assert btc_cross_asset["cost_aware_total_pnl"] == pytest.approx(200.0)
+    assert btc_cross_asset["cost_aware_total_trades"] == 6
+    btc_baseline = results.loc[
+        (results["asset"] == "BTC")
+        & (results["interval"] == "1h")
+        & (results["variant"] == "baseline")
+    ].iloc[0]
+    assert btc_baseline["accuracy_difference_from_baseline"] == pytest.approx(0.0)
+    assert btc_baseline["mcnemar_p_value"] == pytest.approx(1.0)
+    assert not results.loc[results["asset"] == "ETH"].shape[0]
+
+
+def test_save_multiple_experiment_results_writes_csv_and_skipped(tmp_path):
+    result = {
+        "results": pd.DataFrame(
+            [
+                {
+                    "asset": "BTC",
+                    "interval": "1h",
+                    "variant": "cross_asset",
+                    "accuracy": 0.52,
+                    "train_start": pd.Timestamp("2026-01-01 00:00"),
+                    "test_start": pd.Timestamp("2026-02-01 00:00"),
+                    "test_end": pd.Timestamp("2026-02-02 00:00"),
+                }
+            ]
+        ),
+        "skipped": [
+            {"asset": "ETH", "interval": "4h", "reason": "insufficient rows"}
+        ],
+    }
+
+    paths = save_multiple_experiment_results(result, tmp_path)
+
+    saved = pd.read_csv(paths["results"])
+    assert saved["train_start"].tolist() == ["2026-01-01T00:00:00"]
+    assert saved["test_start"].tolist() == ["2026-02-01T00:00:00"]
+    assert saved["test_end"].tolist() == ["2026-02-02T00:00:00"]
+    assert saved["accuracy"].tolist() == pytest.approx([0.52])
+    assert json.loads(paths["skipped"].read_text(encoding="utf-8")) == [
+        {"asset": "ETH", "interval": "4h", "reason": "insufficient rows"}
+    ]
 
 
 def test_prepare_target_features_creates_next_candle_labels_and_drops_last_row():
