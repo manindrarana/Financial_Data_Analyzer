@@ -167,16 +167,39 @@ def train_experiment_model(X_train, y_train):
 
 
 def evaluate_experiment_model(search, X_test, y_test):
-    predictions = search.best_estimator_.predict(X_test)
+    probabilities = search.best_estimator_.predict_proba(X_test)[:, 1]
+    predictions = (probabilities >= 0.5).astype(int)
     return {
-        "accuracy": accuracy_score(y_test, predictions),
-        "balanced_accuracy": balanced_accuracy_score(y_test, predictions),
-        "f1": f1_score(y_test, predictions, zero_division=0),
-        "best_cv_score": search.best_score_,
-        "learning_rate": search.best_params_["learning_rate"],
-        "max_depth": search.best_params_["max_depth"],
-        "n_estimators": search.best_params_["n_estimators"],
+        "accuracy": float(accuracy_score(y_test, predictions)),
+        "balanced_accuracy": float(balanced_accuracy_score(y_test, predictions)),
+        "f1": float(f1_score(y_test, predictions, zero_division=0)),
+        "best_cv_score": float(search.best_score_),
+        "best_params": dict(search.best_params_),
+        "predictions": predictions,
+        "probabilities": probabilities,
     }
+
+
+def backtest_variant_costs(test_predictions, variant, interval):
+    prediction = test_predictions[f"{variant}_prediction"].astype(int)
+    up_probability = test_predictions[f"{variant}_up_probability"].astype(float)
+    confidence = np.where(prediction == 1, up_probability, 1 - up_probability)
+    frame = pd.DataFrame(
+        {
+            "date": test_predictions["date"],
+            "close": test_predictions["close"],
+            "prediction": prediction,
+            "confidence": confidence,
+        }
+    )
+    trades, equity = simulate_trades(frame, **COST_AWARE_SETTINGS)
+    return compute_metrics(
+        trades,
+        equity,
+        initial_capital=COST_AWARE_SETTINGS["initial_capital"],
+        interval=interval,
+        asset_class="crypto",
+    )
 
 
 def compare_experiment_variants(
