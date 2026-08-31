@@ -205,6 +205,11 @@ def run_prediction(asset="BTC", interval="1h", asset_class="crypto"):
 
     df = make_stationary(df)
 
+    if asset_class == "crypto" and "fear_greed" in df.columns:
+        interval_minutes = _INTERVAL_MINUTES.get(interval, 60)
+        fill_limit = max(1, 7 * 24 * 60 // interval_minutes)
+        df["fear_greed"] = df["fear_greed"].ffill(limit=fill_limit).fillna(50.0)
+
     expected_features = MODEL_FEATURES if asset_class == "crypto" else [
         feature for feature in MODEL_FEATURES if feature != "fear_greed"
     ]
