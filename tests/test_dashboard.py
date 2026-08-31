@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 sys.modules["dotenv"] = MagicMock()
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -15,6 +16,7 @@ from dashboard.predictor import (
     _INTERVAL_MINUTES,
     FEATURE_TABLES,
     get_calibration_params,
+    run_prediction,
 )
 
 
@@ -251,6 +253,84 @@ class TestFeatureTables:
 
     def test_stocks_table(self):
         assert FEATURE_TABLES["stocks"] == "gold_stock_features"
+
+
+def _feature_frame(fear_greed_values, freq="1h"):
+    n = len(fear_greed_values)
+    frame = {
+        "date": pd.date_range("2026-01-01", periods=n, freq=freq),
+        "close": [100.0 + i for i in range(n)],
+    }
+    for column in [
+        "rsi_14", "roc_10", "roc_20", "stoch_k", "stoch_d", "bb_percentage",
+        "volume_ratio", "returns_1p", "returns_5p", "returns_10p", "returns_20p",
+        "log_returns", "hl_ratio", "close_position",
+    ]:
+        frame[column] = [50.0] * n
+    frame["fear_greed"] = fear_greed_values
+    return pd.DataFrame(frame)
+
+
+def _run_prediction_with_frame(frame, train_cutoff, interval="1h"):
+    captured = {}
+
+    def fake_predict_proba(X):
+        captured["features"] = X.copy()
+        return np.full((len(X), 2), 0.25)
+
+    model = MagicMock()
+    model.predict_proba.side_effect = fake_predict_proba
+
+    conn = MagicMock()
+    conn.execute.return_value.df.return_value = frame
+
+    with patch("dashboard.predictor.duckdb.connect", return_value=conn), \
+         patch("dashboard.predictor._get_model", return_value=model), \
+         patch("dashboard.predictor.get_calibration_params", return_value=None), \
+         patch("dashboard.predictor.get_train_cutoff", return_value=train_cutoff):
+        results = run_prediction(asset="BTC", interval=interval, asset_class="crypto")
+
+    return results, captured["features"]
+
+
+class TestRunPredictionFearGreedFill:
+    def test_missing_fear_greed_keeps_row_with_last_known_value(self):
+        frame = _feature_frame([40.0, 45.0, float("nan")])
+        results, features = _run_prediction_with_frame(frame, None)
+
+        assert len(results) == 3
+        assert features["fear_greed"].tolist() == [40.0, 45.0, 45.0]
+
+    def test_fear_greed_neutral_fallback_beyond_fill_limit(self):
+        frame = _feature_frame([40.0] + [float("nan")] * 8, freq="1d")
+        results, features = _run_prediction_with_frame(frame, None, interval="1d")
+
+        assert len(results) == 9
+        assert features["fear_greed"].tolist() == [40.0] * 8 + [50.0]
+
+    def test_all_missing_fear_greed_uses_neutral_value(self):
+        frame = _feature_frame([float("nan"), float("nan")])
+        results, features = _run_prediction_with_frame(frame, None)
+
+        assert len(results) == 2
+        assert features["fear_greed"].tolist() == [50.0, 50.0]
+
+
+class TestRunPredictionOosLabeling:
+    def test_rows_not_labeled_oos_when_train_cutoff_missing(self):
+        frame = _feature_frame([40.0, 45.0, 50.0])
+        results, _ = _run_prediction_with_frame(frame, None)
+
+        assert results["is_oos"].tolist() == [False, False, False]
+        assert results["train_cutoff_known"].tolist() == [False, False, False]
+
+    def test_rows_labeled_oos_only_after_train_cutoff(self):
+        frame = _feature_frame([40.0, 45.0, 50.0, 55.0])
+        cutoff = pd.Timestamp("2026-01-01 01:00:00")
+        results, _ = _run_prediction_with_frame(frame, cutoff)
+
+        assert results["is_oos"].tolist() == [False, False, True, True]
+        assert results["train_cutoff_known"].tolist() == [True, True, True, True]
 
 
 class TestStockFreshness:
