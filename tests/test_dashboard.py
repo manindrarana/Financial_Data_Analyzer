@@ -537,6 +537,50 @@ class TestPredictionCards:
         assert xgboost_row["Correct"] == 1
         assert xgboost_row["Rows Tested"] == 2
 
+    def _accuracy_rows(self, is_oos, train_cutoff_known):
+        return pd.DataFrame({
+            "date": pd.to_datetime([
+                "2026-06-18 10:00", "2026-06-18 11:00",
+                "2026-06-18 12:00", "2026-06-18 13:00",
+            ]),
+            "close": [100.0, 101.0, 102.0, 103.0],
+            "prediction": [1, 1, 0, 1],
+            "confidence": [0.60] * 4,
+            "actual_direction": [1, 1, 1, 1],
+            "is_oos": is_oos,
+            "train_cutoff_known": train_cutoff_known,
+        })
+
+    def test_overall_accuracy_card_uses_oos_rows_when_available(self):
+        rows = self._accuracy_rows(
+            [False, False, True, True], [True, True, True, True]
+        )
+        with patch.object(dashboard_app, "run_prediction", return_value=rows):
+            content = dashboard_app.build_prediction_charts("crypto", "BTC", "1h", "all")
+
+        text = _collect_text(content)
+        assert "Correct: 50.0% | Wrong: 50.0%" in text
+        assert "Correct: 75.0%" not in text
+        assert "Overall Accuracy (out-of-sample rows)" in text
+
+    def test_overall_accuracy_card_labels_in_sample_scope_when_no_oos_rows(self):
+        rows = self._accuracy_rows([False] * 4, [True] * 4)
+        with patch.object(dashboard_app, "run_prediction", return_value=rows):
+            content = dashboard_app.build_prediction_charts("crypto", "BTC", "1h", "all")
+
+        text = _collect_text(content)
+        assert "Correct: 75.0% | Wrong: 25.0%" in text
+        assert "Overall Accuracy (all rows, includes in-sample)" in text
+
+    def test_overall_accuracy_card_labels_unknown_train_cutoff(self):
+        rows = self._accuracy_rows([False] * 4, [False] * 4)
+        with patch.object(dashboard_app, "run_prediction", return_value=rows):
+            content = dashboard_app.build_prediction_charts("crypto", "BTC", "1h", "all")
+
+        text = _collect_text(content)
+        assert "Correct: 75.0% | Wrong: 25.0%" in text
+        assert "Overall Accuracy (train cutoff unknown, all rows)" in text
+
 
 class TestBaselineStatisticalSignificance:
     @staticmethod
