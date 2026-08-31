@@ -168,7 +168,8 @@ def run_prediction(asset="BTC", interval="1h", asset_class="crypto"):
                      and which XGBoost model to use.
 
     Returns a DataFrame with columns:
-        date, close, prediction, confidence, actual_direction
+        date, close, prediction, confidence, actual_direction,
+        train_cutoff_known, is_oos
     or None if no data is available.
     """
     table_name = FEATURE_TABLES.get(asset_class, "gold_crypto_features")
