@@ -3834,7 +3834,7 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
                             f"Correct: {correct_pct:.1f}% | Wrong: {wrong_pct:.1f}%",
                             className="card-title text-info",
                         ),
-                        html.P("Overall Accuracy", className="card-text text-muted small"),
+                        html.P(accuracy_label, className="card-text text-muted small"),
                     ]),
                     color="dark", outline=True,
                 ),
