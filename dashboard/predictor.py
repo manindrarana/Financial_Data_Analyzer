@@ -241,9 +241,10 @@ def run_prediction(asset="BTC", interval="1h", asset_class="crypto"):
     ).where(results["close"].shift(-1).notna()).astype(float)
 
     train_cutoff = get_train_cutoff(asset, interval, asset_class)
+    results["train_cutoff_known"] = train_cutoff is not None
     if train_cutoff is not None:
         results["is_oos"] = results["date"] > train_cutoff
     else:
-        results["is_oos"] = True
+        results["is_oos"] = False
 
     return results
