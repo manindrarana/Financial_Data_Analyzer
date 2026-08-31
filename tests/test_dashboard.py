@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 sys.modules["dotenv"] = MagicMock()
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -15,6 +16,7 @@ from dashboard.predictor import (
     _INTERVAL_MINUTES,
     FEATURE_TABLES,
     get_calibration_params,
+    run_prediction,
 )
 
 
@@ -253,6 +255,84 @@ class TestFeatureTables:
         assert FEATURE_TABLES["stocks"] == "gold_stock_features"
 
 
+def _feature_frame(fear_greed_values, freq="1h"):
+    n = len(fear_greed_values)
+    frame = {
+        "date": pd.date_range("2026-01-01", periods=n, freq=freq),
+        "close": [100.0 + i for i in range(n)],
+    }
+    for column in [
+        "rsi_14", "roc_10", "roc_20", "stoch_k", "stoch_d", "bb_percentage",
+        "volume_ratio", "returns_1p", "returns_5p", "returns_10p", "returns_20p",
+        "log_returns", "hl_ratio", "close_position",
+    ]:
+        frame[column] = [50.0] * n
+    frame["fear_greed"] = fear_greed_values
+    return pd.DataFrame(frame)
+
+
+def _run_prediction_with_frame(frame, train_cutoff, interval="1h"):
+    captured = {}
+
+    def fake_predict_proba(X):
+        captured["features"] = X.copy()
+        return np.full((len(X), 2), 0.25)
+
+    model = MagicMock()
+    model.predict_proba.side_effect = fake_predict_proba
+
+    conn = MagicMock()
+    conn.execute.return_value.df.return_value = frame
+
+    with patch("dashboard.predictor.duckdb.connect", return_value=conn), \
+         patch("dashboard.predictor._get_model", return_value=model), \
+         patch("dashboard.predictor.get_calibration_params", return_value=None), \
+         patch("dashboard.predictor.get_train_cutoff", return_value=train_cutoff):
+        results = run_prediction(asset="BTC", interval=interval, asset_class="crypto")
+
+    return results, captured["features"]
+
+
+class TestRunPredictionFearGreedFill:
+    def test_missing_fear_greed_keeps_row_with_last_known_value(self):
+        frame = _feature_frame([40.0, 45.0, float("nan")])
+        results, features = _run_prediction_with_frame(frame, None)
+
+        assert len(results) == 3
+        assert features["fear_greed"].tolist() == [40.0, 45.0, 45.0]
+
+    def test_fear_greed_neutral_fallback_beyond_fill_limit(self):
+        frame = _feature_frame([40.0] + [float("nan")] * 8, freq="1d")
+        results, features = _run_prediction_with_frame(frame, None, interval="1d")
+
+        assert len(results) == 9
+        assert features["fear_greed"].tolist() == [40.0] * 8 + [50.0]
+
+    def test_all_missing_fear_greed_uses_neutral_value(self):
+        frame = _feature_frame([float("nan"), float("nan")])
+        results, features = _run_prediction_with_frame(frame, None)
+
+        assert len(results) == 2
+        assert features["fear_greed"].tolist() == [50.0, 50.0]
+
+
+class TestRunPredictionOosLabeling:
+    def test_rows_not_labeled_oos_when_train_cutoff_missing(self):
+        frame = _feature_frame([40.0, 45.0, 50.0])
+        results, _ = _run_prediction_with_frame(frame, None)
+
+        assert results["is_oos"].tolist() == [False, False, False]
+        assert results["train_cutoff_known"].tolist() == [False, False, False]
+
+    def test_rows_labeled_oos_only_after_train_cutoff(self):
+        frame = _feature_frame([40.0, 45.0, 50.0, 55.0])
+        cutoff = pd.Timestamp("2026-01-01 01:00:00")
+        results, _ = _run_prediction_with_frame(frame, cutoff)
+
+        assert results["is_oos"].tolist() == [False, False, True, True]
+        assert results["train_cutoff_known"].tolist() == [True, True, True, True]
+
+
 class TestStockFreshness:
     def test_classifies_fresh_and_stale_datasets_from_known_timestamps(self):
         now_utc = pd.Timestamp("2026-08-16 12:00:00", tz="UTC")
@@ -456,6 +536,50 @@ class TestPredictionCards:
         xgboost_row = comparison_tables[0].loc[comparison_tables[0]["Model / Rule"] == "XGBoost"].iloc[0]
         assert xgboost_row["Correct"] == 1
         assert xgboost_row["Rows Tested"] == 2
+
+    def _accuracy_rows(self, is_oos, train_cutoff_known):
+        return pd.DataFrame({
+            "date": pd.to_datetime([
+                "2026-06-18 10:00", "2026-06-18 11:00",
+                "2026-06-18 12:00", "2026-06-18 13:00",
+            ]),
+            "close": [100.0, 101.0, 102.0, 103.0],
+            "prediction": [1, 1, 0, 1],
+            "confidence": [0.60] * 4,
+            "actual_direction": [1, 1, 1, 1],
+            "is_oos": is_oos,
+            "train_cutoff_known": train_cutoff_known,
+        })
+
+    def test_overall_accuracy_card_uses_oos_rows_when_available(self):
+        rows = self._accuracy_rows(
+            [False, False, True, True], [True, True, True, True]
+        )
+        with patch.object(dashboard_app, "run_prediction", return_value=rows):
+            content = dashboard_app.build_prediction_charts("crypto", "BTC", "1h", "all")
+
+        text = _collect_text(content)
+        assert "Correct: 50.0% | Wrong: 50.0%" in text
+        assert "Correct: 75.0%" not in text
+        assert "Overall Accuracy (out-of-sample rows)" in text
+
+    def test_overall_accuracy_card_labels_in_sample_scope_when_no_oos_rows(self):
+        rows = self._accuracy_rows([False] * 4, [True] * 4)
+        with patch.object(dashboard_app, "run_prediction", return_value=rows):
+            content = dashboard_app.build_prediction_charts("crypto", "BTC", "1h", "all")
+
+        text = _collect_text(content)
+        assert "Correct: 75.0% | Wrong: 25.0%" in text
+        assert "Overall Accuracy (all rows, includes in-sample)" in text
+
+    def test_overall_accuracy_card_labels_unknown_train_cutoff(self):
+        rows = self._accuracy_rows([False] * 4, [False] * 4)
+        with patch.object(dashboard_app, "run_prediction", return_value=rows):
+            content = dashboard_app.build_prediction_charts("crypto", "BTC", "1h", "all")
+
+        text = _collect_text(content)
+        assert "Correct: 75.0% | Wrong: 25.0%" in text
+        assert "Overall Accuracy (train cutoff unknown, all rows)" in text
 
 
 class TestBaselineStatisticalSignificance:

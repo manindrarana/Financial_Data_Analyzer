@@ -3694,8 +3694,25 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
 
     scored = results[results["actual_direction"].notna()]
     total = len(scored)
-    correct = (scored["prediction"] == scored["actual_direction"]).sum()
-    accuracy = correct / total if total > 0 else 0
+
+    cutoff_known = (
+        results["train_cutoff_known"].all()
+        if "train_cutoff_known" in results.columns
+        else True
+    )
+    if oos_total > 0:
+        card_scored = oos
+        accuracy_label = "Overall Accuracy (out-of-sample rows)"
+    elif not cutoff_known:
+        card_scored = scored
+        accuracy_label = "Overall Accuracy (train cutoff unknown, all rows)"
+    else:
+        card_scored = scored
+        accuracy_label = "Overall Accuracy (all rows, includes in-sample)"
+
+    card_total = len(card_scored)
+    card_correct = (card_scored["prediction"] == card_scored["actual_direction"]).sum()
+    accuracy = card_correct / card_total if card_total > 0 else 0
 
     oos_correct = (oos["prediction"] == oos["actual_direction"]).sum()
     oos_accuracy = oos_correct / oos_total if oos_total > 0 else 0
@@ -3817,7 +3834,7 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
                             f"Correct: {correct_pct:.1f}% | Wrong: {wrong_pct:.1f}%",
                             className="card-title text-info",
                         ),
-                        html.P("Overall Accuracy", className="card-text text-muted small"),
+                        html.P(accuracy_label, className="card-text text-muted small"),
                     ]),
                     color="dark", outline=True,
                 ),

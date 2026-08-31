@@ -168,7 +168,8 @@ def run_prediction(asset="BTC", interval="1h", asset_class="crypto"):
                      and which XGBoost model to use.
 
     Returns a DataFrame with columns:
-        date, close, prediction, confidence, actual_direction
+        date, close, prediction, confidence, actual_direction,
+        train_cutoff_known, is_oos
     or None if no data is available.
     """
     table_name = FEATURE_TABLES.get(asset_class, "gold_crypto_features")
@@ -205,6 +206,11 @@ def run_prediction(asset="BTC", interval="1h", asset_class="crypto"):
 
     df = make_stationary(df)
 
+    if asset_class == "crypto" and "fear_greed" in df.columns:
+        interval_minutes = _INTERVAL_MINUTES.get(interval, 60)
+        fill_limit = max(1, 7 * 24 * 60 // interval_minutes)
+        df["fear_greed"] = df["fear_greed"].ffill(limit=fill_limit).fillna(50.0)
+
     expected_features = MODEL_FEATURES if asset_class == "crypto" else [
         feature for feature in MODEL_FEATURES if feature != "fear_greed"
     ]
@@ -236,9 +242,10 @@ def run_prediction(asset="BTC", interval="1h", asset_class="crypto"):
     ).where(results["close"].shift(-1).notna()).astype(float)
 
     train_cutoff = get_train_cutoff(asset, interval, asset_class)
+    results["train_cutoff_known"] = train_cutoff is not None
     if train_cutoff is not None:
         results["is_oos"] = results["date"] > train_cutoff
     else:
-        results["is_oos"] = True
+        results["is_oos"] = False
 
     return results
