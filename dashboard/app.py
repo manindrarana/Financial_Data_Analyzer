@@ -2654,6 +2654,16 @@ def render_model_insights():
     ])
 
 
+def _compute_accuracy_yaxis_range(values):
+    candidates = list(values) + [50.0, ACCURACY_CEILING_PCT]
+    y_min = min(candidates)
+    y_max = max(candidates)
+    if y_max - y_min < 5:
+        y_max = y_min + 5
+    padding = (y_max - y_min) * 0.1
+    return (y_min - padding, y_max + padding)
+
+
 def build_accuracy_chart():
     """Bar chart of test accuracy for all models, grouped by asset class."""
     models = get_model_health()
