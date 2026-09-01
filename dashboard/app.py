@@ -2737,10 +2737,10 @@ def build_accuracy_chart():
         annotation_font_color="white",
     )
     fig.add_hline(
-        y=52.6,
+        y=ACCURACY_CEILING_PCT,
         line_dash="dash",
         line_color="#e74c3c",
-        annotation_text="Ceiling (52.6%)",
+        annotation_text=f"Ceiling ({ACCURACY_CEILING_PCT}%)",
         annotation_position="top left",
         annotation_font_color="#e74c3c",
     )
