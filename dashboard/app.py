@@ -38,6 +38,7 @@ import diskcache
 
 load_dotenv()
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "database", "financial_data.duckdb")
+ACCURACY_CEILING_PCT = 52.6
 
 _cache_dir = os.environ.get("DASH_CACHE_DIR", os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".dash_cache")))
 _cache = diskcache.Cache(_cache_dir, sqlite_journal_mode="wal", sqlite_synchronous=1)
@@ -2653,6 +2654,16 @@ def render_model_insights():
     ])
 
 
+def _compute_accuracy_yaxis_range(values):
+    candidates = list(values) + [50.0, ACCURACY_CEILING_PCT]
+    y_min = min(candidates)
+    y_max = max(candidates)
+    if y_max - y_min < 5:
+        y_max = y_min + 5
+    padding = (y_max - y_min) * 0.1
+    return (y_min - padding, y_max + padding)
+
+
 def build_accuracy_chart():
     """Bar chart of test accuracy for all models, grouped by asset class."""
     models = get_model_health()
@@ -2726,20 +2737,21 @@ def build_accuracy_chart():
         annotation_font_color="white",
     )
     fig.add_hline(
-        y=52.6,
+        y=ACCURACY_CEILING_PCT,
         line_dash="dash",
         line_color="#e74c3c",
-        annotation_text="Ceiling (52.6%)",
+        annotation_text=f"Ceiling ({ACCURACY_CEILING_PCT}%)",
         annotation_position="top left",
         annotation_font_color="#e74c3c",
     )
 
+    yaxis_range = _compute_accuracy_yaxis_range(crypto_acc + stock_acc)
     fig.update_layout(
         template="plotly_dark",
         title=f"Per-Asset Model Accuracy (All {len(crypto_labels) + len(stock_labels)} Models)",
         xaxis_title="Asset + Interval",
         yaxis_title="Accuracy (%)",
-        yaxis=dict(range=[40, 65]),
+        yaxis=dict(range=list(yaxis_range)),
         barmode="group",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
@@ -3976,7 +3988,7 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
                 ],
                 "threshold": {
                     "line": {"color": "white", "width": 2},
-                    "value": 52.6,
+                    "value": ACCURACY_CEILING_PCT,
                 },
             },
         )

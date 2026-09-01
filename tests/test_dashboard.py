@@ -871,6 +871,43 @@ class TestAccuracyChart:
         stock_y = list(fig.data[1].y)
         assert stock_y == sorted(stock_y)
 
+    def test_yaxis_range_uses_known_computed_values(self):
+        with patch.object(dashboard_app, "get_model_health", return_value=self._fake_models()):
+            result = dashboard_app.build_accuracy_chart()
+
+        fig = result.figure
+        assert list(fig.layout.yaxis.range) == [49.3, 55.3]
+
+    def test_yaxis_range_never_clips_extreme_values(self):
+        fake_models = [
+            {"asset": "BTC", "interval": "1h", "asset_class": "crypto", "test_accuracy": 0.38, "status": "healthy"},
+            {"asset": "AAPL", "interval": "1h", "asset_class": "stocks", "test_accuracy": 0.68, "status": "healthy"},
+        ]
+        with patch.object(dashboard_app, "get_model_health", return_value=fake_models):
+            result = dashboard_app.build_accuracy_chart()
+
+        fig = result.figure
+        y_range = list(fig.layout.yaxis.range)
+        assert y_range[0] < 38.0
+        assert y_range[1] > 68.0
+
+    def test_ceiling_constant_is_single_source(self):
+        assert dashboard_app.ACCURACY_CEILING_PCT == 52.6
+        with patch.object(dashboard_app, "get_model_health", return_value=self._fake_models()):
+            result = dashboard_app.build_accuracy_chart()
+
+        fig = result.figure
+        y_values = [shape.y0 for shape in fig.layout.shapes]
+        assert y_values.count(52.6) == 1
+        annotations = " ".join(a.text for a in fig.layout.annotations)
+        assert "Ceiling (52.6%)" in annotations
+
+    def test_compute_yaxis_range_known_values(self):
+        assert dashboard_app._compute_accuracy_yaxis_range([52.1, 49.8, 53.5, 51.1]) == (49.3, 55.3)
+        assert dashboard_app._compute_accuracy_yaxis_range([38.0, 68.0]) == (35.0, 71.0)
+        assert dashboard_app._compute_accuracy_yaxis_range([50.0, 50.0]) == (49.5, 55.5)
+        assert dashboard_app._compute_accuracy_yaxis_range([]) == (49.5, 55.5)
+
 
 class TestFeatureAblationChart:
     def test_displays_known_balanced_accuracy_values(self):
