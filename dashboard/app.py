@@ -2745,12 +2745,13 @@ def build_accuracy_chart():
         annotation_font_color="#e74c3c",
     )
 
+    yaxis_range = _compute_accuracy_yaxis_range(crypto_acc + stock_acc)
     fig.update_layout(
         template="plotly_dark",
         title=f"Per-Asset Model Accuracy (All {len(crypto_labels) + len(stock_labels)} Models)",
         xaxis_title="Asset + Interval",
         yaxis_title="Accuracy (%)",
-        yaxis=dict(range=[40, 65]),
+        yaxis=dict(range=list(yaxis_range)),
         barmode="group",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
@@ -3987,7 +3988,7 @@ def build_prediction_charts(asset_class, asset_symbol, interval, range_value):
                 ],
                 "threshold": {
                     "line": {"color": "white", "width": 2},
-                    "value": 52.6,
+                    "value": ACCURACY_CEILING_PCT,
                 },
             },
         )
