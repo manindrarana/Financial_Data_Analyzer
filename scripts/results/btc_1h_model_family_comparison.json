@@ -1,14 +1,14 @@
 {
   "asset": "BTC",
   "interval": "1h",
-  "generated_at": "2026-09-01T07:56:28.851835+00:00",
-  "source_data_end_date": "2026-09-01T07:00:00",
-  "train_rows": 44958,
-  "test_rows": 11240,
+  "generated_at": "2026-09-02T08:44:36.599132+00:00",
+  "source_data_end_date": "2026-09-02T08:00:00",
+  "train_rows": 44978,
+  "test_rows": 11245,
   "train_start_date": "2020-04-02T17:00:00",
-  "train_end_date": "2025-05-20T22:00:00",
-  "test_start_date": "2025-05-20T23:00:00",
-  "test_end_date": "2026-09-01T06:00:00",
+  "train_end_date": "2025-05-21T18:00:00",
+  "test_start_date": "2025-05-21T19:00:00",
+  "test_end_date": "2026-09-02T07:00:00",
   "features": [
     "rsi_14",
     "roc_10",
@@ -43,25 +43,25 @@
   ],
   "models": {
     "xgboost": {
-      "accuracy": 0.5268683274021352,
-      "balanced_accuracy": 0.5268972395369546,
-      "precision": 0.524812030075188,
+      "accuracy": 0.5275233437083148,
+      "balanced_accuracy": 0.5275658008158178,
+      "precision": 0.5252508361204014,
       "recall": 0.5593944790739092,
-      "f1_score": 0.5415517241379311
+      "f1_score": 0.5417852522639068
     },
     "logistic_regression": {
-      "accuracy": 0.5287366548042705,
-      "balanced_accuracy": 0.5287384189175819,
-      "precision": 0.5281814959234314,
-      "recall": 0.5307212822796082,
-      "f1_score": 0.529448343253087
+      "accuracy": 0.5283236994219653,
+      "balanced_accuracy": 0.5283271306083521,
+      "precision": 0.5275172535834366,
+      "recall": 0.5308993766696349,
+      "f1_score": 0.5292029114148766
     },
     "random_forest": {
-      "accuracy": 0.5247330960854093,
-      "balanced_accuracy": 0.5247623231423766,
-      "precision": 0.522791784939055,
-      "recall": 0.557613535173642,
-      "f1_score": 0.5396415029300241
+      "accuracy": 0.5241440640284571,
+      "balanced_accuracy": 0.5241858033780994,
+      "precision": 0.5220957482423837,
+      "recall": 0.5554764024933214,
+      "f1_score": 0.5382690482353957
     }
   },
   "conclusion": "The models perform similarly, suggesting that the available data is the main limitation."

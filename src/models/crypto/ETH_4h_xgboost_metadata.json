@@ -2,10 +2,10 @@
   "asset": "ETH",
   "interval": "4h",
   "asset_class": "crypto",
-  "train_end_date": "2025-08-04T12:00:00",
-  "train_rows": 9423,
-  "test_rows": 2356,
-  "test_accuracy": 0.5229202037351444,
+  "train_end_date": "2025-08-05T08:00:00",
+  "train_rows": 9428,
+  "test_rows": 2358,
+  "test_accuracy": 0.5250212044105174,
   "features": [
     "rsi_14",
     "roc_10",
@@ -40,19 +40,19 @@
   ],
   "best_params": {
     "learning_rate": 0.01,
-    "max_depth": 5,
-    "n_estimators": 200,
+    "max_depth": 3,
+    "n_estimators": 100,
     "subsample": 1.0,
     "eval_metric": "logloss",
     "random_state": 42
   },
-  "best_cv_score": 0.5376344086021505,
+  "best_cv_score": 0.5348328025477707,
   "calibration": {
     "method": "platt_scaling",
-    "coefficient": 0.4736647510485133,
-    "intercept": -0.22073933539249246,
-    "rows": 1884
+    "coefficient": 0.6525886188200456,
+    "intercept": -0.3112122118277173,
+    "rows": 1885
   },
-  "trained_at": "2026-09-01T07:51:35.004305",
-  "mlflow_run_id": "5bd7dea12dea4532b4bad71adacc4361"
+  "trained_at": "2026-09-02T08:40:10.383658",
+  "mlflow_run_id": "f318b11a7b0145d2a9bec9347ebe7538"
 }
