@@ -1672,6 +1672,10 @@ def render_overview():
             "Funding coverage by crypto asset and interval. Pre-listing nulls occurred before the first available funding event and are not data-quality failures.",
             className="text-muted small mb-2",
         ),
+        html.P(
+            "Funding data is stored for research and data-quality monitoring; it is excluded from production model features because controlled experiments showed no significant improvement.",
+            className="text-muted small mb-3",
+        ),
         _build_funding_coverage_table(funding_coverage),
     ])
 
