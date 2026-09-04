@@ -35,8 +35,7 @@ The project uses a **Medallion Data Lake Architecture** with three layers stored
 - **MinIO**: S3-compatible object storage (Ports: 9000 for API, 9001 for web console)
 - **Prefect**: Flow orchestration with task-level retries and checkpoint/resume recovery (Port: 4200)
 - **Python Pipeline**: Automated ELT orchestration using Prefect (executes on startup + scheduled hourly)
-- **Plotly Dash**: Interactive dashboard with 8 tabs — Overview, Price Dashboard, Predictions, Backtest, Technical Indicators, Data Explorer, Model Health, Model Insights (Port: 8050)
-- **Apache Superset**: Interactive BI dashboard for data visualization (Port: 8088)
+- **Plotly Dash**: Interactive dashboard with 9 tabs — Overview, Price Dashboard, Predictions, Backtest, Technical Indicators, Data Explorer, Model Health, Model Insights, Pipeline History (Port: 8050)
 - **MLflow**: ML experiment tracking (Port: 5000)
 - **DuckDB**: In-process analytical database for SQL transformations
 
