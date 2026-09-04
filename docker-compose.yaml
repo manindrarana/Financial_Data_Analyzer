@@ -116,7 +116,6 @@ services:
 
 volumes:
   minio_data:
-  superset_home:
   mlflow_data:
   prefect_data:
   model_store:
