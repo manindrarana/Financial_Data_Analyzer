@@ -2,10 +2,10 @@
   "asset": "DOGE",
   "interval": "4h",
   "asset_class": "crypto",
-  "train_end_date": "2025-08-22T00:00:00",
-  "train_rows": 9052,
-  "test_rows": 2264,
-  "test_accuracy": 0.48586572438162545,
+  "train_end_date": "2025-08-22T16:00:00",
+  "train_rows": 9056,
+  "test_rows": 2265,
+  "test_accuracy": 0.48520971302428256,
   "features": [
     "rsi_14",
     "roc_10",
@@ -46,13 +46,13 @@
     "eval_metric": "logloss",
     "random_state": 42
   },
-  "best_cv_score": 0.5398009950248757,
+  "best_cv_score": 0.5408205553253211,
   "calibration": {
     "method": "platt_scaling",
-    "coefficient": -0.25613162388651795,
-    "intercept": 0.1571657372868332,
+    "coefficient": -0.2034056134246582,
+    "intercept": 0.13472807012208632,
     "rows": 1810
   },
-  "trained_at": "2026-09-03T09:04:46.059922",
-  "mlflow_run_id": "dd9c1ebe682847238fda02514c6bd4fe"
+  "trained_at": "2026-09-04T07:48:05.864427",
+  "mlflow_run_id": "12c4f797ce8f489e88b10c6fc82f2612"
 }
