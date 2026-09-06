@@ -1514,8 +1514,7 @@ def _load_fear_greed_alignment(conn):
         else:
             first_aligned = filled["date"].min()
             dates = pd.to_datetime(group["date"])
-            pre_coverage_nulls = int((dates < first_aligned).sum()) - (total_rows - filled_rows)
-            pre_coverage_nulls = max(pre_coverage_nulls, 0)
+            pre_coverage_nulls = int((dates < first_aligned).sum())
             post_boundary = group.loc[dates >= first_aligned]
             unexpected_nulls = int(post_boundary["fear_greed"].isna().sum())
         records.append({
@@ -1541,11 +1540,12 @@ def _build_fear_greed_alignment_table(alignment):
     for _, item in alignment.iterrows():
         total_rows = int(item["total_rows"])
         filled_rows = int(item["filled_rows"])
-        null_rows = int(item["null_rows"])
+        pre_coverage_nulls = int(item["pre_coverage_nulls"])
+        unexpected_nulls = int(item["unexpected_nulls"])
         duplicate_count = int(item["duplicate_count"])
         available = filled_rows > 0
         coverage_pct = filled_rows / total_rows * 100 if available and total_rows else None
-        status = "Healthy" if available and null_rows == 0 and duplicate_count == 0 else "Partial"
+        status = "Healthy" if available and unexpected_nulls == 0 and duplicate_count == 0 else "Partial"
         if not available:
             status = "Unavailable"
         status_color = {
@@ -1560,7 +1560,8 @@ def _build_fear_greed_alignment_table(alignment):
             html.Td(_format_lisbon_timestamp(item["first_aligned_date"])),
             html.Td(_format_lisbon_timestamp(item["latest_aligned_date"])),
             html.Td(f"{filled_rows:,}"),
-            html.Td(f"{null_rows:,}"),
+            html.Td(f"{pre_coverage_nulls:,}"),
+            html.Td(f"{unexpected_nulls:,}"),
             html.Td(f"{duplicate_count:,}"),
             html.Td(status, className=status_color),
         ]))
@@ -1572,7 +1573,8 @@ def _build_fear_greed_alignment_table(alignment):
         html.Th("First Aligned"),
         html.Th("Latest Aligned"),
         html.Th("Filled Rows"),
-        html.Th("Null Rows"),
+        html.Th("Pre-coverage Nulls"),
+        html.Th("Unexpected Nulls"),
         html.Th("Duplicates"),
         html.Th("Status"),
     ]))
