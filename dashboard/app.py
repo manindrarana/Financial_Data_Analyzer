@@ -1508,12 +1508,23 @@ def _load_fear_greed_alignment(conn):
         filled = group.loc[group["fear_greed"].notna()]
         total_rows = len(group)
         filled_rows = len(filled)
+        if filled.empty:
+            pre_coverage_nulls = total_rows
+            unexpected_nulls = 0
+        else:
+            first_aligned = filled["date"].min()
+            dates = pd.to_datetime(group["date"])
+            pre_coverage_nulls = int((dates < first_aligned).sum()) - (total_rows - filled_rows)
+            pre_coverage_nulls = max(pre_coverage_nulls, 0)
+            post_boundary = group.loc[dates >= first_aligned]
+            unexpected_nulls = int(post_boundary["fear_greed"].isna().sum())
         records.append({
             "asset_symbol": asset_symbol.removesuffix("USDT"),
             "interval": interval,
             "total_rows": total_rows,
             "filled_rows": filled_rows,
-            "null_rows": total_rows - filled_rows,
+            "pre_coverage_nulls": pre_coverage_nulls,
+            "unexpected_nulls": unexpected_nulls,
             "first_aligned_date": filled["date"].min() if not filled.empty else None,
             "latest_aligned_date": filled["date"].max() if not filled.empty else None,
             "duplicate_count": int(group.duplicated(subset=["date"]).sum()),
