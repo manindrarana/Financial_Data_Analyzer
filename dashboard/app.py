@@ -1772,17 +1772,6 @@ def render_overview():
             )
         ),
         html.Hr(),
-        html.H5("Funding Data Quality", className="text-light mb-2"),
-        html.P(
-            "Funding coverage by crypto asset and interval. Pre-listing nulls occurred before the first available funding event and are not data-quality failures.",
-            className="text-muted small mb-2",
-        ),
-        html.P(
-            "Funding data is stored for research and data-quality monitoring; it is excluded from production model features because controlled experiments showed no significant improvement.",
-            className="text-muted small mb-3",
-        ),
-        _build_funding_coverage_table(funding_coverage),
-        html.Hr(),
         html.H5("Fear and Greed Alignment", className="text-light mb-2"),
         html.P(
             "Fear and greed alignment by crypto asset and interval. The daily value is merged by utc date, so every candle on a date carries that date's value. The source api is missing one day, 2024-10-26, which appears as nulls on that date for every asset; predictions handle it with a bounded forward fill.",
@@ -1792,7 +1781,24 @@ def render_overview():
             "The daily value is published at the start of its utc day, before any candle that day opens, so the same-date merge does not use future information.",
             className="text-muted small mb-3",
         ),
-        _build_fear_greed_alignment_table(fear_greed_alignment),
+        html.Details([
+            html.Summary("View alignment table", className="text-muted small mb-2"),
+            _build_fear_greed_alignment_table(fear_greed_alignment),
+        ]),
+        html.Hr(),
+        html.H5("Funding Data Quality", className="text-light mb-2"),
+        html.P(
+            "Funding coverage by crypto asset and interval. Pre-listing nulls occurred before the first available funding event and are not data-quality failures.",
+            className="text-muted small mb-2",
+        ),
+        html.P(
+            "Funding data is stored for research and data-quality monitoring; it is excluded from production model features because controlled experiments showed no significant improvement.",
+            className="text-muted small mb-3",
+        ),
+        html.Details([
+            html.Summary("View coverage table", className="text-muted small mb-2"),
+            _build_funding_coverage_table(funding_coverage),
+        ]),
     ])
 
 def _calculate_model_quality(predictions):
