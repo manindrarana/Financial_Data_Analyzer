@@ -1488,6 +1488,93 @@ def _build_funding_coverage_table(coverage):
     )
 
 
+def _load_fear_greed_alignment(conn):
+    rows = conn.execute(
+        """
+        SELECT asset_symbol, interval, date, fear_greed
+        FROM gold_crypto_features
+        WHERE interval IN ('1h', '4h', '1d')
+        ORDER BY asset_symbol, interval, date
+        """
+    ).df()
+    if rows.empty:
+        return pd.DataFrame()
+
+    records = []
+    for (asset_symbol, interval), group in rows.groupby(
+        ["asset_symbol", "interval"], sort=True
+    ):
+        group = group.sort_values("date")
+        filled = group.loc[group["fear_greed"].notna()]
+        total_rows = len(group)
+        filled_rows = len(filled)
+        records.append({
+            "asset_symbol": asset_symbol.removesuffix("USDT"),
+            "interval": interval,
+            "total_rows": total_rows,
+            "filled_rows": filled_rows,
+            "null_rows": total_rows - filled_rows,
+            "first_aligned_date": filled["date"].min() if not filled.empty else None,
+            "latest_aligned_date": filled["date"].max() if not filled.empty else None,
+            "duplicate_count": int(group.duplicated(subset=["date"]).sum()),
+        })
+
+    return pd.DataFrame(records)
+
+
+def _build_fear_greed_alignment_table(alignment):
+    if alignment.empty:
+        return dbc.Alert("Fear and greed alignment data is unavailable", color="secondary")
+
+    rows = []
+    for _, item in alignment.iterrows():
+        total_rows = int(item["total_rows"])
+        filled_rows = int(item["filled_rows"])
+        null_rows = int(item["null_rows"])
+        duplicate_count = int(item["duplicate_count"])
+        available = filled_rows > 0
+        coverage_pct = filled_rows / total_rows * 100 if available and total_rows else None
+        status = "Healthy" if available and null_rows == 0 and duplicate_count == 0 else "Partial"
+        if not available:
+            status = "Unavailable"
+        status_color = {
+            "Healthy": "text-success",
+            "Partial": "text-warning",
+            "Unavailable": "text-muted",
+        }[status]
+        rows.append(html.Tr([
+            html.Td(item["asset_symbol"]),
+            html.Td(item["interval"]),
+            html.Td(f"{coverage_pct:.2f}%" if coverage_pct is not None else "N/A"),
+            html.Td(_format_lisbon_timestamp(item["first_aligned_date"])),
+            html.Td(_format_lisbon_timestamp(item["latest_aligned_date"])),
+            html.Td(f"{filled_rows:,}"),
+            html.Td(f"{null_rows:,}"),
+            html.Td(f"{duplicate_count:,}"),
+            html.Td(status, className=status_color),
+        ]))
+
+    header = html.Thead(html.Tr([
+        html.Th("Asset"),
+        html.Th("Interval"),
+        html.Th("Alignment"),
+        html.Th("First Aligned"),
+        html.Th("Latest Aligned"),
+        html.Th("Filled Rows"),
+        html.Th("Null Rows"),
+        html.Th("Duplicates"),
+        html.Th("Status"),
+    ]))
+    return dbc.Table(
+        [header, html.Tbody(rows)],
+        color="dark",
+        hover=True,
+        responsive=True,
+        size="sm",
+        className="mb-4",
+    )
+
+
 def render_overview():
     conn = duckdb.connect(DB_PATH, read_only=True)
 
