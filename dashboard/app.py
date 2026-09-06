@@ -1769,6 +1769,17 @@ def render_overview():
             className="text-muted small mb-3",
         ),
         _build_funding_coverage_table(funding_coverage),
+        html.Hr(),
+        html.H5("Fear and Greed Alignment", className="text-light mb-2"),
+        html.P(
+            "Fear and greed alignment by crypto asset and interval. The daily value is merged by utc date, so every candle on a date carries that date's value. Nulls occur before the first available sentiment day and are not data-quality failures.",
+            className="text-muted small mb-2",
+        ),
+        html.P(
+            "The daily value is published at the start of its utc day, before any candle that day opens, so the same-date merge does not use future information.",
+            className="text-muted small mb-3",
+        ),
+        _build_fear_greed_alignment_table(fear_greed_alignment),
     ])
 
 def _calculate_model_quality(predictions):
