@@ -487,11 +487,30 @@ class TestFearGreedAlignment:
         assert alignment.loc[0, "unexpected_nulls"] == 1
         assert str(alignment.loc[0, "first_aligned_date"]) == "2026-01-01 01:00:00"
         assert str(alignment.loc[0, "latest_aligned_date"]) == "2026-01-01 04:00:00"
+        assert alignment.loc[0, "freshness"] == "Fresh"
 
         table = dashboard_app._build_fear_greed_alignment_table(alignment)
         text = " ".join(_collect_text(table))
         assert "60.00%" in text
         assert "Partial" in text
+        connection.close()
+
+    def test_newest_candle_without_value_reports_stale(self):
+        connection = self._connection([
+            ("TESTUSDT", "1h", "2026-01-01 00:00:00", 40.0),
+            ("TESTUSDT", "1h", "2026-01-01 01:00:00", 41.0),
+            ("TESTUSDT", "1h", "2026-01-01 02:00:00", None),
+        ])
+
+        alignment = dashboard_app._load_fear_greed_alignment(connection)
+
+        assert alignment.loc[0, "freshness"] == "Stale"
+        assert str(alignment.loc[0, "latest_aligned_date"]) == "2026-01-01 01:00:00"
+        assert str(alignment.loc[0, "latest_candle_date"]) == "2026-01-01 02:00:00"
+
+        table = dashboard_app._build_fear_greed_alignment_table(alignment)
+        text = " ".join(_collect_text(table))
+        assert "Stale" in text
         connection.close()
 
     def test_pre_coverage_nulls_do_not_break_healthy_status(self):
