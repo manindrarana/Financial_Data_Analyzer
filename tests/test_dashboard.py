@@ -450,6 +450,102 @@ class TestFundingCoverage:
         )
 
 
+class TestFearGreedAlignment:
+    @staticmethod
+    def _connection(rows):
+        connection = dashboard_app.duckdb.connect(":memory:")
+        connection.execute(
+            """
+            CREATE TABLE gold_crypto_features (
+                asset_symbol VARCHAR,
+                interval VARCHAR,
+                date TIMESTAMP,
+                fear_greed DOUBLE
+            )
+            """
+        )
+        connection.executemany(
+            "INSERT INTO gold_crypto_features VALUES (?, ?, ?, ?)",
+            rows,
+        )
+        return connection
+
+    def test_calculates_known_alignment_and_null_counts(self):
+        connection = self._connection([
+            ("TESTUSDT", "1h", "2026-01-01 00:00:00", None),
+            ("TESTUSDT", "1h", "2026-01-01 01:00:00", 40.0),
+            ("TESTUSDT", "1h", "2026-01-01 02:00:00", 41.0),
+            ("TESTUSDT", "1h", "2026-01-01 03:00:00", None),
+        ])
+
+        alignment = dashboard_app._load_fear_greed_alignment(connection)
+
+        assert alignment.loc[0, "total_rows"] == 4
+        assert alignment.loc[0, "filled_rows"] == 2
+        assert alignment.loc[0, "null_rows"] == 2
+        assert str(alignment.loc[0, "first_aligned_date"]) == "2026-01-01 01:00:00"
+        assert str(alignment.loc[0, "latest_aligned_date"]) == "2026-01-01 02:00:00"
+
+        table = dashboard_app._build_fear_greed_alignment_table(alignment)
+        text = " ".join(_collect_text(table))
+        assert "50.00%" in text
+        assert "Partial" in text
+        connection.close()
+
+    def test_all_null_rows_report_unavailable(self):
+        connection = self._connection([
+            ("TESTUSDT", "4h", "2026-01-01 00:00:00", None),
+            ("TESTUSDT", "4h", "2026-01-01 04:00:00", None),
+        ])
+
+        alignment = dashboard_app._load_fear_greed_alignment(connection)
+
+        assert alignment.loc[0, "filled_rows"] == 0
+        assert alignment.loc[0, "first_aligned_date"] is None
+
+        table = dashboard_app._build_fear_greed_alignment_table(alignment)
+        text = " ".join(_collect_text(table))
+        assert "Unavailable" in text
+        assert "N/A" in text
+        connection.close()
+
+    def test_counts_duplicate_dates(self):
+        connection = self._connection([
+            ("ETHUSDT", "1h", "2026-01-02 00:00:00", 45.0),
+            ("ETHUSDT", "1h", "2026-01-02 00:00:00", 46.0),
+            ("ETHUSDT", "1h", "2026-01-02 01:00:00", 47.0),
+        ])
+
+        alignment = dashboard_app._load_fear_greed_alignment(connection)
+
+        assert alignment.loc[0, "duplicate_count"] == 1
+        assert alignment.loc[0, "null_rows"] == 0
+        connection.close()
+
+    def test_empty_table_returns_empty_frame_and_alert(self):
+        connection = dashboard_app.duckdb.connect(":memory:")
+        connection.execute(
+            """
+            CREATE TABLE gold_crypto_features (
+                asset_symbol VARCHAR,
+                interval VARCHAR,
+                date TIMESTAMP,
+                fear_greed DOUBLE
+            )
+            """
+        )
+
+        alignment = dashboard_app._load_fear_greed_alignment(connection)
+
+        assert alignment.empty
+
+        text = " ".join(
+            _collect_text(dashboard_app._build_fear_greed_alignment_table(alignment))
+        )
+        assert "Fear and greed alignment data is unavailable" in text
+        connection.close()
+
+
 class TestPredictionCards:
     def test_next_prediction_card_uses_latest_prediction(self):
         prediction_rows = pd.DataFrame({
