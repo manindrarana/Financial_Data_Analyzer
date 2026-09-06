@@ -1508,6 +1508,9 @@ def _load_fear_greed_alignment(conn):
         filled = group.loc[group["fear_greed"].notna()]
         total_rows = len(group)
         filled_rows = len(filled)
+        latest_candle_date = group["date"].max()
+        newest_value = group.loc[group["date"].idxmax(), "fear_greed"]
+        freshness = "Fresh" if pd.notna(newest_value) else "Stale"
         if filled.empty:
             pre_coverage_nulls = total_rows
             unexpected_nulls = 0
@@ -1526,6 +1529,8 @@ def _load_fear_greed_alignment(conn):
             "unexpected_nulls": unexpected_nulls,
             "first_aligned_date": filled["date"].min() if not filled.empty else None,
             "latest_aligned_date": filled["date"].max() if not filled.empty else None,
+            "latest_candle_date": latest_candle_date,
+            "freshness": freshness,
             "duplicate_count": int(group.duplicated(subset=["date"]).sum()),
         })
 
@@ -1553,16 +1558,20 @@ def _build_fear_greed_alignment_table(alignment):
             "Partial": "text-warning",
             "Unavailable": "text-muted",
         }[status]
+        freshness = item["freshness"]
+        freshness_color = "text-success" if freshness == "Fresh" else "text-warning"
         rows.append(html.Tr([
             html.Td(item["asset_symbol"]),
             html.Td(item["interval"]),
             html.Td(f"{coverage_pct:.2f}%" if coverage_pct is not None else "N/A"),
             html.Td(_format_lisbon_timestamp(item["first_aligned_date"])),
             html.Td(_format_lisbon_timestamp(item["latest_aligned_date"])),
+            html.Td(_format_lisbon_timestamp(item["latest_candle_date"])),
             html.Td(f"{filled_rows:,}"),
             html.Td(f"{pre_coverage_nulls:,}"),
             html.Td(f"{unexpected_nulls:,}"),
             html.Td(f"{duplicate_count:,}"),
+            html.Td(freshness, className=freshness_color),
             html.Td(status, className=status_color),
         ]))
 
@@ -1572,10 +1581,12 @@ def _build_fear_greed_alignment_table(alignment):
         html.Th("Alignment"),
         html.Th("First Aligned"),
         html.Th("Latest Aligned"),
+        html.Th("Latest Candle"),
         html.Th("Filled Rows"),
         html.Th("Pre-coverage Nulls"),
         html.Th("Unexpected Nulls"),
         html.Th("Duplicates"),
+        html.Th("Freshness"),
         html.Th("Status"),
     ]))
     return dbc.Table(
