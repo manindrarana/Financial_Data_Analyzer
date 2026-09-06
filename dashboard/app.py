@@ -1789,7 +1789,7 @@ def render_overview():
             className="text-muted small mb-2",
         ),
         html.P(
-            "The daily value is published at the start of its utc day, before any candle that day opens, so the same-date merge does not use future information. Timestamps are shown in lisbon time; the WET or WEST label reflects the daylight saving period of each date.",
+            "The daily value is published at the start of its utc day, before any candle that day opens, so the same-date merge does not use future information. Freshness shows whether the newest candle of each asset carries a fear and greed value. Timestamps are shown in lisbon time; the WET or WEST label reflects the daylight saving period of each date.",
             className="text-muted small mb-3",
         ),
         html.Details([
