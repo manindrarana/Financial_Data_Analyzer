@@ -1488,6 +1488,117 @@ def _build_funding_coverage_table(coverage):
     )
 
 
+def _load_fear_greed_alignment(conn):
+    rows = conn.execute(
+        """
+        SELECT asset_symbol, interval, date, fear_greed
+        FROM gold_crypto_features
+        WHERE interval IN ('1h', '4h', '1d')
+        ORDER BY asset_symbol, interval, date
+        """
+    ).df()
+    if rows.empty:
+        return pd.DataFrame()
+
+    records = []
+    for (asset_symbol, interval), group in rows.groupby(
+        ["asset_symbol", "interval"], sort=True
+    ):
+        group = group.sort_values("date")
+        filled = group.loc[group["fear_greed"].notna()]
+        total_rows = len(group)
+        filled_rows = len(filled)
+        latest_candle_date = group["date"].max()
+        newest_value = group.loc[group["date"].idxmax(), "fear_greed"]
+        freshness = "Fresh" if pd.notna(newest_value) else "Stale"
+        if filled.empty:
+            pre_coverage_nulls = total_rows
+            unexpected_nulls = 0
+        else:
+            first_aligned = filled["date"].min()
+            dates = pd.to_datetime(group["date"])
+            pre_coverage_nulls = int((dates < first_aligned).sum())
+            post_boundary = group.loc[dates >= first_aligned]
+            unexpected_nulls = int(post_boundary["fear_greed"].isna().sum())
+        records.append({
+            "asset_symbol": asset_symbol.removesuffix("USDT"),
+            "interval": interval,
+            "total_rows": total_rows,
+            "filled_rows": filled_rows,
+            "pre_coverage_nulls": pre_coverage_nulls,
+            "unexpected_nulls": unexpected_nulls,
+            "first_aligned_date": filled["date"].min() if not filled.empty else None,
+            "latest_aligned_date": filled["date"].max() if not filled.empty else None,
+            "latest_candle_date": latest_candle_date,
+            "freshness": freshness,
+            "duplicate_count": int(group.duplicated(subset=["date"]).sum()),
+        })
+
+    return pd.DataFrame(records)
+
+
+def _build_fear_greed_alignment_table(alignment):
+    if alignment.empty:
+        return dbc.Alert("Fear and greed alignment data is unavailable", color="secondary")
+
+    rows = []
+    for _, item in alignment.iterrows():
+        total_rows = int(item["total_rows"])
+        filled_rows = int(item["filled_rows"])
+        pre_coverage_nulls = int(item["pre_coverage_nulls"])
+        unexpected_nulls = int(item["unexpected_nulls"])
+        duplicate_count = int(item["duplicate_count"])
+        available = filled_rows > 0
+        coverage_pct = filled_rows / total_rows * 100 if available and total_rows else None
+        status = "Healthy" if available and unexpected_nulls == 0 and duplicate_count == 0 else "Partial"
+        if not available:
+            status = "Unavailable"
+        status_color = {
+            "Healthy": "text-success",
+            "Partial": "text-warning",
+            "Unavailable": "text-muted",
+        }[status]
+        freshness = item["freshness"]
+        freshness_color = "text-success" if freshness == "Fresh" else "text-warning"
+        rows.append(html.Tr([
+            html.Td(item["asset_symbol"]),
+            html.Td(item["interval"]),
+            html.Td(f"{coverage_pct:.2f}%" if coverage_pct is not None else "N/A"),
+            html.Td(_format_lisbon_timestamp(item["first_aligned_date"])),
+            html.Td(_format_lisbon_timestamp(item["latest_aligned_date"])),
+            html.Td(_format_lisbon_timestamp(item["latest_candle_date"])),
+            html.Td(f"{filled_rows:,}"),
+            html.Td(f"{pre_coverage_nulls:,}"),
+            html.Td(f"{unexpected_nulls:,}"),
+            html.Td(f"{duplicate_count:,}"),
+            html.Td(freshness, className=freshness_color),
+            html.Td(status, className=status_color),
+        ]))
+
+    header = html.Thead(html.Tr([
+        html.Th("Asset"),
+        html.Th("Interval"),
+        html.Th("Alignment"),
+        html.Th("First Aligned"),
+        html.Th("Latest Aligned"),
+        html.Th("Latest Candle"),
+        html.Th("Filled Rows"),
+        html.Th("Pre-coverage Nulls"),
+        html.Th("Unexpected Nulls"),
+        html.Th("Duplicates"),
+        html.Th("Freshness"),
+        html.Th("Status"),
+    ]))
+    return dbc.Table(
+        [header, html.Tbody(rows)],
+        color="dark",
+        hover=True,
+        responsive=True,
+        size="sm",
+        className="mb-4",
+    )
+
+
 def render_overview():
     conn = duckdb.connect(DB_PATH, read_only=True)
 
@@ -1535,6 +1646,11 @@ def render_overview():
         funding_coverage = _load_funding_coverage(conn)
     except (duckdb.CatalogException, duckdb.BinderException):
         funding_coverage = pd.DataFrame()
+
+    try:
+        fear_greed_alignment = _load_fear_greed_alignment(conn)
+    except (duckdb.CatalogException, duckdb.BinderException):
+        fear_greed_alignment = pd.DataFrame()
 
     conn.close()
 
@@ -1667,16 +1783,33 @@ def render_overview():
             )
         ),
         html.Hr(),
+        html.H5("Fear and Greed Alignment", className="text-light mb-2"),
+        html.P(
+            "Fear and greed alignment by crypto asset and interval. The daily value is merged by utc date, so every candle on a date carries that date's value. The source api is missing one day, 2024-10-26, which appears as nulls on that date for every asset; predictions handle it with a bounded forward fill.",
+            className="text-muted small mb-2",
+        ),
+        html.P(
+            "The daily value is published at the start of its utc day, before any candle that day opens, so the same-date merge does not use future information. Freshness shows whether the newest candle of each asset carries a fear and greed value. Timestamps are shown in lisbon time; the WET or WEST label reflects the daylight saving period of each date.",
+            className="text-muted small mb-3",
+        ),
+        html.Details([
+            html.Summary("View alignment table", className="text-muted small mb-2"),
+            _build_fear_greed_alignment_table(fear_greed_alignment),
+        ]),
+        html.Hr(),
         html.H5("Funding Data Quality", className="text-light mb-2"),
         html.P(
             "Funding coverage by crypto asset and interval. Pre-listing nulls occurred before the first available funding event and are not data-quality failures.",
             className="text-muted small mb-2",
         ),
         html.P(
-            "Funding data is stored for research and data-quality monitoring; it is excluded from production model features because controlled experiments showed no significant improvement.",
+            "Funding data is stored for research and data-quality monitoring; it is excluded from production model features because controlled experiments showed no significant improvement. Timestamps are shown in lisbon time; the WET or WEST label reflects the daylight saving period of each date.",
             className="text-muted small mb-3",
         ),
-        _build_funding_coverage_table(funding_coverage),
+        html.Details([
+            html.Summary("View coverage table", className="text-muted small mb-2"),
+            _build_funding_coverage_table(funding_coverage),
+        ]),
     ])
 
 def _calculate_model_quality(predictions):
