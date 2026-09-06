@@ -470,26 +470,46 @@ class TestFearGreedAlignment:
         )
         return connection
 
-    def test_calculates_known_alignment_and_null_counts(self):
+    def test_calculates_known_alignment_and_separates_null_types(self):
         connection = self._connection([
             ("TESTUSDT", "1h", "2026-01-01 00:00:00", None),
             ("TESTUSDT", "1h", "2026-01-01 01:00:00", 40.0),
             ("TESTUSDT", "1h", "2026-01-01 02:00:00", 41.0),
             ("TESTUSDT", "1h", "2026-01-01 03:00:00", None),
+            ("TESTUSDT", "1h", "2026-01-01 04:00:00", 43.0),
         ])
 
         alignment = dashboard_app._load_fear_greed_alignment(connection)
 
-        assert alignment.loc[0, "total_rows"] == 4
-        assert alignment.loc[0, "filled_rows"] == 2
-        assert alignment.loc[0, "null_rows"] == 2
+        assert alignment.loc[0, "total_rows"] == 5
+        assert alignment.loc[0, "filled_rows"] == 3
+        assert alignment.loc[0, "pre_coverage_nulls"] == 1
+        assert alignment.loc[0, "unexpected_nulls"] == 1
         assert str(alignment.loc[0, "first_aligned_date"]) == "2026-01-01 01:00:00"
-        assert str(alignment.loc[0, "latest_aligned_date"]) == "2026-01-01 02:00:00"
+        assert str(alignment.loc[0, "latest_aligned_date"]) == "2026-01-01 04:00:00"
 
         table = dashboard_app._build_fear_greed_alignment_table(alignment)
         text = " ".join(_collect_text(table))
-        assert "50.00%" in text
+        assert "60.00%" in text
         assert "Partial" in text
+        connection.close()
+
+    def test_pre_coverage_nulls_do_not_break_healthy_status(self):
+        connection = self._connection([
+            ("TESTUSDT", "1h", "2026-01-01 00:00:00", None),
+            ("TESTUSDT", "1h", "2026-01-01 01:00:00", 40.0),
+            ("TESTUSDT", "1h", "2026-01-01 02:00:00", 41.0),
+            ("TESTUSDT", "1h", "2026-01-01 03:00:00", 42.0),
+        ])
+
+        alignment = dashboard_app._load_fear_greed_alignment(connection)
+
+        assert alignment.loc[0, "pre_coverage_nulls"] == 1
+        assert alignment.loc[0, "unexpected_nulls"] == 0
+
+        table = dashboard_app._build_fear_greed_alignment_table(alignment)
+        text = " ".join(_collect_text(table))
+        assert "Healthy" in text
         connection.close()
 
     def test_all_null_rows_report_unavailable(self):
@@ -501,6 +521,8 @@ class TestFearGreedAlignment:
         alignment = dashboard_app._load_fear_greed_alignment(connection)
 
         assert alignment.loc[0, "filled_rows"] == 0
+        assert alignment.loc[0, "pre_coverage_nulls"] == 2
+        assert alignment.loc[0, "unexpected_nulls"] == 0
         assert alignment.loc[0, "first_aligned_date"] is None
 
         table = dashboard_app._build_fear_greed_alignment_table(alignment)
@@ -519,7 +541,7 @@ class TestFearGreedAlignment:
         alignment = dashboard_app._load_fear_greed_alignment(connection)
 
         assert alignment.loc[0, "duplicate_count"] == 1
-        assert alignment.loc[0, "null_rows"] == 0
+        assert alignment.loc[0, "unexpected_nulls"] == 0
         connection.close()
 
     def test_empty_table_returns_empty_frame_and_alert(self):
