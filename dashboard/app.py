@@ -1785,7 +1785,7 @@ def render_overview():
         html.Hr(),
         html.H5("Fear and Greed Alignment", className="text-light mb-2"),
         html.P(
-            "Fear and greed alignment by crypto asset and interval. The daily value is merged by utc date, so every candle on a date carries that date's value. Nulls occur before the first available sentiment day and are not data-quality failures.",
+            "Fear and greed alignment by crypto asset and interval. The daily value is merged by utc date, so every candle on a date carries that date's value. The source api is missing one day, 2024-10-26, which appears as nulls on that date for every asset; predictions handle it with a bounded forward fill.",
             className="text-muted small mb-2",
         ),
         html.P(
