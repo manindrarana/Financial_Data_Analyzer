@@ -1792,7 +1792,7 @@ def render_overview():
             className="text-muted small mb-2",
         ),
         html.P(
-            "Funding data is stored for research and data-quality monitoring; it is excluded from production model features because controlled experiments showed no significant improvement.",
+            "Funding data is stored for research and data-quality monitoring; it is excluded from production model features because controlled experiments showed no significant improvement. Timestamps are shown in lisbon time; the WET or WEST label reflects the daylight saving period of each date.",
             className="text-muted small mb-3",
         ),
         html.Details([
