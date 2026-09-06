@@ -1623,6 +1623,11 @@ def render_overview():
     except (duckdb.CatalogException, duckdb.BinderException):
         funding_coverage = pd.DataFrame()
 
+    try:
+        fear_greed_alignment = _load_fear_greed_alignment(conn)
+    except (duckdb.CatalogException, duckdb.BinderException):
+        fear_greed_alignment = pd.DataFrame()
+
     conn.close()
 
     models = get_model_health()
