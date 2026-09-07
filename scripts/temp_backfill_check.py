@@ -92,15 +92,21 @@ print("audit rows before 2026-05-01 (pre-prefect legacy):", len(legacy))
 for entry in legacy:
     print(entry)
 
-unmatched_prefect = [
-    run
-    for run in runs
-    if (run.get("state") or {}).get("type") in terminal_states
-    and parse(run.get("start_time")) is not None
-    and not any(
-        existing[1] is not None
-        and abs((parse(run.get("start_time")) - existing[1]).total_seconds()) <= 120
-        for existing in audit_starts
-    )
-]
-print("unmatched prefect terminal runs:", len(unmatched_prefect))
+non_completed = []
+for run in runs:
+    state = (run.get("state") or {}).get("type")
+    if state not in ("FAILED", "CRASHED", "CANCELLED"):
+        continue
+    start = parse(run.get("start_time"))
+    if start is None:
+        continue
+    matched_status = None
+    for existing in audit_starts:
+        if existing[1] is not None and abs((start - existing[1]).total_seconds()) <= 120:
+            matched_status = (existing[0], existing[2])
+            break
+    non_completed.append((run.get("start_time"), state, matched_status))
+
+print("non-completed prefect runs and their audit row status:")
+for entry in sorted(non_completed):
+    print(entry)
