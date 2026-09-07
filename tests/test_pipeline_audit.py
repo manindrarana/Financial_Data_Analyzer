@@ -456,8 +456,8 @@ class TestReconcileRunningRuns:
         assert rows[0][1] == "running"
         assert rows[0][2] is None
 
-    def test_running_prefect_states_are_not_terminal(self):
-        db_path = str(tmp_path_factory_missing())
+    def test_running_prefect_states_are_not_terminal(self, tmp_path):
+        db_path = _audit_db(tmp_path)
         _insert_audit_row(db_path, "run_live", datetime(2026, 9, 7, 9, 0, 0))
 
         prefect_runs = [
