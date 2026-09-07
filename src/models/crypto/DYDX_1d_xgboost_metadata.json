@@ -2,10 +2,10 @@
   "asset": "DYDX",
   "interval": "1d",
   "asset_class": "crypto",
-  "train_end_date": "2025-10-22T00:00:00",
-  "train_rows": 1274,
+  "train_end_date": "2025-10-23T00:00:00",
+  "train_rows": 1275,
   "test_rows": 319,
-  "test_accuracy": 0.4890282131661442,
+  "test_accuracy": 0.49216300940438873,
   "features": [
     "rsi_14",
     "roc_10",
@@ -39,20 +39,20 @@
     "fear_greed"
   ],
   "best_params": {
-    "learning_rate": 0.1,
+    "learning_rate": 0.01,
     "max_depth": 3,
-    "n_estimators": 100,
+    "n_estimators": 200,
     "subsample": 1.0,
     "eval_metric": "logloss",
     "random_state": 42
   },
-  "best_cv_score": 0.5442477876106195,
+  "best_cv_score": 0.5309734513274336,
   "calibration": {
     "method": "platt_scaling",
-    "coefficient": -0.7945567380109245,
-    "intercept": 0.41337170292349074,
+    "coefficient": -0.41104711762618656,
+    "intercept": 0.24259162157865308,
     "rows": 255
   },
-  "trained_at": "2026-09-06T09:44:39.650392",
-  "mlflow_run_id": "6587ddeeb48943b78d59941f51f8149d"
+  "trained_at": "2026-09-07T10:18:47.608999",
+  "mlflow_run_id": "a54ba1a6676b4e38a6bdd1e8ba8e6209"
 }

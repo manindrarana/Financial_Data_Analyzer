@@ -4,6 +4,7 @@ import gc
 import json
 import sys
 import os
+import sqlite3
 import duckdb
 from datetime import datetime
 from pathlib import Path
@@ -14,8 +15,10 @@ from src.database import DatabaseLoader, DimensionBuilder, FactLoader
 from src.processing import DataCleaner
 from src.models import GoldLayerProcessor, TechnicalIndicatorProcessor, PipelineModelTrainer
 from src.utils.pipeline_audit import (
+    fetch_prefect_flow_runs,
     insert_pipeline_run,
     migrate_pipeline_runs,
+    reconcile_running_runs,
     update_pipeline_run,
 )
 from scripts.compare_model_families import refresh_comparison
@@ -70,6 +73,29 @@ def _migrate_pipeline_run_history():
         migrate_pipeline_runs(_get_db_path(), _get_audit_db_path())
     except duckdb.IOException:
         pass
+
+
+def _reconcile_stale_running_runs():
+    try:
+        audit_db_path = _get_audit_db_path()
+        conn = sqlite3.connect(audit_db_path)
+        running_count = conn.execute(
+            "SELECT COUNT(*) FROM pipeline_runs WHERE status = 'running'"
+        ).fetchone()[0]
+        conn.close()
+        if running_count == 0:
+            return
+        prefect_runs = fetch_prefect_flow_runs()
+        finalized = reconcile_running_runs(audit_db_path, prefect_runs)
+        logger = get_logger("PipelineAudit")
+        if finalized:
+            logger.warning(
+                f"Reconciled {finalized} stale running pipeline run(s) with Prefect states"
+            )
+    except Exception as error:
+        get_logger("PipelineAudit").warning(
+            f"Skipping stale running run reconciliation: {error}"
+        )
 
 
 def _is_process_running(pid: int) -> bool:
@@ -503,6 +529,8 @@ def _run_concurrent_extract(config: dict) -> dict:
 @flow(name="financial-data-pipeline", log_prints=True)
 def run_pipeline():
     logger = get_run_logger()
+
+    _reconcile_stale_running_runs()
 
     existing_pid = _acquire_pipeline_lock()
     if existing_pid is not None:
