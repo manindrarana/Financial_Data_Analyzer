@@ -1,13 +1,20 @@
 import sqlite3
 import time
 from datetime import datetime, timedelta
+from unittest.mock import MagicMock, patch
 
 import duckdb
 
 from src.utils.pipeline_audit import (
+    backfill_pipeline_runs,
     connect_audit_db,
+    fetch_prefect_flow_runs,
     insert_pipeline_run,
+    map_prefect_state,
     migrate_pipeline_runs,
+    normalize_prefect_run,
+    parse_timestamp,
+    reconcile_running_runs,
     update_pipeline_run,
 )
 
