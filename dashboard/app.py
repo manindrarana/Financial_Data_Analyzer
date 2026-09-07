@@ -3095,7 +3095,7 @@ STOCK_ASSETS  = ["AAPL", "AMZN", "GOOGL", "META", "MSFT", "TSLA"]
 
 def render_pipeline_history():
     summary = get_run_summary()
-    runs_df = get_pipeline_runs(limit=50)
+    runs_df = get_pipeline_runs(limit=200)
 
     status_color_map = {
         "success": "success",
@@ -3215,7 +3215,7 @@ def render_pipeline_history():
             [
                 html.H3("Pipeline Run History", className="text-light mb-2"),
                 html.P(
-                    "Every pipeline run is logged in a DuckDB table so we can see the hourly cadence and success rate without opening the Prefect UI. Shows the last 50 runs.",
+                    "Every pipeline run is logged in a SQLite table so we can see the hourly cadence and success rate without opening the Prefect UI. Shows up to the last 200 runs, including the full history reconciled from Prefect.",
                     className="text-muted small mb-3",
                 ),
                 summary_cards,
