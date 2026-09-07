@@ -1,3 +1,4 @@
+import os
 import sqlite3
 import time
 from datetime import datetime, timedelta
@@ -395,9 +396,13 @@ class TestNormalizePrefectRun:
         assert normalize_prefect_run(run)["duration_seconds"] == 0.5
 
 
+def _audit_db(tmp_path):
+    return str(tmp_path / "pipeline_history.sqlite3")
+
+
 class TestReconcileRunningRuns:
-    def test_finalizes_both_stuck_running_rows_from_2026_08_21(self):
-        db_path = str(tmp_path_factory_missing())
+    def test_finalizes_both_stuck_running_rows_from_2026_08_21(self, tmp_path):
+        db_path = _audit_db(tmp_path)
         _insert_audit_row(db_path, "run_20260821_074707_69", datetime(2026, 8, 21, 7, 47, 7))
         _insert_audit_row(db_path, "run_20260821_083637_69", datetime(2026, 8, 21, 8, 36, 37))
 
