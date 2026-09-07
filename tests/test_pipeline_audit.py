@@ -470,8 +470,8 @@ class TestReconcileRunningRuns:
         assert finalized == 0
         assert rows[0][1] == "running"
 
-    def test_reconcile_is_idempotent_second_call_finalizes_nothing(self):
-        db_path = str(tmp_path_factory_missing())
+    def test_reconcile_is_idempotent_second_call_finalizes_nothing(self, tmp_path):
+        db_path = _audit_db(tmp_path)
         _insert_audit_row(db_path, "run_20260821_074707_69", datetime(2026, 8, 21, 7, 47, 7))
         prefect_runs = [
             _make_prefect_run(
@@ -490,8 +490,8 @@ class TestReconcileRunningRuns:
 
 
 class TestBackfillPipelineRuns:
-    def test_inserts_missing_instant_failure_run_from_2026_08_20(self):
-        db_path = str(tmp_path_factory_missing())
+    def test_inserts_missing_instant_failure_run_from_2026_08_20(self, tmp_path):
+        db_path = _audit_db(tmp_path)
         _insert_audit_row(
             db_path,
             "run_20260821_074707_69",
@@ -520,8 +520,8 @@ class TestBackfillPipelineRuns:
         assert new_row[3] == 1.0
         assert "Failed" in new_row[4]
 
-    def test_backfill_is_idempotent_running_twice_inserts_no_duplicates(self):
-        db_path = str(tmp_path_factory_missing())
+    def test_backfill_is_idempotent_running_twice_inserts_no_duplicates(self, tmp_path):
+        db_path = _audit_db(tmp_path)
         prefect_runs = [
             _make_prefect_run(
                 "instant-fail-id",
@@ -548,8 +548,8 @@ class TestBackfillPipelineRuns:
         conn.close()
         assert count == 2
 
-    def test_rebuilds_history_after_sqlite_deletion(self):
-        db_path = str(tmp_path_factory_missing())
+    def test_rebuilds_history_after_sqlite_deletion(self, tmp_path):
+        db_path = _audit_db(tmp_path)
         _insert_audit_row(
             db_path,
             "run_existing",
@@ -587,8 +587,8 @@ class TestBackfillPipelineRuns:
         conn.close()
         assert triggers == [("cron",)]
 
-    def test_trigger_depends_on_deployment_id(self):
-        db_path = str(tmp_path_factory_missing())
+    def test_trigger_depends_on_deployment_id(self, tmp_path):
+        db_path = _audit_db(tmp_path)
         prefect_runs = [
             _make_prefect_run(
                 "deployed-run",
@@ -620,8 +620,8 @@ class TestBackfillPipelineRuns:
         triggers_by_time = list(triggers.values())
         assert triggers_by_time == ["cron", "manual"]
 
-    def test_skips_non_terminal_prefect_runs(self):
-        db_path = str(tmp_path_factory_missing())
+    def test_skips_non_terminal_prefect_runs(self, tmp_path):
+        db_path = _audit_db(tmp_path)
         prefect_runs = [
             _make_prefect_run("pending-id", "PENDING", "2026-08-21T07:47:07+00:00"),
             _make_prefect_run("running-id", "RUNNING", "2026-08-22T07:47:07+00:00"),
