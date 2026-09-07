@@ -66,6 +66,41 @@ terminal_count = sum(
 )
 print("prefect terminal runs:", terminal_count)
 print("audit rows:", len(audit_starts))
-print("unmatched prefect runs:", len(missing))
-for entry in missing[:15]:
+
+from collections import defaultdict
+
+matches = defaultdict(list)
+for run in runs:
+    state = (run.get("state") or {}).get("type")
+    if state not in terminal_states:
+        continue
+    start = parse(run.get("start_time"))
+    if start is None:
+        continue
+    for existing in audit_starts:
+        if existing[1] is not None and abs((start - existing[1]).total_seconds()) <= 120:
+            matches[existing[0]].append((run.get("start_time"), state))
+            break
+
+shared = {k: v for k, v in matches.items() if len(v) > 1}
+print("audit rows matching multiple prefect runs:", len(shared))
+for run_id, prefect_entries in sorted(shared.items()):
+    print(run_id, prefect_entries)
+
+legacy = [a for a in audit_starts if a[1] is not None and a[1] < datetime(2026, 5, 1)]
+print("audit rows before 2026-05-01 (pre-prefect legacy):", len(legacy))
+for entry in legacy:
     print(entry)
+
+unmatched_prefect = [
+    run
+    for run in runs
+    if (run.get("state") or {}).get("type") in terminal_states
+    and parse(run.get("start_time")) is not None
+    and not any(
+        existing[1] is not None
+        and abs((parse(run.get("start_time")) - existing[1]).total_seconds()) <= 120
+        for existing in audit_starts
+    )
+]
+print("unmatched prefect terminal runs:", len(unmatched_prefect))
