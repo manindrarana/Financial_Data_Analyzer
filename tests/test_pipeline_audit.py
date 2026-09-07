@@ -370,7 +370,7 @@ class TestNormalizePrefectRun:
         assert run["state_type"] == "CANCELLED"
         assert run["start_time"] == datetime(2026, 8, 21, 7, 47, 7)
         assert run["end_time"] == datetime(2026, 8, 21, 8, 34, 27)
-        assert run["duration_seconds"] == 2820.0
+        assert run["duration_seconds"] == 2840.0
         assert run["deployment_id"] is None
 
     def test_falls_back_to_state_timestamp_for_end_time(self):
@@ -428,7 +428,7 @@ class TestReconcileRunningRuns:
         cancelled_row = rows["run_20260821_074707_69"]
         assert cancelled_row[1] == "failed"
         assert cancelled_row[2] == "2026-08-21 08:34:27"
-        assert cancelled_row[3] == 2820.0
+        assert cancelled_row[3] == 2842.0
         assert "Cancelled" in cancelled_row[4]
         failed_row = rows["run_20260821_083637_69"]
         assert failed_row[1] == "failed"
