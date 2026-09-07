@@ -1,8 +1,11 @@
 import os
 import sqlite3
+import sys
 from collections import Counter
 
 import yaml
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.utils import get_logger
 from src.utils.pipeline_audit import (
