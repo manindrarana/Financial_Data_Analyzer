@@ -4,6 +4,7 @@ import gc
 import json
 import sys
 import os
+import sqlite3
 import duckdb
 from datetime import datetime
 from pathlib import Path
@@ -528,6 +529,8 @@ def _run_concurrent_extract(config: dict) -> dict:
 @flow(name="financial-data-pipeline", log_prints=True)
 def run_pipeline():
     logger = get_run_logger()
+
+    _reconcile_stale_running_runs()
 
     existing_pid = _acquire_pipeline_lock()
     if existing_pid is not None:
