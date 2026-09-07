@@ -340,3 +340,112 @@ class TestMultiTimeframeRefresh:
         logger.warning.assert_called_once_with(
             "BTC 1h and 4h multi-timeframe comparison failed: refresh failed"
         )
+
+
+class TestReconcileStaleRunningRuns:
+    def _make_db_with_running_rows(self, tmpdir, statuses):
+        db_dir = os.path.join(tmpdir, "database")
+        os.makedirs(db_dir, exist_ok=True)
+        audit_db_path = os.path.join(db_dir, "pipeline_history.sqlite3")
+        conn = sqlite3.connect(audit_db_path)
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS pipeline_runs (
+                run_id TEXT PRIMARY KEY,
+                start_time TIMESTAMP,
+                end_time TIMESTAMP,
+                duration_seconds REAL,
+                status TEXT,
+                trigger TEXT,
+                error_message TEXT,
+                models_retrained TEXT,
+                rows_fetched INTEGER,
+                rows_cleaned INTEGER,
+                validator_failures INTEGER,
+                checkpoint_resumed INTEGER
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO pipeline_runs VALUES
+            ('run_stuck', '2026-08-21 07:47:07', NULL, NULL, 'running',
+             'cron', NULL, NULL, NULL, NULL, 0, 0)
+            """
+        )
+        conn.commit()
+        conn.close()
+        return audit_db_path, os.path.join(db_dir, "test.duckdb")
+
+    def test_finalizes_stuck_running_rows_at_flow_start(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audit_db_path, db_path = self._make_db_with_running_rows(tmpdir, ["running"])
+            prefect_runs = [
+                {
+                    "id": "cancel-id",
+                    "state": {"type": "CANCELLED", "message": None},
+                    "start_time": "2026-08-21T07:47:05+00:00",
+                    "end_time": "2026-08-21T08:34:27+00:00",
+                    "total_run_time": None,
+                    "deployment_id": "deploy-1",
+                }
+            ]
+            with patch.object(orch, "_get_audit_db_path", return_value=audit_db_path):
+                with patch.object(orch, "fetch_prefect_flow_runs", return_value=prefect_runs):
+                    orch._reconcile_stale_running_runs()
+
+            conn = sqlite3.connect(audit_db_path)
+            row = conn.execute(
+                "SELECT status, end_time, error_message FROM pipeline_runs"
+            ).fetchone()
+            conn.close()
+
+        assert row[0] == "failed"
+        assert row[1] == "2026-08-21 08:34:27"
+        assert "Cancelled" in row[2]
+
+    def test_skips_prefect_api_call_when_no_running_rows(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audit_db_path, db_path = self._make_db_with_running_rows(tmpdir, [])
+            conn = sqlite3.connect(audit_db_path)
+            conn.execute("DELETE FROM pipeline_runs")
+            conn.commit()
+            conn.close()
+            with patch.object(orch, "_get_audit_db_path", return_value=audit_db_path):
+                with patch.object(
+                    orch, "fetch_prefect_flow_runs"
+                ) as fetch_runs:
+                    orch._reconcile_stale_running_runs()
+
+        fetch_runs.assert_not_called()
+
+    def test_prefect_outage_does_not_raise(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audit_db_path, db_path = self._make_db_with_running_rows(tmpdir, ["running"])
+            with patch.object(orch, "_get_audit_db_path", return_value=audit_db_path):
+                with patch.object(
+                    orch,
+                    "fetch_prefect_flow_runs",
+                    side_effect=RuntimeError("prefect unreachable"),
+                ):
+                    orch._reconcile_stale_running_runs()
+
+            conn = sqlite3.connect(audit_db_path)
+            row = conn.execute(
+                "SELECT status FROM pipeline_runs"
+            ).fetchone()
+            conn.close()
+
+        assert row[0] == "running"
+
+    def test_run_pipeline_calls_reconciliation_before_lock(self):
+        calls = []
+        with patch.object(orch, "_reconcile_stale_running_runs", side_effect=lambda: calls.append("reconcile")):
+            with patch.object(orch, "_acquire_pipeline_lock", side_effect=lambda: calls.append("lock") or None):
+                with patch.object(orch, "_start_pipeline_run", side_effect=lambda **kwargs: calls.append("start")):
+                    with patch.object(orch, "_run_pipeline_impl", return_value={}):
+                        with patch.object(orch, "_end_pipeline_run"):
+                            orch.run_pipeline.fn()
+
+        assert calls[0] == "reconcile"
+        assert calls[1] == "lock"
