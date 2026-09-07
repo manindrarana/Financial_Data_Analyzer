@@ -436,8 +436,8 @@ class TestReconcileRunningRuns:
         assert failed_row[3] == 293.0
         assert "Failed" in failed_row[4]
 
-    def test_leaves_running_row_unmatched_when_no_prefect_run_is_close(self):
-        db_path = str(tmp_path_factory_missing())
+    def test_leaves_running_row_unmatched_when_no_prefect_run_is_close(self, tmp_path):
+        db_path = _audit_db(tmp_path)
         _insert_audit_row(db_path, "run_20260821_074707_69", datetime(2026, 8, 21, 7, 47, 7))
 
         prefect_runs = [
