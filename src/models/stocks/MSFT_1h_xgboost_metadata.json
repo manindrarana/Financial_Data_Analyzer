@@ -2,10 +2,10 @@
   "asset": "MSFT",
   "interval": "1h",
   "asset_class": "stocks",
-  "train_end_date": "2026-03-23T16:30:00",
-  "train_rows": 3232,
-  "test_rows": 808,
-  "test_accuracy": 0.4839108910891089,
+  "train_end_date": "2026-03-24T14:30:00",
+  "train_rows": 3237,
+  "test_rows": 810,
+  "test_accuracy": 0.4962962962962963,
   "features": [
     "rsi_14",
     "roc_10",
@@ -38,20 +38,20 @@
     "volatility_pct"
   ],
   "best_params": {
-    "learning_rate": 0.05,
-    "max_depth": 3,
+    "learning_rate": 0.01,
+    "max_depth": 5,
     "n_estimators": 200,
     "subsample": 1.0,
     "eval_metric": "logloss",
     "random_state": 42
   },
-  "best_cv_score": 0.5145180023228804,
+  "best_cv_score": 0.511008111239861,
   "calibration": {
     "method": "platt_scaling",
-    "coefficient": -0.15506828436788606,
-    "intercept": 0.04754272129209694,
-    "rows": 647
+    "coefficient": -0.4652100208161304,
+    "intercept": 0.22210015746501313,
+    "rows": 648
   },
-  "trained_at": "2026-09-08T09:06:19.862200",
-  "mlflow_run_id": "ffd7b629a0444b73b04bebf3cb718c20"
+  "trained_at": "2026-09-09T06:36:19.702808",
+  "mlflow_run_id": "380f10f756d94937a70e90979393abde"
 }
