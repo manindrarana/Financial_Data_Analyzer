@@ -1,33 +1,30 @@
+import asyncio
 import json
 import os
 import sqlite3
 import sys
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
 
 import requests
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from src.utils import get_logger
-from src.utils.pipeline_audit import get_prefect_api_url
+import asyncpg
 
 FLOW_NAME = "financial-data-pipeline"
-OLD_DB_FILE = "prefect_old_backup.db"
-MAP_FILE = "prefect_backfill_map.json"
+DEFAULT_API_URL = "http://localhost:4200/api"
+DEFAULT_OLD_DB = "/root/.prefect/prefect.db"
 
 
-def repo_root():
-    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-
-def to_prefect_ts(value):
+def to_dt(value):
     if not value:
         return None
     ts = value.replace(" ", "T")
-    if ts.endswith("Z") or "+" in ts[10:]:
-        return ts
-    return ts + "+00:00"
+    if ts.endswith("Z"):
+        ts = ts[:-1] + "+00:00"
+    dt = datetime.fromisoformat(ts)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
 
 
 def parse_duration(value):
@@ -55,12 +52,6 @@ def api_post(url, payload):
     return response.json()
 
 
-def api_patch(url, payload):
-    response = requests.patch(url, json=payload, timeout=30)
-    response.raise_for_status()
-    return response.json()
-
-
 def resolve_targets(api_url):
     flows = api_post(api_url + "/flows/filter", {"limit": 100})
     flow_id = next((f["id"] for f in flows if f["name"] == FLOW_NAME), None)
@@ -70,15 +61,16 @@ def resolve_targets(api_url):
 
 
 def load_old_runs(db_path):
-    conn = sqlite3.connect("file:{}?mode=ro".format(db_path.replace("\\", "/")), uri=True)
+    conn = sqlite3.connect("file:{}?mode=ro".format(db_path), uri=True)
     try:
         rows = conn.execute(
             """
             SELECT fr.id, fr.name, fr.state_type, fr.state_name, fr.state_timestamp,
                    fr.expected_start_time, fr.start_time, fr.end_time, fr.total_run_time,
-                   fr.parameters, fr.tags, fr.flow_version, frs.message
+                   fr.parameters, fr.tags, fr.flow_version, fr.created, frs.message
             FROM flow_run fr
             LEFT JOIN flow_run_state frs ON fr.state_id = frs.id
+            WHERE fr.state_type IS NOT NULL AND fr.state_type != 'PENDING'
             ORDER BY fr.created ASC
             """
         ).fetchall()
@@ -87,108 +79,130 @@ def load_old_runs(db_path):
     return rows
 
 
-def backfill_runs(api_url, db_path, map_path, flow_id, deployment_id):
-    done = {}
-    if os.path.exists(map_path):
-        with open(map_path, "r") as f:
-            done = json.load(f)
+def existing_runs(api_url):
+    runs = api_post(api_url + "/flow_runs/filter", {"flows": {"name": {"any_": [FLOW_NAME]}}, "limit": 200})
+    return {r["name"]: r["id"] for r in runs}
+
+
+def dsn_from_env():
+    dsn = os.environ.get("PREFECT_API_DATABASE_CONNECTION_URL", "")
+    if dsn.startswith("postgresql+asyncpg://"):
+        dsn = dsn.replace("postgresql+asyncpg://", "postgresql://", 1)
+    return dsn
+
+
+async def restore_timing(dsn, run_id, created, expected, start, end, duration, state_ts):
+    conn = await asyncpg.connect(dsn)
+    try:
+        async with conn.transaction():
+            await conn.execute(
+                """
+                UPDATE flow_run
+                SET created = $2::timestamptz,
+                    expected_start_time = COALESCE($3::timestamptz, $2::timestamptz),
+                    start_time = $4::timestamptz, end_time = $5::timestamptz,
+                    total_run_time = make_interval(secs => $6::double precision),
+                    state_timestamp = $7::timestamptz, run_count = 1
+                WHERE id = $1::uuid
+                """,
+                run_id, created, expected, start, end, duration, state_ts,
+            )
+            await conn.execute(
+                """
+                UPDATE flow_run_state
+                SET timestamp = $2::timestamptz, created = $3::timestamptz
+                WHERE flow_run_id = $1::uuid
+                """,
+                run_id, state_ts, created,
+            )
+    finally:
+        await conn.close()
+
+
+def main():
+    api_url = DEFAULT_API_URL
+    db_path = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_OLD_DB
+
+    if not os.path.exists(db_path):
+        print("Old Prefect database not found at {}".format(db_path))
+        return
+    dsn = dsn_from_env()
+    if not dsn:
+        print("PREFECT_API_DATABASE_CONNECTION_URL is not set")
+        return
+
+    flow_id, deployment = resolve_targets(api_url)
+    if not flow_id:
+        print("Flow {} not found on the Prefect server".format(FLOW_NAME))
+        return
+    deployment_id = deployment["id"] if deployment else None
+    done_runs = existing_runs(api_url)
 
     rows = load_old_runs(db_path)
     inserted = 0
-    skipped = 0
+    repaired = 0
     failed = 0
     states = Counter()
 
     for row in rows:
         (old_id, name, state_type, state_name, state_timestamp,
          expected_start_time, start_time, end_time, total_run_time,
-         parameters, tags, flow_version, message) = row
-
-        if old_id in done:
-            skipped += 1
-            continue
-
-        payload = {
-            "flow_id": flow_id,
-            "name": name,
-            "expected_start_time": to_prefect_ts(expected_start_time) or to_prefect_ts(state_timestamp),
-            "parameters": parse_json(parameters, {}),
-            "tags": parse_json(tags, []),
-            "state": {
-                "type": state_type,
-                "name": state_name or state_type.title(),
-                "timestamp": to_prefect_ts(state_timestamp) or to_prefect_ts(expected_start_time),
-                "message": message,
-            },
-        }
-        if deployment_id:
-            payload["deployment_id"] = deployment_id
-        if flow_version:
-            payload["flow_version"] = flow_version
+         parameters, tags, flow_version, created, message) = row
 
         try:
-            created = api_post(api_url + "/flow_runs/", payload)
-            new_id = created["id"]
-            patch = {}
-            if start_time:
-                patch["start_time"] = to_prefect_ts(start_time)
-            if end_time:
-                patch["end_time"] = to_prefect_ts(end_time)
-            duration = parse_duration(total_run_time)
-            if duration is not None:
-                patch["total_run_time"] = duration
-            if patch:
-                api_patch("{}/flow_runs/{}".format(api_url, new_id), patch)
-            done[old_id] = new_id
-            inserted += 1
+            if name in done_runs:
+                new_id = done_runs[name]
+            else:
+                payload = {
+                    "flow_id": flow_id,
+                    "name": name,
+                    "parameters": parse_json(parameters, {}),
+                    "tags": parse_json(tags, []),
+                    "state": {
+                        "type": state_type,
+                        "name": state_name or state_type.title(),
+                        "message": message,
+                    },
+                }
+                if deployment_id:
+                    payload["deployment_id"] = deployment_id
+                if flow_version:
+                    payload["flow_version"] = flow_version
+                created_run = api_post(api_url + "/flow_runs/", payload)
+                new_id = created_run["id"]
+                done_runs[name] = new_id
+                inserted += 1
+
+            asyncio.run(restore_timing(
+                dsn,
+                new_id,
+                to_dt(created),
+                to_dt(expected_start_time),
+                to_dt(start_time),
+                to_dt(end_time),
+                parse_duration(total_run_time),
+                to_dt(state_timestamp) or to_dt(created),
+            ))
+            repaired += 1
             states[state_type] += 1
-            with open(map_path, "w") as f:
-                json.dump(done, f, indent=2)
         except Exception as exc:
             failed += 1
             print("failed to backfill run {} ({}): {}".format(old_id, name, exc))
 
-    return inserted, skipped, failed, states
+    print("Created {} new run(s), restored timing on {} run(s), {} failure(s): {}".format(
+        inserted, repaired, failed, dict(states)))
 
-
-def ensure_schedule_active(api_url, deployment):
-    if not deployment:
-        return "no deployment found"
-    schedules = deployment.get("schedules") or []
-    if not any(not s.get("active") for s in schedules):
-        return "schedule already active"
-    response = requests.post(
-        "{}/deployments/{}/set_schedule_active".format(api_url, deployment["id"]),
-        timeout=30,
-    )
-    response.raise_for_status()
-    return "schedule reactivated"
-
-
-def main():
-    logger = get_logger("PrefectHistoryBackfill")
-    api_url = get_prefect_api_url()
-    db_path = sys.argv[1] if len(sys.argv) > 1 else os.path.join(repo_root(), "database", OLD_DB_FILE)
-    map_path = os.path.join(repo_root(), "database", MAP_FILE)
-
-    if not os.path.exists(db_path):
-        logger.info("Old Prefect database not found at {}".format(db_path))
-        return
-
-    flow_id, deployment = resolve_targets(api_url)
-    if not flow_id:
-        logger.info("Flow {} not found on the Prefect server".format(FLOW_NAME))
-        return
-
-    inserted, skipped, failed, states = backfill_runs(
-        api_url, db_path, map_path, flow_id, deployment["id"] if deployment else None
-    )
-    logger.info(
-        "Backfilled {} run(s), skipped {} already-mapped run(s), {} failure(s): {}".format(
-            inserted, skipped, failed, dict(states)
-        )
-    )
-    logger.info(ensure_schedule_active(api_url, deployment))
+    if deployment:
+        schedules = deployment.get("schedules") or []
+        inactive = [s for s in schedules if not s.get("active")]
+        for s in inactive:
+            r = requests.patch(
+                "{}/deployments/{}/schedules/{}".format(api_url, deployment["id"], s["id"]),
+                json={"active": True}, timeout=30,
+            )
+            print("schedule {} reactivated: {}".format(s["id"], r.status_code))
+        if not inactive and schedules:
+            print("schedule already active")
 
 
 if __name__ == "__main__":
