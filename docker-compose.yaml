@@ -60,6 +60,21 @@ services:
       - 8.8.8.8
       - 1.1.1.1
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: prefect_postgres
+    env_file:
+      - .env
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - custom_net
+
   prefect:
     build:
       context: .
@@ -69,8 +84,13 @@ services:
       - "4200:4200"
     volumes:
       - prefect_data:/root/.prefect
+    environment:
+      - PREFECT_API_DATABASE_CONNECTION_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     command: >
       bash -c "prefect server start --host 0.0.0.0"
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4200/api/health')"]
       interval: 10s
