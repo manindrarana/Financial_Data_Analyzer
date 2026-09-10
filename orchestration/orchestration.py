@@ -629,5 +629,6 @@ if __name__ == "__main__":
         run_pipeline.serve(
             name="financial-data-pipeline",
             cron="0 * * * *",
+            pause_on_shutdown=False,
             description="Hourly ELT pipeline ingesting stock & crypto data, building gold layer, and retraining models",
         )
