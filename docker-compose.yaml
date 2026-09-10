@@ -139,6 +139,7 @@ volumes:
   minio_data:
   mlflow_data:
   prefect_data:
+  pg_data:
   model_store:
 
 networks:
