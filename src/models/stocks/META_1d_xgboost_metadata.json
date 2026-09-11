@@ -2,10 +2,10 @@
   "asset": "META",
   "interval": "1d",
   "asset_class": "stocks",
-  "train_end_date": "2023-12-19T00:00:00",
-  "train_rows": 2717,
+  "train_end_date": "2023-12-21T00:00:00",
+  "train_rows": 2719,
   "test_rows": 680,
-  "test_accuracy": 0.5191176470588236,
+  "test_accuracy": 0.5220588235294118,
   "features": [
     "rsi_14",
     "roc_10",
@@ -45,13 +45,13 @@
     "eval_metric": "logloss",
     "random_state": 42
   },
-  "best_cv_score": 0.5255524861878453,
+  "best_cv_score": 0.5213793103448277,
   "calibration": {
     "method": "platt_scaling",
-    "coefficient": -0.11869658926179913,
-    "intercept": 0.0780958383585041,
+    "coefficient": -0.1433343352793618,
+    "intercept": 0.09121938847970187,
     "rows": 544
   },
-  "trained_at": "2026-09-10T10:12:38.172092",
-  "mlflow_run_id": "375571f2ebd94b7d9b117651aed85f55"
+  "trained_at": "2026-09-11T07:45:42.058404",
+  "mlflow_run_id": "76e741cdc7914c87ba9c416e92984cc0"
 }
