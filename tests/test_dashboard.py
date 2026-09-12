@@ -2091,3 +2091,85 @@ class TestPerformanceStability:
             "No valid out-of-sample data" in value
             for value in _collect_text(result)
         )
+
+
+class TestBacktestStopBanner:
+    def _make_frames(self, stopped, stop_date):
+        trades = pd.DataFrame({
+            "entry_time": [pd.Timestamp("2024-01-01 10:00")],
+            "exit_time": [pd.Timestamp("2024-01-01 11:00")],
+            "entry_price": [100.0],
+            "exit_price": [10100.0],
+            "direction": ["short"],
+            "pnl": [-10000.0],
+            "pnl_pct": [-100.0],
+            "exit_reason": ["min_equity_stop"],
+            "bars_held": [1],
+            "confidence": [0.6],
+            "fold_id": [1],
+            "total_cost": [0.0],
+        })
+        equity = pd.DataFrame({
+            "date": pd.to_datetime(["2024-01-01 10:00", "2024-01-01 11:00"]),
+            "equity": [10000.0, 0.0],
+            "drawdown_pct": [0.0, 100.0],
+        })
+        trades.attrs["stopped"] = stopped
+        trades.attrs["stop_date"] = stop_date
+        equity.attrs["stopped"] = stopped
+        equity.attrs["stop_date"] = stop_date
+        return trades, equity
+
+    def _metrics(self):
+        return {
+            "total_return_pct": -100.0,
+            "total_pnl": -10000.0,
+            "total_cost": 0.0,
+            "sharpe_ratio": 0.0,
+            "volatility_pct": 0.0,
+            "max_drawdown_pct": 100.0,
+            "win_rate": 0.0,
+            "profit_factor": 0.0,
+            "total_trades": 1,
+        }
+
+    def test_stopped_backtest_shows_banner_with_stop_date(self):
+        trades, equity = self._make_frames(True, pd.Timestamp("2024-01-01 11:00"))
+        result = dashboard_app._build_backtest_results(self._metrics(), equity, trades)
+        text = "".join(_collect_text(result))
+        assert "Backtest stopped early" in text
+        assert "equity hit the minimum" in text
+        assert "WEST" in text or "WET" in text
+        assert "12:00" in text or "11:00" in text
+
+    def test_running_backtest_shows_no_banner(self):
+        trades, equity = self._make_frames(False, None)
+        result = dashboard_app._build_backtest_results(self._metrics(), equity, trades)
+        text = "".join(_collect_text(result))
+        assert "Backtest stopped early" not in text
+        assert "equity hit the minimum" not in text
+
+    def test_missing_attrs_shows_no_banner(self):
+        trades = pd.DataFrame({
+            "entry_time": [pd.Timestamp("2024-01-01 10:00")],
+            "exit_time": [pd.Timestamp("2024-01-01 11:00")],
+            "entry_price": [100.0],
+            "exit_price": [105.0],
+            "direction": ["long"],
+            "pnl": [5.0],
+            "pnl_pct": [5.0],
+            "exit_reason": ["take_profit"],
+            "bars_held": [1],
+            "confidence": [0.6],
+            "fold_id": [1],
+            "total_cost": [0.2],
+        })
+        equity = pd.DataFrame({
+            "date": pd.to_datetime(["2024-01-01 10:00", "2024-01-01 11:00"]),
+            "equity": [10000.0, 10005.0],
+            "drawdown_pct": [0.0, 0.0],
+        })
+        result = dashboard_app._build_backtest_results(self._metrics(), equity, trades)
+        text = "".join(_collect_text(result))
+        assert "Backtest stopped early" not in text
+        assert "equity hit the minimum" not in text
