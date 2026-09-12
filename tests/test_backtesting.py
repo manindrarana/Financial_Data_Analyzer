@@ -761,10 +761,10 @@ class TestPortfolioBacktest:
     def test_portfolio_stops_when_combined_equity_hits_minimum(self):
         btc = pd.DataFrame([
             {"date": datetime(2024, 1, 1, 10, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
-            {"date": datetime(2024, 1, 1, 11, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
-            {"date": datetime(2024, 1, 1, 12, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
-            {"date": datetime(2024, 1, 1, 13, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
-            {"date": datetime(2024, 1, 1, 14, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 11, 0), "close": 300.0, "prediction": 0, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 12, 0), "close": 300.0, "prediction": 0, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 13, 0), "close": 300.0, "prediction": 0, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 14, 0), "close": 300.0, "prediction": 0, "confidence": 0.6},
         ])
         eth = pd.DataFrame([
             {"date": datetime(2024, 1, 1, 10, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
@@ -782,6 +782,10 @@ class TestPortfolioBacktest:
         )
         assert len(trades) == 2
         assert (trades["exit_reason"] == "min_equity_stop").all()
+        btc_trade = trades[trades["asset"] == "BTC"].iloc[0]
+        eth_trade = trades[trades["asset"] == "ETH"].iloc[0]
+        assert btc_trade["pnl"] == -10000.0
+        assert eth_trade["pnl"] == 0.0
         assert trades.attrs["stopped"] is True
         assert trades.attrs["stop_date"] == datetime(2024, 1, 1, 11, 0)
         assert equity.attrs["stopped"] is True
@@ -791,7 +795,7 @@ class TestPortfolioBacktest:
     def test_portfolio_no_new_entries_after_stop(self):
         btc = pd.DataFrame([
             {"date": datetime(2024, 1, 1, 10, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
-            {"date": datetime(2024, 1, 1, 11, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 11, 0), "close": 300.0, "prediction": 0, "confidence": 0.6},
             {"date": datetime(2024, 1, 1, 12, 0), "close": 100.0, "prediction": 1, "confidence": 0.9},
             {"date": datetime(2024, 1, 1, 13, 0), "close": 100.0, "prediction": 1, "confidence": 0.9},
             {"date": datetime(2024, 1, 1, 14, 0), "close": 100.0, "prediction": 0, "confidence": 0.9},
