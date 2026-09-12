@@ -587,6 +587,93 @@ class TestShortSelling:
         assert "short" in directions
 
 
+class TestMinimumEquityStop:
+    def test_short_driving_equity_to_zero_stops_backtest(self):
+        df = pd.DataFrame([
+            {"date": datetime(2024, 1, 1, 10, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 11, 0), "close": 10100.0, "prediction": 1, "confidence": 0.5},
+            {"date": datetime(2024, 1, 1, 12, 0), "close": 100.0, "prediction": 1, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 13, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
+        ])
+        trades, equity = simulate_trades(
+            df, confidence_threshold=0.52, allow_short=True,
+            stop_loss_pct=0.02, take_profit_pct=0.04,
+            transaction_cost_pct=0.0, initial_capital=10000,
+            min_equity=0.0,
+        )
+        assert len(trades) == 1
+        assert trades.iloc[0]["exit_reason"] == "min_equity_stop"
+        assert trades.iloc[0]["exit_price"] == 10100.0
+        assert trades.iloc[0]["pnl"] == -10000.0
+        assert trades.attrs["stopped"] is True
+        assert trades.attrs["stop_date"] == datetime(2024, 1, 1, 11, 0)
+        assert equity.attrs["stopped"] is True
+        assert equity.attrs["stop_date"] == datetime(2024, 1, 1, 11, 0)
+        assert equity.iloc[0]["equity"] == 10000.0
+        assert equity.iloc[1]["equity"] == 0.0
+        assert equity.iloc[2]["equity"] == 0.0
+        assert equity.iloc[3]["equity"] == 0.0
+        assert equity.iloc[1]["drawdown_pct"] == 100.0
+
+    def test_no_new_entries_after_stop(self):
+        df = pd.DataFrame([
+            {"date": datetime(2024, 1, 1, 10, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 11, 0), "close": 10100.0, "prediction": 1, "confidence": 0.5},
+            {"date": datetime(2024, 1, 1, 12, 0), "close": 50.0, "prediction": 1, "confidence": 0.9},
+            {"date": datetime(2024, 1, 1, 13, 0), "close": 50.0, "prediction": 0, "confidence": 0.9},
+            {"date": datetime(2024, 1, 1, 14, 0), "close": 50.0, "prediction": 1, "confidence": 0.9},
+        ])
+        trades, equity = simulate_trades(
+            df, confidence_threshold=0.52, allow_short=True,
+            stop_loss_pct=0.02, take_profit_pct=0.04,
+            transaction_cost_pct=0.0, initial_capital=10000,
+            min_equity=0.0,
+        )
+        assert trades.attrs["stopped"] is True
+        assert len(trades) == 1
+        assert trades.iloc[0]["exit_time"] == datetime(2024, 1, 1, 11, 0)
+        assert (equity.iloc[1:]["equity"] == 0.0).all()
+
+    def test_positive_min_equity_threshold_stops_earlier(self):
+        df = pd.DataFrame([
+            {"date": datetime(2024, 1, 1, 10, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 11, 0), "close": 160.0, "prediction": 1, "confidence": 0.5},
+            {"date": datetime(2024, 1, 1, 12, 0), "close": 160.0, "prediction": 1, "confidence": 0.6},
+        ])
+        trades, equity = simulate_trades(
+            df, confidence_threshold=0.52, allow_short=True,
+            stop_loss_pct=0.02, take_profit_pct=0.04,
+            transaction_cost_pct=0.0, initial_capital=10000,
+            min_equity=9950.0,
+        )
+        assert len(trades) == 1
+        assert trades.iloc[0]["exit_reason"] == "min_equity_stop"
+        assert trades.iloc[0]["exit_price"] == 160.0
+        assert trades.iloc[0]["pnl"] == -60.0
+        assert trades.attrs["stopped"] is True
+        assert trades.attrs["stop_date"] == datetime(2024, 1, 1, 11, 0)
+        assert equity.iloc[1]["equity"] == 9940.0
+        assert equity.iloc[2]["equity"] == 9940.0
+
+    def test_backtest_that_never_hits_minimum_reports_no_stop(self):
+        df = pd.DataFrame([
+            {"date": datetime(2024, 1, 1, 10, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 11, 0), "close": 95.0, "prediction": 1, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 12, 0), "close": 99.0, "prediction": 0, "confidence": 0.5},
+        ])
+        trades, equity = simulate_trades(
+            df, confidence_threshold=0.52, allow_short=True,
+            stop_loss_pct=0.02, take_profit_pct=0.04,
+            transaction_cost_pct=0.0, initial_capital=10000,
+        )
+        assert trades.attrs["stopped"] is False
+        assert trades.attrs["stop_date"] is None
+        assert equity.attrs["stopped"] is False
+        assert equity.attrs["stop_date"] is None
+        assert len(trades) >= 1
+        assert equity.iloc[-1]["equity"] > 10000.0
+
+
 class TestPortfolioBacktest:
     def _make_asset_predictions(self, asset, n=100, seed=42, start_price=100.0):
         np.random.seed(seed)
@@ -670,6 +757,81 @@ class TestPortfolioBacktest:
             final_equity = equity.iloc[-1]["equity"]
             initial = 10000.0
             assert abs((final_equity - initial) - total_pnl) < 1.0
+
+    def test_portfolio_stops_when_combined_equity_hits_minimum(self):
+        btc = pd.DataFrame([
+            {"date": datetime(2024, 1, 1, 10, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 11, 0), "close": 300.0, "prediction": 0, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 12, 0), "close": 300.0, "prediction": 0, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 13, 0), "close": 300.0, "prediction": 0, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 14, 0), "close": 300.0, "prediction": 0, "confidence": 0.6},
+        ])
+        eth = pd.DataFrame([
+            {"date": datetime(2024, 1, 1, 10, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 11, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 12, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 13, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 14, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
+        ])
+        preds = {"BTC": btc, "ETH": eth}
+        trades, equity = simulate_portfolio_trades(
+            preds, confidence_threshold=0.52, allow_short=True,
+            stop_loss_pct=0.02, take_profit_pct=0.04,
+            transaction_cost_pct=0.0, initial_capital=10000,
+            max_positions=2, min_equity=0.0,
+        )
+        assert len(trades) == 2
+        assert (trades["exit_reason"] == "min_equity_stop").all()
+        btc_trade = trades[trades["asset"] == "BTC"].iloc[0]
+        eth_trade = trades[trades["asset"] == "ETH"].iloc[0]
+        assert btc_trade["pnl"] == -10000.0
+        assert eth_trade["pnl"] == 0.0
+        assert trades.attrs["stopped"] is True
+        assert trades.attrs["stop_date"] == datetime(2024, 1, 1, 11, 0)
+        assert equity.attrs["stopped"] is True
+        assert equity.iloc[-1]["equity"] == 0.0
+        assert equity.iloc[-1]["drawdown_pct"] == 100.0
+
+    def test_portfolio_no_new_entries_after_stop(self):
+        btc = pd.DataFrame([
+            {"date": datetime(2024, 1, 1, 10, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 11, 0), "close": 300.0, "prediction": 0, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 12, 0), "close": 100.0, "prediction": 1, "confidence": 0.9},
+            {"date": datetime(2024, 1, 1, 13, 0), "close": 100.0, "prediction": 1, "confidence": 0.9},
+            {"date": datetime(2024, 1, 1, 14, 0), "close": 100.0, "prediction": 0, "confidence": 0.9},
+        ])
+        eth = pd.DataFrame([
+            {"date": datetime(2024, 1, 1, 10, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 11, 0), "close": 100.0, "prediction": 0, "confidence": 0.6},
+            {"date": datetime(2024, 1, 1, 12, 0), "close": 100.0, "prediction": 0, "confidence": 0.9},
+            {"date": datetime(2024, 1, 1, 13, 0), "close": 100.0, "prediction": 1, "confidence": 0.9},
+            {"date": datetime(2024, 1, 1, 14, 0), "close": 100.0, "prediction": 1, "confidence": 0.9},
+        ])
+        preds = {"BTC": btc, "ETH": eth}
+        trades, equity = simulate_portfolio_trades(
+            preds, confidence_threshold=0.52, allow_short=True,
+            stop_loss_pct=0.02, take_profit_pct=0.04,
+            transaction_cost_pct=0.0, initial_capital=10000,
+            max_positions=2, min_equity=0.0,
+        )
+        assert trades.attrs["stopped"] is True
+        assert len(trades) == 2
+        assert (trades["exit_time"] == datetime(2024, 1, 1, 11, 0)).all()
+        assert (equity.iloc[2:]["equity"] == 0.0).all()
+
+    def test_portfolio_never_hits_minimum_reports_no_stop(self):
+        preds = {
+            "BTC": self._make_asset_predictions("BTC", 100, seed=42),
+            "ETH": self._make_asset_predictions("ETH", 100, seed=99),
+        }
+        trades, equity = simulate_portfolio_trades(
+            preds, confidence_threshold=0.52,
+            initial_capital=10000, max_positions=2,
+        )
+        assert trades.attrs["stopped"] is False
+        assert trades.attrs["stop_date"] is None
+        assert equity.attrs["stopped"] is False
+        assert equity.attrs["stop_date"] is None
 
     def test_portfolio_asset_breakdown_in_metrics(self):
         preds = {

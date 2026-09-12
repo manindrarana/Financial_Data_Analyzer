@@ -14,6 +14,7 @@ def simulate_trades(
     initial_capital=10000,
     transaction_cost_pct=0.001,
     allow_short=False,
+    min_equity=0.0,
 ):
     df = predictions_df.copy()
     df = df.sort_values("date").reset_index(drop=True)
@@ -39,6 +40,8 @@ def simulate_trades(
     target_price = None
     direction = None
     bars_held = 0
+    stopped = False
+    stop_date = None
 
     for i in range(len(df)):
         current_date = df.loc[i, "date"]
@@ -52,23 +55,32 @@ def simulate_trades(
             exit_reason = None
 
             if direction == "long":
-                if current_price <= stop_price:
-                    exit_price = stop_price
-                    exit_reason = "stop_loss"
-                elif current_price >= target_price:
-                    exit_price = target_price
-                    exit_reason = "take_profit"
+                unrealized_now = current_price - entry_price - entry_cost
             else:
-                if current_price >= stop_price:
-                    exit_price = stop_price
-                    exit_reason = "stop_loss"
-                elif current_price <= target_price:
-                    exit_price = target_price
-                    exit_reason = "take_profit"
+                unrealized_now = entry_price - current_price - entry_cost
 
-            if exit_price is None and bars_held >= max_hold_bars:
+            if cash + unrealized_now <= min_equity:
                 exit_price = current_price
-                exit_reason = "max_hold"
+                exit_reason = "min_equity_stop"
+            else:
+                if direction == "long":
+                    if current_price <= stop_price:
+                        exit_price = stop_price
+                        exit_reason = "stop_loss"
+                    elif current_price >= target_price:
+                        exit_price = target_price
+                        exit_reason = "take_profit"
+                else:
+                    if current_price >= stop_price:
+                        exit_price = stop_price
+                        exit_reason = "stop_loss"
+                    elif current_price <= target_price:
+                        exit_price = target_price
+                        exit_reason = "take_profit"
+
+                if exit_price is None and bars_held >= max_hold_bars:
+                    exit_price = current_price
+                    exit_reason = "max_hold"
 
             if exit_price is not None:
                 entry_cost = entry_price * transaction_cost_pct
@@ -98,6 +110,10 @@ def simulate_trades(
                     "total_cost": round(total_cost, 6),
                 })
 
+                if exit_reason == "min_equity_stop":
+                    stopped = True
+                    stop_date = current_date
+
                 in_position = False
                 entry_idx = None
                 entry_price = None
@@ -106,7 +122,7 @@ def simulate_trades(
                 direction = None
                 bars_held = 0
 
-        if not in_position and conf >= confidence_threshold:
+        if not in_position and not stopped and conf >= confidence_threshold:
             if pred == 1:
                 entry_idx = i
                 entry_price = current_price
@@ -184,6 +200,11 @@ def simulate_trades(
     if not trades_df.empty:
         trades_df["cumulative_pnl"] = trades_df["pnl"].cumsum()
 
+    trades_df.attrs["stopped"] = stopped
+    trades_df.attrs["stop_date"] = stop_date
+    equity_df.attrs["stopped"] = stopped
+    equity_df.attrs["stop_date"] = stop_date
+
     return trades_df, equity_df
 
 
@@ -198,6 +219,7 @@ def run_strategy(
     predictions_df=None,
     transaction_cost_pct=0.001,
     allow_short=False,
+    min_equity=0.0,
 ):
     if predictions_df is not None:
         predictions = predictions_df
@@ -232,7 +254,12 @@ def run_strategy(
         initial_capital,
         transaction_cost_pct,
         allow_short,
+        min_equity,
     )
+
+    if trades_df.attrs.get("stopped"):
+        print(f"\n   MINIMUM EQUITY STOP: backtest stopped on {trades_df.attrs.get('stop_date')} "
+              f"when equity fell to ${min_equity:,.2f}. No further trades were simulated.")
 
     if return_data:
         return trades_df, equity_df
@@ -340,6 +367,7 @@ def simulate_portfolio_trades(
     transaction_cost_pct=0.001,
     allow_short=False,
     max_positions=3,
+    min_equity=0.0,
 ):
     if not predictions_dict:
         return pd.DataFrame(), pd.DataFrame()
@@ -369,6 +397,8 @@ def simulate_portfolio_trades(
     equity_peak = initial_capital
     open_positions = {}
     latest_prices = {}
+    stopped = False
+    stop_date = None
 
     for i in range(len(merged)):
         current_date = merged.loc[i, "date"]
@@ -377,6 +407,58 @@ def simulate_portfolio_trades(
         latest_prices[current_asset] = current_price
         pred = int(merged.loc[i, "prediction"])
         conf = float(merged.loc[i, "confidence"])
+
+        if not stopped and open_positions:
+            unrealized_check = 0.0
+            for asset_name, pos in open_positions.items():
+                entry_price_chk = pos["entry_price"]
+                position_size_chk = pos["position_size"]
+                asset_price_chk = latest_prices[asset_name]
+                entry_cost_chk = position_size_chk * entry_price_chk * transaction_cost_pct
+                exit_cost_chk = position_size_chk * asset_price_chk * transaction_cost_pct
+                if pos["direction"] == "long":
+                    unrealized_check += position_size_chk * (asset_price_chk - entry_price_chk) - entry_cost_chk - exit_cost_chk
+                else:
+                    unrealized_check += position_size_chk * (entry_price_chk - asset_price_chk) - entry_cost_chk - exit_cost_chk
+
+            if cash + unrealized_check <= min_equity:
+                for asset_name in list(open_positions.keys()):
+                    pos = open_positions[asset_name]
+                    entry_price = pos["entry_price"]
+                    position_size = pos["position_size"]
+                    exit_price = latest_prices[asset_name]
+                    entry_cost = position_size * entry_price * transaction_cost_pct
+                    exit_cost = position_size * exit_price * transaction_cost_pct
+                    total_cost = entry_cost + exit_cost
+
+                    if pos["direction"] == "long":
+                        pnl = position_size * (exit_price - entry_price) - total_cost
+                    else:
+                        pnl = position_size * (entry_price - exit_price) - total_cost
+
+                    pnl_pct = (pnl / pos["allocation"]) * 100
+                    cash += pnl
+
+                    trades.append({
+                        "asset": asset_name,
+                        "entry_time": pos["entry_date"],
+                        "exit_time": current_date,
+                        "entry_price": entry_price,
+                        "exit_price": exit_price,
+                        "direction": pos["direction"],
+                        "pnl": round(pnl, 4),
+                        "pnl_pct": round(pnl_pct, 2),
+                        "exit_reason": "min_equity_stop",
+                        "bars_held": pos["bars_held"],
+                        "confidence": pos["confidence"],
+                        "fold_id": pos.get("fold_id"),
+                        "total_cost": round(total_cost, 6),
+                        "allocation": round(pos["allocation"], 2),
+                    })
+
+                open_positions.clear()
+                stopped = True
+                stop_date = current_date
 
         if current_asset in open_positions:
             pos = open_positions[current_asset]
@@ -437,7 +519,7 @@ def simulate_portfolio_trades(
 
                 del open_positions[current_asset]
 
-        if current_asset not in open_positions and len(open_positions) < max_positions and conf >= confidence_threshold:
+        if not stopped and current_asset not in open_positions and len(open_positions) < max_positions and conf >= confidence_threshold:
             if pred == 1:
                 allocation = allocation_per_position
                 position_size = allocation / current_price
@@ -550,6 +632,11 @@ def simulate_portfolio_trades(
     if not trades_df.empty:
         trades_df["cumulative_pnl"] = trades_df["pnl"].cumsum()
 
+    trades_df.attrs["stopped"] = stopped
+    trades_df.attrs["stop_date"] = stop_date
+    equity_df.attrs["stopped"] = stopped
+    equity_df.attrs["stop_date"] = stop_date
+
     return trades_df, equity_df
 
 
@@ -564,6 +651,7 @@ def run_portfolio_strategy(
     transaction_cost_pct=0.001,
     allow_short=False,
     max_positions=3,
+    min_equity=0.0,
 ):
     if not predictions_dict:
         raise ValueError("predictions_dict is required for portfolio strategy")
@@ -590,7 +678,12 @@ def run_portfolio_strategy(
         transaction_cost_pct,
         allow_short,
         max_positions,
+        min_equity,
     )
+
+    if trades_df.attrs.get("stopped"):
+        print(f"\n   MINIMUM EQUITY STOP: portfolio backtest stopped on {trades_df.attrs.get('stop_date')} "
+              f"when total equity fell to ${min_equity:,.2f}. No further trades were simulated.")
 
     total_pnl = trades_df["pnl"].sum() if not trades_df.empty else 0
     win_count = (trades_df["pnl"] > 0).sum() if not trades_df.empty else 0
