@@ -219,6 +219,7 @@ def run_strategy(
     predictions_df=None,
     transaction_cost_pct=0.001,
     allow_short=False,
+    min_equity=0.0,
 ):
     if predictions_df is not None:
         predictions = predictions_df
@@ -253,7 +254,12 @@ def run_strategy(
         initial_capital,
         transaction_cost_pct,
         allow_short,
+        min_equity,
     )
+
+    if trades_df.attrs.get("stopped"):
+        print(f"\n   MINIMUM EQUITY STOP: backtest stopped on {trades_df.attrs.get('stop_date')} "
+              f"when equity fell to ${min_equity:,.2f}. No further trades were simulated.")
 
     if return_data:
         return trades_df, equity_df
