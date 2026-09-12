@@ -651,6 +651,7 @@ def run_portfolio_strategy(
     transaction_cost_pct=0.001,
     allow_short=False,
     max_positions=3,
+    min_equity=0.0,
 ):
     if not predictions_dict:
         raise ValueError("predictions_dict is required for portfolio strategy")
@@ -677,7 +678,12 @@ def run_portfolio_strategy(
         transaction_cost_pct,
         allow_short,
         max_positions,
+        min_equity,
     )
+
+    if trades_df.attrs.get("stopped"):
+        print(f"\n   MINIMUM EQUITY STOP: portfolio backtest stopped on {trades_df.attrs.get('stop_date')} "
+              f"when total equity fell to ${min_equity:,.2f}. No further trades were simulated.")
 
     total_pnl = trades_df["pnl"].sum() if not trades_df.empty else 0
     win_count = (trades_df["pnl"] > 0).sum() if not trades_df.empty else 0
