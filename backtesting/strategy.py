@@ -14,6 +14,7 @@ def simulate_trades(
     initial_capital=10000,
     transaction_cost_pct=0.001,
     allow_short=False,
+    min_equity=0.0,
 ):
     df = predictions_df.copy()
     df = df.sort_values("date").reset_index(drop=True)
@@ -39,6 +40,8 @@ def simulate_trades(
     target_price = None
     direction = None
     bars_held = 0
+    stopped = False
+    stop_date = None
 
     for i in range(len(df)):
         current_date = df.loc[i, "date"]
@@ -52,23 +55,32 @@ def simulate_trades(
             exit_reason = None
 
             if direction == "long":
-                if current_price <= stop_price:
-                    exit_price = stop_price
-                    exit_reason = "stop_loss"
-                elif current_price >= target_price:
-                    exit_price = target_price
-                    exit_reason = "take_profit"
+                unrealized_now = current_price - entry_price - entry_cost
             else:
-                if current_price >= stop_price:
-                    exit_price = stop_price
-                    exit_reason = "stop_loss"
-                elif current_price <= target_price:
-                    exit_price = target_price
-                    exit_reason = "take_profit"
+                unrealized_now = entry_price - current_price - entry_cost
 
-            if exit_price is None and bars_held >= max_hold_bars:
+            if cash + unrealized_now <= min_equity:
                 exit_price = current_price
-                exit_reason = "max_hold"
+                exit_reason = "min_equity_stop"
+            else:
+                if direction == "long":
+                    if current_price <= stop_price:
+                        exit_price = stop_price
+                        exit_reason = "stop_loss"
+                    elif current_price >= target_price:
+                        exit_price = target_price
+                        exit_reason = "take_profit"
+                else:
+                    if current_price >= stop_price:
+                        exit_price = stop_price
+                        exit_reason = "stop_loss"
+                    elif current_price <= target_price:
+                        exit_price = target_price
+                        exit_reason = "take_profit"
+
+                if exit_price is None and bars_held >= max_hold_bars:
+                    exit_price = current_price
+                    exit_reason = "max_hold"
 
             if exit_price is not None:
                 entry_cost = entry_price * transaction_cost_pct
