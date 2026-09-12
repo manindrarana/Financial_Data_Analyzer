@@ -647,6 +647,27 @@ def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None, tun
     if trades_df.empty:
         return dbc.Alert("No trades executed — try relaxing the confidence threshold or date range.", color="warning")
 
+    stopped = trades_df.attrs.get("stopped", False)
+    stop_date = trades_df.attrs.get("stop_date")
+    stop_banner = None
+    if stopped:
+        if isinstance(stop_date, pd.Timestamp):
+            lisbon_stop_date = stop_date.tz_localize("UTC").tz_convert(ZoneInfo("Europe/Lisbon"))
+        else:
+            lisbon_stop_date = pd.to_datetime(stop_date).tz_localize("UTC").tz_convert(ZoneInfo("Europe/Lisbon"))
+        stop_banner = dbc.Alert(
+            [
+                html.Strong("Backtest stopped early"),
+                html.Span(
+                    f" — equity hit the minimum on {lisbon_stop_date.strftime('%Y-%m-%d %H:%M %Z')}. "
+                    "Open positions were force-closed and no further trades were simulated, "
+                    "so the flat equity line after that point is not real trading."
+                ),
+            ],
+            color="danger",
+            className="mb-3",
+        )
+
     tuning_panel = None
     if tuning_summary:
         if "selected_parameters" in tuning_summary:
