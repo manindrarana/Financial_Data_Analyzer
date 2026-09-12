@@ -110,6 +110,10 @@ def simulate_trades(
                     "total_cost": round(total_cost, 6),
                 })
 
+                if exit_reason == "min_equity_stop":
+                    stopped = True
+                    stop_date = current_date
+
                 in_position = False
                 entry_idx = None
                 entry_price = None
@@ -118,7 +122,7 @@ def simulate_trades(
                 direction = None
                 bars_held = 0
 
-        if not in_position and conf >= confidence_threshold:
+        if not in_position and not stopped and conf >= confidence_threshold:
             if pred == 1:
                 entry_idx = i
                 entry_price = current_price
@@ -195,6 +199,11 @@ def simulate_trades(
 
     if not trades_df.empty:
         trades_df["cumulative_pnl"] = trades_df["pnl"].cumsum()
+
+    trades_df.attrs["stopped"] = stopped
+    trades_df.attrs["stop_date"] = stop_date
+    equity_df.attrs["stopped"] = stopped
+    equity_df.attrs["stop_date"] = stop_date
 
     return trades_df, equity_df
 
