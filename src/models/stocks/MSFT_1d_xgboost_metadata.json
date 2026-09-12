@@ -2,8 +2,8 @@
   "asset": "MSFT",
   "interval": "1d",
   "asset_class": "stocks",
-  "train_end_date": "2023-11-24T00:00:00",
-  "train_rows": 2795,
+  "train_end_date": "2023-11-27T00:00:00",
+  "train_rows": 2796,
   "test_rows": 699,
   "test_accuracy": 0.4907010014306152,
   "features": [
@@ -48,10 +48,10 @@
   "best_cv_score": 0.5422818791946309,
   "calibration": {
     "method": "platt_scaling",
-    "coefficient": -0.8536437955243231,
-    "intercept": 0.49042065430625875,
-    "rows": 559
+    "coefficient": -0.869395089483472,
+    "intercept": 0.5023366126496094,
+    "rows": 560
   },
-  "trained_at": "2026-09-11T07:44:58.786917",
-  "mlflow_run_id": "727d254781b64287b57402d187826952"
+  "trained_at": "2026-09-12T08:29:30.106804",
+  "mlflow_run_id": "9af317e12ee9404c90a68c86ffa6753f"
 }

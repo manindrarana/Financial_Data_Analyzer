@@ -2,10 +2,10 @@
   "asset": "ADA",
   "interval": "1h",
   "asset_class": "crypto",
-  "train_end_date": "2025-08-08T08:00:00",
-  "train_rows": 38299,
-  "test_rows": 9575,
-  "test_accuracy": 0.5276240208877284,
+  "train_end_date": "2025-08-09T04:00:00",
+  "train_rows": 38319,
+  "test_rows": 9580,
+  "test_accuracy": 0.5271398747390397,
   "features": [
     "rsi_14",
     "roc_10",
@@ -46,13 +46,13 @@
     "eval_metric": "logloss",
     "random_state": 42
   },
-  "best_cv_score": 0.5366451107191847,
+  "best_cv_score": 0.5353995299647474,
   "calibration": {
     "method": "platt_scaling",
-    "coefficient": 2.5303984961211547,
-    "intercept": -1.2822801615261041,
-    "rows": 7655
+    "coefficient": 2.5697058148415133,
+    "intercept": -1.301815839456554,
+    "rows": 7659
   },
-  "trained_at": "2026-09-11T07:41:46.556195",
-  "mlflow_run_id": "e5333c1214fd445b9a4484a98583435c"
+  "trained_at": "2026-09-12T08:26:11.146575",
+  "mlflow_run_id": "d5ad7b98d6c3454782b2d89ada38930c"
 }
