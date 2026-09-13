@@ -942,6 +942,7 @@ def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None, tun
 
     return html.Div([
         stop_banner,
+        skipped_assets_panel,
         tuning_panel,
         metric_cards,
         benchmark_cards,
