@@ -266,15 +266,19 @@ def run_walk_forward(asset="BTC", interval="1h", train_months=6, test_months=1, 
     return combined, fold_summaries
 
 
+def _pretrained_model_path(asset, interval, asset_class):
+    subdir = "crypto" if asset_class.lower() == "crypto" else "stocks"
+    return os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "src", "models", subdir, f"{asset}_{interval}_xgboost_model.json",
+    )
+
+
 def run_walk_forward_pretrained(
     asset="BTC", interval="1h", train_months=6, test_months=1, step_months=1,
     date_start=None, date_end=None, return_data=False, asset_class="crypto",
 ):
-    subdir = "crypto" if asset_class.lower() == "crypto" else "stocks"
-    model_path = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "src", "models", subdir, f"{asset}_{interval}_xgboost_model.json",
-    )
+    model_path = _pretrained_model_path(asset, interval, asset_class)
     if not os.path.exists(model_path):
         raise FileNotFoundError(
             f"No pre-trained model found for {asset} {interval} at {model_path}. "
@@ -415,7 +419,7 @@ def run_portfolio_backtest(
     if not assets or len(assets) < 2:
         raise ValueError("Portfolio backtest requires at least 2 assets")
 
-    print(f"\n=== Portfolio Walk-Forward Backtest ===")
+    print(f"\n=== Portfolio {'Pre-trained' if mode == 'pretrained' else 'Walk-Forward'} Backtest ===")
     print(f"   Assets: {assets}")
     print(f"   Interval: {interval}")
     print(f"   Mode: {mode}")
@@ -423,11 +427,18 @@ def run_portfolio_backtest(
 
     predictions_dict = {}
     summaries = {}
+    skipped_assets = {}
 
     for idx, asset in enumerate(assets, 1):
         print(f"\n[{idx}/{len(assets)}] Processing {asset}...")
 
         if mode == "pretrained":
+            model_path = _pretrained_model_path(asset, interval, asset_class)
+            if not os.path.exists(model_path):
+                reason = f"no saved model at {model_path}"
+                skipped_assets[asset] = reason
+                print(f"   SKIP: {asset} - {reason}")
+                continue
             preds, summary = run_walk_forward_pretrained(
                 asset=asset,
                 interval=interval,
@@ -453,13 +464,24 @@ def run_portfolio_backtest(
             )
 
         if preds.empty:
+            skipped_assets[asset] = "no predictions produced"
             print(f"   WARNING: No predictions for {asset}, skipping")
             continue
 
         predictions_dict[asset] = preds
         summaries[asset] = summary
 
+    if skipped_assets:
+        summaries["skipped_assets"] = skipped_assets
+
     if len(predictions_dict) < 2:
+        if mode == "pretrained":
+            print(
+                f"\n   Portfolio pre-trained backtest not run: "
+                f"{len(predictions_dict)} asset(s) with saved models, "
+                f"skipped: {list(skipped_assets)}"
+            )
+            return {}, summaries
         raise RuntimeError(
             f"Only {len(predictions_dict)} asset(s) produced predictions. "
             f"Need at least 2 for portfolio backtest."

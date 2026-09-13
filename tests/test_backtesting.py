@@ -1005,3 +1005,109 @@ class TestPortfolioBacktest:
             trades, equity, initial_capital=10000, interval="1d", asset_class="crypto",
         )
         assert metrics["volatility_pct"] == 26.88
+
+
+class TestPortfolioPretrainedBacktest:
+    def _patch_model_paths(self, tmp_path, monkeypatch, assets):
+        def fake_path(asset, interval, asset_class):
+            return str(tmp_path / f"{asset}_{interval}_xgboost_model.json")
+
+        monkeypatch.setattr("backtesting.walk_forward._pretrained_model_path", fake_path)
+        for asset in assets:
+            (tmp_path / f"{asset}_1h_xgboost_model.json").touch()
+
+    def _patch_pretrained_runner(self, tmp_path, monkeypatch):
+        def fake_pretrained(asset, **kwargs):
+            preds = _make_predictions(200, seed=42 if asset == "BTC" else 7)
+            return preds, {
+                "asset": asset,
+                "model_path": str(tmp_path / f"{asset}_1h_xgboost_model.json"),
+                "total_predictions": len(preds),
+            }
+
+        monkeypatch.setattr("backtesting.walk_forward.run_walk_forward_pretrained", fake_pretrained)
+
+    def test_pretrained_mode_loads_models_and_produces_trades_on_shared_window(self, tmp_path, monkeypatch):
+        self._patch_model_paths(tmp_path, monkeypatch, ["BTC", "ETH"])
+        loaded = []
+
+        def tracking_pretrained(asset, **kwargs):
+            loaded.append(asset)
+            preds = _make_predictions(200, seed=42 if asset == "BTC" else 7)
+            return preds, {"asset": asset, "model_path": str(tmp_path / f"{asset}_1h_xgboost_model.json")}
+
+        monkeypatch.setattr("backtesting.walk_forward.run_walk_forward_pretrained", tracking_pretrained)
+
+        predictions, summaries = run_portfolio_backtest(["BTC", "ETH"], interval="1h", mode="pretrained")
+
+        assert loaded == ["BTC", "ETH"]
+        assert list(predictions) == ["BTC", "ETH"]
+        assert "skipped_assets" not in summaries
+        assert summaries["BTC"]["model_path"] == str(tmp_path / "BTC_1h_xgboost_model.json")
+        assert summaries["ETH"]["model_path"] == str(tmp_path / "ETH_1h_xgboost_model.json")
+
+        shared_start = predictions["BTC"]["date"].min()
+        assert predictions["ETH"]["date"].min() == shared_start
+
+        trades, equity = simulate_portfolio_trades(
+            predictions, confidence_threshold=0.52, max_positions=2, initial_capital=10000,
+        )
+        assert not trades.empty
+        assert "asset" in trades.columns
+        assert set(trades["asset"].unique()) == {"BTC", "ETH"}
+        assert not equity.empty
+
+    def test_pretrained_portfolio_metrics_match_walk_forward_shape(self, tmp_path, monkeypatch):
+        self._patch_model_paths(tmp_path, monkeypatch, ["BTC", "ETH"])
+        self._patch_pretrained_runner(tmp_path, monkeypatch)
+
+        predictions, _ = run_portfolio_backtest(["BTC", "ETH"], interval="1h", mode="pretrained")
+        trades, equity = simulate_portfolio_trades(
+            predictions, confidence_threshold=0.52, max_positions=2, initial_capital=10000,
+        )
+        metrics = compute_metrics(trades, equity, initial_capital=10000, interval="1h")
+
+        assert not trades.empty
+        assert "asset_breakdown" in metrics
+        breakdown = metrics["asset_breakdown"]
+        assert {row["asset"] for row in breakdown} == {"BTC", "ETH"}
+        for row in breakdown:
+            for field in ("asset", "trades", "pnl", "win_rate", "total_cost"):
+                assert field in row
+
+    def test_missing_model_asset_skipped_and_run_completes(self, tmp_path, monkeypatch):
+        self._patch_model_paths(tmp_path, monkeypatch, ["BTC", "ETH"])
+        self._patch_pretrained_runner(tmp_path, monkeypatch)
+
+        predictions, summaries = run_portfolio_backtest(
+            ["BTC", "ETH", "SOL"], interval="1h", mode="pretrained",
+        )
+
+        assert list(predictions) == ["BTC", "ETH"]
+        assert summaries["skipped_assets"] == {
+            "SOL": f"no saved model at {tmp_path / 'SOL_1h_xgboost_model.json'}",
+        }
+        assert "SOL" not in predictions
+
+    def test_no_saved_models_returns_empty_result_without_error(self, tmp_path, monkeypatch):
+        self._patch_model_paths(tmp_path, monkeypatch, [])
+        monkeypatch.setattr(
+            "backtesting.walk_forward.run_walk_forward_pretrained",
+            MagicMock(side_effect=AssertionError("pretrained runner must not be called")),
+        )
+
+        predictions, summaries = run_portfolio_backtest(["BTC", "ETH"], interval="1h", mode="pretrained")
+
+        assert predictions == {}
+        assert set(summaries["skipped_assets"]) == {"BTC", "ETH"}
+        for reason in summaries["skipped_assets"].values():
+            assert reason.startswith("no saved model at ")
+
+    def test_walk_forward_mode_still_raises_when_too_few_assets(self, monkeypatch):
+        monkeypatch.setattr(
+            "backtesting.walk_forward.run_walk_forward",
+            lambda asset, **kwargs: (pd.DataFrame(), {"asset": asset}),
+        )
+
+        with pytest.raises(RuntimeError, match="Need at least 2"):
+            run_portfolio_backtest(["BTC", "ETH"], mode="walk_forward")

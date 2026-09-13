@@ -492,13 +492,30 @@ def render_backtest():
                                     style={"color": "#000"},
                                 ),
                                 html.Div(
-                                    dcc.Dropdown(
-                                        id="bt-portfolio-assets",
-                                        multi=True,
-                                        placeholder="Select 2+ assets",
-                                        searchable=True,
-                                        style={"color": "#000"},
-                                    ),
+                                    [
+                                        dcc.Dropdown(
+                                            id="bt-portfolio-assets",
+                                            multi=True,
+                                            placeholder="Select 2+ assets",
+                                            searchable=True,
+                                            style={"color": "#000"},
+                                        ),
+                                        html.Label(
+                                            "Portfolio Model",
+                                            className="text-muted small mt-2 mb-1",
+                                            title="Walk-Forward retrains each asset on every fold. Pre-trained loads each asset's saved trained model.",
+                                        ),
+                                        dcc.RadioItems(
+                                            id="bt-portfolio-model-mode",
+                                            options=[
+                                                {"label": "Walk-Forward", "value": "walk_forward"},
+                                                {"label": "Pre-trained", "value": "pretrained"},
+                                            ],
+                                            value="walk_forward",
+                                            labelStyle={"display": "block", "color": "#adb5bd", "fontSize": "12px"},
+                                            inputStyle={"marginRight": "6px"},
+                                        ),
+                                    ],
                                     id="bt-portfolio-assets-container",
                                     style={"display": "none"},
                                 ),
@@ -688,6 +705,23 @@ def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None, tun
                     for asset, params in parameter_sets.items()
                 ],
                 color="info",
+                className="mb-3",
+            )
+
+    skipped_assets_panel = None
+    if isinstance(tuning_summary, dict):
+        skipped = tuning_summary.get("skipped_assets", {})
+        if skipped:
+            skipped_assets_panel = dbc.Alert(
+                [
+                    html.Strong("Skipped assets"),
+                    html.Span(
+                        " — "
+                        + ", ".join(f"{name} ({reason})" for name, reason in skipped.items())
+                        + ". The backtest continued with the remaining assets."
+                    ),
+                ],
+                color="warning",
                 className="mb-3",
             )
 
@@ -908,6 +942,7 @@ def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None, tun
 
     return html.Div([
         stop_banner,
+        skipped_assets_panel,
         tuning_panel,
         metric_cards,
         benchmark_cards,
@@ -930,6 +965,7 @@ def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None, tun
     dash.State("bt-class-dropdown", "value"),
     dash.State("bt-asset-dropdown", "value"),
     dash.State("bt-portfolio-assets", "value"),
+    dash.State("bt-portfolio-model-mode", "value"),
     dash.State("bt-interval-dropdown", "value"),
     dash.State("bt-date-range", "start_date"),
     dash.State("bt-date-range", "end_date"),
@@ -951,9 +987,9 @@ def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None, tun
     prevent_initial_call=True,
 )
 def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, portfolio_assets,
-                           interval, date_start, date_end, confidence, stop_loss, take_profit,
-                           max_hold, capital, train_months, test_months, step_months,
-                           txn_cost, allow_short, max_positions):
+                           portfolio_model_mode, interval, date_start, date_end, confidence,
+                           stop_loss, take_profit, max_hold, capital, train_months, test_months,
+                           step_months, txn_cost, allow_short, max_positions):
     """Background callback: runs the full walk-forward → strategy → metrics pipeline."""
     if not n_clicks:
         raise dash.exceptions.PreventUpdate
@@ -987,9 +1023,17 @@ def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, p
                 step_months=int(step_months),
                 date_start=date_start if date_start else None,
                 date_end=date_end if date_end else None,
-                mode="walk_forward",
+                mode=portfolio_model_mode or "walk_forward",
                 asset_class=asset_class,
             )
+            if not predictions_dict:
+                skipped = tuning_summary.get("skipped_assets", {})
+                skip_text = ", ".join(f"{name} ({reason})" for name, reason in skipped.items())
+                message = "Portfolio pre-trained backtest not run: fewer than 2 selected assets have a saved model."
+                if skip_text:
+                    message += f" Skipped: {skip_text}."
+                message += " Train the missing models with scripts/train_all_models.py or switch the portfolio model to Walk-Forward."
+                return dbc.Alert(message, color="warning")
 
             set_progress(dbc.Alert("Simulating portfolio trades...", color="info"))
             trades_df, equity_df = run_portfolio_strategy(
