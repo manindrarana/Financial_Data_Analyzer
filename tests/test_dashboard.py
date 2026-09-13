@@ -2173,3 +2173,122 @@ class TestBacktestStopBanner:
         text = "".join(_collect_text(result))
         assert "Backtest stopped early" not in text
         assert "equity hit the minimum" not in text
+
+
+class TestPortfolioPretrainedBacktest:
+    def _metrics(self):
+        return {
+            "total_return_pct": -100.0,
+            "total_pnl": -10000.0,
+            "total_cost": 0.0,
+            "sharpe_ratio": 0.0,
+            "volatility_pct": 0.0,
+            "max_drawdown_pct": 100.0,
+            "win_rate": 0.0,
+            "profit_factor": 0.0,
+            "total_trades": 1,
+            "asset_breakdown": [
+                {"asset": "BTC", "trades": 1, "pnl": 5.0, "win_rate": 100.0, "total_cost": 0.2},
+                {"asset": "ETH", "trades": 1, "pnl": -3.0, "win_rate": 0.0, "total_cost": 0.2},
+            ],
+        }
+
+    def _frames(self):
+        trades = pd.DataFrame({
+            "entry_time": [pd.Timestamp("2024-01-01 10:00")],
+            "exit_time": [pd.Timestamp("2024-01-01 11:00")],
+            "entry_price": [100.0],
+            "exit_price": [105.0],
+            "direction": ["long"],
+            "pnl": [5.0],
+            "pnl_pct": [5.0],
+            "exit_reason": ["take_profit"],
+            "bars_held": [1],
+            "confidence": [0.6],
+            "fold_id": [1],
+            "total_cost": [0.2],
+            "asset": ["BTC"],
+            "allocation": [5000.0],
+        })
+        equity = pd.DataFrame({
+            "date": pd.to_datetime(["2024-01-01 10:00", "2024-01-01 11:00"]),
+            "equity": [10000.0, 10005.0],
+            "drawdown_pct": [0.0, 0.0],
+        })
+        return trades, equity
+
+    def _run_callback(self, portfolio_model_mode, run_backtest):
+        trades, equity = self._frames()
+        strategy = MagicMock(return_value=(trades, equity))
+        buy_hold = MagicMock(return_value={
+            "return_pct": 5.0,
+            "max_drawdown_pct": 10.0,
+            "sharpe_ratio": 1.0,
+            "volatility_pct": 20.0,
+            "total_cost": 5.0,
+            "equity": [10000.0, 10500.0],
+            "dates": ["2024-01-01 10:00", "2024-01-01 11:00"],
+        })
+        metrics = MagicMock(return_value=self._metrics())
+
+        with patch("backtesting.walk_forward.run_portfolio_backtest", run_backtest), \
+             patch("backtesting.strategy.run_portfolio_strategy", strategy), \
+             patch("backtesting.strategy.compute_portfolio_buy_and_hold", buy_hold), \
+             patch("backtesting.metrics.run_metrics", metrics):
+            result = dashboard_app.run_backtest_pipeline(
+                MagicMock(), 1, "portfolio", "crypto", "BTC", ["BTC", "ETH"],
+                portfolio_model_mode, "1h", None, None, 0.52, 2, 4, 24, 10000,
+                6, 1, 1, 0.1, False, 3,
+            )
+        return result
+
+    def test_callback_passes_pretrained_mode_and_renders_results(self):
+        run_backtest = MagicMock(return_value=(
+            {"BTC": pd.DataFrame(), "ETH": pd.DataFrame()},
+            {"BTC": {"asset": "BTC"}, "skipped_assets": {"SOL": "no saved model at x"}},
+        ))
+
+        result = self._run_callback("pretrained", run_backtest)
+
+        assert run_backtest.call_args.kwargs["mode"] == "pretrained"
+        assert run_backtest.call_args.kwargs["assets"] == ["BTC", "ETH"]
+        assert run_backtest.call_args.kwargs["interval"] == "1h"
+        text = "".join(_collect_text(result))
+        assert "Skipped assets" in text
+        assert "SOL" in text
+        assert "continued with the remaining assets" in text
+        assert "Total Return" in text
+        assert "-100.00%" in text
+        assert "Per-Asset Breakdown" in text
+
+    def test_callback_defaults_missing_mode_to_walk_forward(self):
+        run_backtest = MagicMock(return_value=(
+            {"BTC": pd.DataFrame(), "ETH": pd.DataFrame()},
+            {"BTC": {"asset": "BTC"}, "ETH": {"asset": "ETH"}},
+        ))
+
+        result = self._run_callback(None, run_backtest)
+
+        assert run_backtest.call_args.kwargs["mode"] == "walk_forward"
+        text = "".join(_collect_text(result))
+        assert "Skipped assets" not in text
+        assert "Per-Asset Breakdown" in text
+
+    def test_callback_returns_warning_when_no_assets_have_models(self):
+        run_backtest = MagicMock(return_value=(
+            {},
+            {"skipped_assets": {
+                "BTC": "no saved model at a",
+                "ETH": "no saved model at b",
+            }},
+        ))
+
+        result = self._run_callback("pretrained", run_backtest)
+
+        text = "".join(_collect_text(result))
+        assert "Portfolio pre-trained backtest not run" in text
+        assert "BTC" in text
+        assert "ETH" in text
+        assert "no saved model at a" in text
+        assert "no saved model at b" in text
+        assert "Walk-Forward" in text
