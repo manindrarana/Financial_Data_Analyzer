@@ -419,7 +419,7 @@ def run_portfolio_backtest(
     if not assets or len(assets) < 2:
         raise ValueError("Portfolio backtest requires at least 2 assets")
 
-    print(f"\n=== Portfolio Walk-Forward Backtest ===")
+    print(f"\n=== Portfolio {'Pre-trained' if mode == 'pretrained' else 'Walk-Forward'} Backtest ===")
     print(f"   Assets: {assets}")
     print(f"   Interval: {interval}")
     print(f"   Mode: {mode}")
@@ -427,11 +427,18 @@ def run_portfolio_backtest(
 
     predictions_dict = {}
     summaries = {}
+    skipped_assets = {}
 
     for idx, asset in enumerate(assets, 1):
         print(f"\n[{idx}/{len(assets)}] Processing {asset}...")
 
         if mode == "pretrained":
+            model_path = _pretrained_model_path(asset, interval, asset_class)
+            if not os.path.exists(model_path):
+                reason = f"no saved model at {model_path}"
+                skipped_assets[asset] = reason
+                print(f"   SKIP: {asset} - {reason}")
+                continue
             preds, summary = run_walk_forward_pretrained(
                 asset=asset,
                 interval=interval,
@@ -457,13 +464,24 @@ def run_portfolio_backtest(
             )
 
         if preds.empty:
+            skipped_assets[asset] = "no predictions produced"
             print(f"   WARNING: No predictions for {asset}, skipping")
             continue
 
         predictions_dict[asset] = preds
         summaries[asset] = summary
 
+    if skipped_assets:
+        summaries["skipped_assets"] = skipped_assets
+
     if len(predictions_dict) < 2:
+        if mode == "pretrained":
+            print(
+                f"\n   Portfolio pre-trained backtest not run: "
+                f"{len(predictions_dict)} asset(s) with saved models, "
+                f"skipped: {list(skipped_assets)}"
+            )
+            return {}, summaries
         raise RuntimeError(
             f"Only {len(predictions_dict)} asset(s) produced predictions. "
             f"Need at least 2 for portfolio backtest."
