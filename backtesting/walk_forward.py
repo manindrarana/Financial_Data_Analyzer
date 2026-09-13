@@ -266,15 +266,19 @@ def run_walk_forward(asset="BTC", interval="1h", train_months=6, test_months=1, 
     return combined, fold_summaries
 
 
+def _pretrained_model_path(asset, interval, asset_class):
+    subdir = "crypto" if asset_class.lower() == "crypto" else "stocks"
+    return os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "src", "models", subdir, f"{asset}_{interval}_xgboost_model.json",
+    )
+
+
 def run_walk_forward_pretrained(
     asset="BTC", interval="1h", train_months=6, test_months=1, step_months=1,
     date_start=None, date_end=None, return_data=False, asset_class="crypto",
 ):
-    subdir = "crypto" if asset_class.lower() == "crypto" else "stocks"
-    model_path = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "src", "models", subdir, f"{asset}_{interval}_xgboost_model.json",
-    )
+    model_path = _pretrained_model_path(asset, interval, asset_class)
     if not os.path.exists(model_path):
         raise FileNotFoundError(
             f"No pre-trained model found for {asset} {interval} at {model_path}. "
