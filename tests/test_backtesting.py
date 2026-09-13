@@ -1030,11 +1030,10 @@ class TestPortfolioPretrainedBacktest:
     def test_pretrained_mode_loads_models_and_produces_trades_on_shared_window(self, tmp_path, monkeypatch):
         self._patch_model_paths(tmp_path, monkeypatch, ["BTC", "ETH"])
         loaded = []
-        real_pretrained = _make_predictions
 
         def tracking_pretrained(asset, **kwargs):
             loaded.append(asset)
-            preds = real_pretrained(200, seed=42 if asset == "BTC" else 7)
+            preds = _make_predictions(200, seed=42 if asset == "BTC" else 7)
             return preds, {"asset": asset, "model_path": str(tmp_path / f"{asset}_1h_xgboost_model.json")}
 
         monkeypatch.setattr("backtesting.walk_forward.run_walk_forward_pretrained", tracking_pretrained)
