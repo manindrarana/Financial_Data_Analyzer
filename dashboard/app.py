@@ -947,6 +947,7 @@ def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None, tun
     dash.State("bt-class-dropdown", "value"),
     dash.State("bt-asset-dropdown", "value"),
     dash.State("bt-portfolio-assets", "value"),
+    dash.State("bt-portfolio-model-mode", "value"),
     dash.State("bt-interval-dropdown", "value"),
     dash.State("bt-date-range", "start_date"),
     dash.State("bt-date-range", "end_date"),
@@ -968,9 +969,9 @@ def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None, tun
     prevent_initial_call=True,
 )
 def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, portfolio_assets,
-                           interval, date_start, date_end, confidence, stop_loss, take_profit,
-                           max_hold, capital, train_months, test_months, step_months,
-                           txn_cost, allow_short, max_positions):
+                           portfolio_model_mode, interval, date_start, date_end, confidence,
+                           stop_loss, take_profit, max_hold, capital, train_months, test_months,
+                           step_months, txn_cost, allow_short, max_positions):
     """Background callback: runs the full walk-forward → strategy → metrics pipeline."""
     if not n_clicks:
         raise dash.exceptions.PreventUpdate
