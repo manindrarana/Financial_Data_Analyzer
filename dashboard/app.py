@@ -1005,9 +1005,17 @@ def run_backtest_pipeline(set_progress, n_clicks, bt_mode, asset_class, asset, p
                 step_months=int(step_months),
                 date_start=date_start if date_start else None,
                 date_end=date_end if date_end else None,
-                mode="walk_forward",
+                mode=portfolio_model_mode or "walk_forward",
                 asset_class=asset_class,
             )
+            if not predictions_dict:
+                skipped = tuning_summary.get("skipped_assets", {})
+                skip_text = ", ".join(f"{name} ({reason})" for name, reason in skipped.items())
+                message = "Portfolio pre-trained backtest not run: fewer than 2 selected assets have a saved model."
+                if skip_text:
+                    message += f" Skipped: {skip_text}."
+                message += " Train the missing models with scripts/train_all_models.py or switch the portfolio model to Walk-Forward."
+                return dbc.Alert(message, color="warning")
 
             set_progress(dbc.Alert("Simulating portfolio trades...", color="info"))
             trades_df, equity_df = run_portfolio_strategy(
