@@ -4,7 +4,7 @@ Project involves both  **Data Engineering** and **Data Science** to analyze fina
 
 ## How it Works (8-step ELT pipeline)
 
-1. **Extract**: Yahoo Finance and Bybit APIs run concurrently, fetching historical OHLCV data plus Open Interest and Funding Rate for crypto, saving to MinIO (S3) as Parquet files.
+1. **Extract**: Yahoo Finance, Bybit, and the Fear & Greed Index (alternative.me) run concurrently, fetching historical OHLCV data plus Open Interest, Funding Rate, and daily crypto sentiment, saving to MinIO (S3) as Parquet files.
 2. **Load**: DuckDB reads raw Parquet files from MinIO into staging tables (`yahoo_stocks`, `bybit_crypto`).
 3. **Clean**: Removes duplicates, filters invalid prices, normalizes timestamps, enforces chronological ordering → `clean_*` tables.
 4. **Dimensions**: Builds a star schema (`dim_assets`, `dim_dates`) for analytical querying.
@@ -33,8 +33,9 @@ The project uses a **Medallion Data Lake Architecture** with three layers stored
 ### Services
 
 - **MinIO**: S3-compatible object storage (Ports: 9000 for API, 9001 for web console)
-- **Prefect**: Flow orchestration with task-level retries and checkpoint/resume recovery (Port: 4200)
-- **Python Pipeline**: Automated ELT orchestration using Prefect (executes on startup + scheduled hourly)
+- **Prefect**: Flow orchestration with task-level retries and checkpoint/resume recovery, backed by PostgreSQL (Port: 4200)
+- **PostgreSQL**: Prefect server backend database with row-level locking, replacing the lock-prone SQLite backend
+- **Python Pipeline**: Automated ELT orchestration using Prefect (executes on startup + scheduled hourly), with run history audited to SQLite and visible in the dashboard
 - **Plotly Dash**: Interactive dashboard with 9 tabs — Overview, Price Dashboard, Predictions, Backtest, Technical Indicators, Data Explorer, Model Health, Model Insights, Pipeline History (Port: 8050)
 - **MLflow**: ML experiment tracking (Port: 5000)
 - **DuckDB**: In-process analytical database for SQL transformations
@@ -43,7 +44,7 @@ The project uses a **Medallion Data Lake Architecture** with three layers stored
 
 - **Per-asset, per-interval models**: Separate XGBoost models for each combination (e.g., BTC 1h, BTC 4h, AAPL 1h, AAPL 1d). `PipelineModelTrainer` reads `settings.yml` and auto-discovers all combos.
 - **Stationarity transforms**: Raw indicators (SMA, EMA, MACD) are non-stationary. `make_stationary()` in `src/models/feature_engineering.py` converts them to distance-from-close ratios, making features comparable across price levels.
-- **Walk-forward backtesting**: `backtesting/walk_forward.py` validates models by walking a 6-month training window forward month-by-month, retraining on each fold to mirror real-world periodic retraining.
+- **Walk-forward backtesting**: `backtesting/walk_forward.py` validates models by walking a 6-month training window forward month-by-month, retraining on each fold to mirror real-world periodic retraining. Also supports a pre-trained mode that loads the saved production JSON model per asset instead of retraining, single-asset and multi-asset portfolio modes, and optional short selling and transaction costs. Strategy results are compared against an equal-weight buy-and-hold benchmark using the same dates, capital, and costs.
 
 ## Project Structure
 
@@ -54,7 +55,7 @@ The project uses a **Medallion Data Lake Architecture** with three layers stored
   Settings for the project, like API keys and database paths.
 
 - **`dashboard/`**
-  Plotly Dash web application (`app.py`) with XGBoost predictor (`predictor.py`) and model health monitoring (`model_health.py`).
+  Plotly Dash web application (`app.py`) with XGBoost predictor (`predictor.py`), model health monitoring (`model_health.py`), and pipeline run history (`pipeline_history.py`).
 
 - **`notebooks/`**  
   Jupyter notebooks where test ideas and visualize data before writing the final code.
@@ -67,9 +68,12 @@ The project uses a **Medallion Data Lake Architecture** with three layers stored
   - `investigate_funding.py`: Investigates and backfills historical funding-rate coverage for all configured Bybit assets.
   - `run_funding_rate_experiment.py`: Leakage-safe funding feature experiment with accuracy significance tests and cost-aware backtest variant comparison.
   - `run_cross_asset_experiment.py`: Leakage-safe cross-asset feature experiment comparing baseline and cross-asset variants.
+  - `run_regime_analysis.py`: BTC 1h regime analysis comparing per-regime accuracy against dynamic baselines.
   - `run_feature_ablation.py`: Controlled BTC 1h feature-ablation experiment (auto-refreshed after BTC 1h retraining by orchestration).
   - `compare_model_families.py`: BTC 1h model-family comparison across XGBoost, Logistic Regression, and Random Forest (auto-refreshed after BTC 1h retraining by orchestration).
   - `compare_multitimeframe_models.py`: BTC 1h/4h multi-timeframe comparison with ensemble metrics (auto-refreshed after BTC 1h/4h retraining by orchestration).
+  - `backfill_pipeline_history.py`: One-time backfill of the SQLite pipeline-run audit from existing DuckDB history.
+  - `backfill_prefect_history.py`: One-time backfill of run history from the old Prefect SQLite backend into PostgreSQL.
   - `build_macro_table.py`: Builds the macroeconomic table from FRED data.
   - `data_health_check.py`: Checks data quality and coverage per asset and interval.
   - `data_profiler.py`: Profiles raw market data for volume and readiness.
@@ -79,16 +83,16 @@ The project uses a **Medallion Data Lake Architecture** with three layers stored
   - Legacy training scripts (superseded by `PipelineModelTrainer`):
     `train_all_models.py`, `train_btc_model.py`, `train_aapl_model.py`, `eda_ml.py`, `top15_feat.py`, `target_analysis.py`.
 
-- **`src/`**  
+- **`src/`**
   The main source code for the project:
-  - `ingestion/`: API clients for Yahoo Finance (`yahoo_finance.py`) and Bybit (`bybit_client.py`).
+  - `ingestion/`: API clients for Yahoo Finance (`yahoo_finance.py`), Bybit (`bybit_client.py`), and the Fear & Greed Index (`fear_greed.py`).
   - `database/`: DuckDB loading (`loader.py`), dimensional modeling (`dimensions.py`), and fact tables (`facts.py`).
   - `processing/`: Data scaling, cleaning, and chronological transformation (`transformation.py`).
   - `models/`: Gold layer processor, technical indicators processor, feature analyzer, and shared feature engineering (`feature_engineering.py`).
-  - `utils/`: Helper scripts (like custom console logging).
+  - `utils/`: Console logging (`logger.py`), S3 access setup (`s3.py`), and pipeline run auditing (`pipeline_audit.py`).
 
-- **`tests/`**  
-  Simple tests to make sure the code is working correctly.
+- **`tests/`**
+  Pytest suite covering every module (extraction, database, processing, models, backtesting, dashboard, orchestration) with value-based assertions. Runs with zero infrastructure — no Docker, no S3, no `.env`.
 
 - **`reports/`**
   Generated reports: market and ML profiles, funding coverage and experiment results, feature ablation, model-family and multi-timeframe comparisons.
@@ -105,7 +109,7 @@ The project uses a **Medallion Data Lake Architecture** with three layers stored
     source venv/bin/activate  # On Windows: venv\Scripts\activate
     ```
 3.  **Configure Environment:**
-    Rename `.env.example` to `.env` and add API keys.
+    Rename `.env.example` to `.env` and add API keys and the PostgreSQL credentials (user, password, database).
 
 4. **Run the pipeline:**
     ```bash
