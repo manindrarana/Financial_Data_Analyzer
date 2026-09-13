@@ -492,13 +492,30 @@ def render_backtest():
                                     style={"color": "#000"},
                                 ),
                                 html.Div(
-                                    dcc.Dropdown(
-                                        id="bt-portfolio-assets",
-                                        multi=True,
-                                        placeholder="Select 2+ assets",
-                                        searchable=True,
-                                        style={"color": "#000"},
-                                    ),
+                                    [
+                                        dcc.Dropdown(
+                                            id="bt-portfolio-assets",
+                                            multi=True,
+                                            placeholder="Select 2+ assets",
+                                            searchable=True,
+                                            style={"color": "#000"},
+                                        ),
+                                        html.Label(
+                                            "Portfolio Model",
+                                            className="text-muted small mt-2 mb-1",
+                                            title="Walk-Forward retrains each asset on every fold. Pre-trained loads each asset's saved trained model.",
+                                        ),
+                                        dcc.RadioItems(
+                                            id="bt-portfolio-model-mode",
+                                            options=[
+                                                {"label": "Walk-Forward", "value": "walk_forward"},
+                                                {"label": "Pre-trained", "value": "pretrained"},
+                                            ],
+                                            value="walk_forward",
+                                            labelStyle={"display": "block", "color": "#adb5bd", "fontSize": "12px"},
+                                            inputStyle={"marginRight": "6px"},
+                                        ),
+                                    ],
                                     id="bt-portfolio-assets-container",
                                     style={"display": "none"},
                                 ),
