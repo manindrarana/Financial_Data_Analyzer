@@ -708,6 +708,23 @@ def _build_backtest_results(metrics, equity_df, trades_df, buy_hold_df=None, tun
                 className="mb-3",
             )
 
+    skipped_assets_panel = None
+    if isinstance(tuning_summary, dict):
+        skipped = tuning_summary.get("skipped_assets", {})
+        if skipped:
+            skipped_assets_panel = dbc.Alert(
+                [
+                    html.Strong("Skipped assets"),
+                    html.Span(
+                        " — "
+                        + ", ".join(f"{name} ({reason})" for name, reason in skipped.items())
+                        + ". The backtest continued with the remaining assets."
+                    ),
+                ],
+                color="warning",
+                className="mb-3",
+            )
+
     buy_hold_return_pct = 0.0
     buy_hold_equity = None
     buy_hold_dates = None
