@@ -9,6 +9,9 @@ data/processed/*
 data/analytics/*
 data/.pipeline_checkpoint.json
 
+# backtest run artifacts
+backtesting/results/
+
 *duckdb
 *.log
 .pytest_cache/
