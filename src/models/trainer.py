@@ -309,7 +309,15 @@ class PipelineModelTrainer:
 
         self.logger.info(f"  Saved {asset}/{interval}: acc={test_acc:.4f}, train_rows={len(train_df)}")
         self.last_retrained_models.append(f"{asset}_{interval}")
-        return {"asset": asset, "interval": interval, "accuracy": round(test_acc, 4)}
+        return {
+            "asset": asset,
+            "interval": interval,
+            "accuracy": round(test_acc, 4),
+            "previous_accuracy": (
+                None if previous_accuracy is None else round(previous_accuracy, 4)
+            ),
+            "decision": "replaced" if previous_accuracy is not None else "created",
+        }
 
     def run(self):
         self.logger.info("*" * 60)
