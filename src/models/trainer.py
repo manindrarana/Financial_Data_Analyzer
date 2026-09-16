@@ -246,6 +246,25 @@ class PipelineModelTrainer:
                 self.logger.warning(f"  MLflow log failed: {e}")
 
         meta_path, model_path = self._get_metadata_path(asset, interval, asset_class)
+        previous_accuracy = self._read_existing_accuracy(asset, interval, asset_class)
+        if previous_accuracy is not None and test_acc <= previous_accuracy:
+            self.logger.info(
+                f"  KEPT existing model for {asset}/{interval}: "
+                f"new acc={test_acc:.4f} <= saved acc={previous_accuracy:.4f}"
+            )
+            if mlflow_enabled:
+                try:
+                    mlflow.end_run()
+                except Exception:
+                    pass
+            return {
+                "asset": asset,
+                "interval": interval,
+                "accuracy": round(test_acc, 4),
+                "previous_accuracy": round(previous_accuracy, 4),
+                "decision": "kept_existing",
+            }
+
         model.save_model(model_path)
 
         best_params = dict(grid.best_params_)
