@@ -232,6 +232,14 @@ def backfill_pipeline_runs(audit_db_path, prefect_runs):
     return inserted
 
 
+def _ensure_models_kept_column(conn):
+    existing = {
+        row[1] for row in conn.execute("PRAGMA table_info(pipeline_runs)").fetchall()
+    }
+    if "models_kept" not in existing:
+        conn.execute("ALTER TABLE pipeline_runs ADD COLUMN models_kept TEXT")
+
+
 def connect_audit_db(db_path):
     parent = os.path.dirname(db_path)
     if parent:
@@ -250,6 +258,7 @@ def connect_audit_db(db_path):
             trigger TEXT,
             error_message TEXT,
             models_retrained TEXT,
+            models_kept TEXT,
             rows_fetched INTEGER,
             rows_cleaned INTEGER,
             validator_failures INTEGER,
@@ -257,6 +266,7 @@ def connect_audit_db(db_path):
         )
         """
     )
+    _ensure_models_kept_column(conn)
     conn.commit()
     return conn
 
