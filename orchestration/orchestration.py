@@ -202,6 +202,9 @@ def _count_rows(table_names):
 
 
 FORCE_FLAG = "--force" in sys.argv
+LAST_KEPT_MODELS = []
+
+
 def _get_db_con():
     with open("configs/settings.yml", "r") as f:
         config = yaml.safe_load(f)
@@ -484,7 +487,13 @@ def train_models():
     trainer = PipelineModelTrainer()
     trainer.run()
     retrained = list(trainer.last_retrained_models)
+    kept = list(trainer.last_kept_models)
     trainer.close()
+
+    LAST_KEPT_MODELS.clear()
+    LAST_KEPT_MODELS.extend(kept)
+    if kept:
+        logger.info(f"Kept existing models (new accuracy not better): {', '.join(kept)}")
 
     if "BTC_1h" in retrained:
         try:
