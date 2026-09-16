@@ -557,8 +557,8 @@ def run_pipeline():
         logger.exception("Pipeline failed — marking run as failed in pipeline_runs")
         _end_pipeline_run(
             run_id, "failed", str(e)[:500],
-            {"models_retrained": [], "rows_fetched": None, "rows_cleaned": None,
-             "validator_failures": 0},
+            {"models_retrained": [], "models_kept": [], "rows_fetched": None,
+             "rows_cleaned": None, "validator_failures": 0},
             run_start,
         )
         raise
@@ -591,6 +591,7 @@ def _run_pipeline_impl(logger, run_id):
 
     validator_failures = 0
     models_retrained = []
+    LAST_KEPT_MODELS.clear()
     for step_id, step_fn in steps:
         if _should_run(step_id, FORCE_FLAG):
             logger.info(f"[CHECKPOINT] Running {step_id}...")
@@ -621,6 +622,7 @@ def _run_pipeline_impl(logger, run_id):
 
     return {
         "models_retrained": models_retrained,
+        "models_kept": list(LAST_KEPT_MODELS),
         "rows_fetched": rows_fetched,
         "rows_cleaned": rows_cleaned,
         "validator_failures": validator_failures,
