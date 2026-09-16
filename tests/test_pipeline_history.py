@@ -389,3 +389,45 @@ class TestRenderPipelineHistory:
         assert len(table.data) == 1
         assert table.data[0]["run_id"] == "run_1"
         assert table.data[0]["status"] == "success"
+
+
+class TestRenderModelsKeptColumn:
+    def test_table_shows_models_kept_values_and_blanks(self):
+        summary = {
+            "total": 2, "success": 2, "failed": 0, "running": 0,
+            "success_rate": 100.0, "last_status": "success", "last_error": None,
+        }
+        runs_df = pd.DataFrame([
+            {"run_id": "run_kept", "start_time": "2026-09-16 08:00:00",
+             "end_time": "2026-09-16 08:25:00", "duration_seconds": 1500.0,
+             "status": "success", "trigger": "cron", "error_message": None,
+             "models_retrained": "BTC_1h", "models_kept": "ETH_1h,SOL_4h",
+             "rows_fetched": 5000, "rows_cleaned": 4998,
+             "validator_failures": 0, "checkpoint_resumed": False},
+            {"run_id": "run_legacy", "start_time": "2026-09-16 07:00:00",
+             "end_time": "2026-09-16 07:20:00", "duration_seconds": 1200.0,
+             "status": "success", "trigger": "cron", "error_message": None,
+             "models_retrained": None, "models_kept": None,
+             "rows_fetched": 10, "rows_cleaned": 10,
+             "validator_failures": 0, "checkpoint_resumed": False},
+        ])
+
+        with patch("dashboard.app.get_run_summary", return_value=summary):
+            with patch("dashboard.app.get_pipeline_runs", return_value=runs_df):
+                content = dashboard_app.render_pipeline_history()
+
+        table = None
+        for node in _walk_components(content):
+            if hasattr(node, "columns") and isinstance(node.columns, list):
+                table = node
+                break
+        assert table is not None, "DataTable not found in render output"
+
+        col_names = [c["name"] for c in table.columns]
+        assert "models_kept" in col_names
+
+        rows = {row["run_id"]: row for row in table.data}
+        assert rows["run_kept"]["models_kept"] == "ETH_1h,SOL_4h"
+        assert rows["run_kept"]["models_retrained"] == "BTC_1h"
+        assert rows["run_legacy"]["models_kept"] == ""
+        assert rows["run_legacy"]["models_retrained"] == ""
