@@ -46,6 +46,7 @@ class PipelineModelTrainer:
         os.makedirs(self.stocks_dir, exist_ok=True)
 
         self.last_retrained_models = []
+        self.last_kept_models = []
 
         mlflow_uri = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
         mlflow.set_tracking_uri(mlflow_uri)
@@ -328,6 +329,7 @@ class PipelineModelTrainer:
         self.logger.info(f"Checking {len(combos)} asset×interval combos...")
 
         trained = 0
+        kept = 0
         skipped = 0
         up_to_date = 0
 
@@ -343,12 +345,18 @@ class PipelineModelTrainer:
 
             self.logger.info(f"[RETRAIN] {asset}/{interval}: {reason}")
             result = self._train_one(asset, interval, asset_class, table_name)
-            if result:
-                trained += 1
-            else:
+            if not result:
                 skipped += 1
+            elif result.get("decision") == "kept_existing":
+                kept += 1
+                self.last_kept_models.append(f"{asset}_{interval}")
+            else:
+                trained += 1
 
-        self.logger.info(f"Step 8 complete: {trained} trained, {up_to_date} up-to-date, {skipped} skipped")
+        self.logger.info(
+            f"Step 8 complete: {trained} trained, {kept} kept existing, "
+            f"{up_to_date} up-to-date, {skipped} skipped"
+        )
         self.logger.info("*" * 60)
 
     def close(self):
