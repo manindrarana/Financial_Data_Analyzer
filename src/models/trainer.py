@@ -91,6 +91,21 @@ class PipelineModelTrainer:
             self.logger.error(f"FATAL: corrupt metadata JSON at {meta_path}: {e}")
             raise
 
+    def _read_existing_accuracy(self, asset, interval, asset_class):
+        try:
+            meta = self._read_metadata(asset, interval, asset_class)
+        except (json.JSONDecodeError, OSError, TypeError, ValueError) as e:
+            self.logger.warning(
+                f"  Could not read existing metadata for {asset}/{interval}: {e}"
+            )
+            return None
+        if not meta or meta.get("test_accuracy") is None:
+            return None
+        try:
+            return float(meta["test_accuracy"])
+        except (TypeError, ValueError):
+            return None
+
     def _get_gold_max_date(self, asset, interval, table_name):
         try:
             result = self.conn.execute(f"""
