@@ -46,6 +46,7 @@ class PipelineModelTrainer:
         os.makedirs(self.stocks_dir, exist_ok=True)
 
         self.last_retrained_models = []
+        self.last_kept_models = []
 
         mlflow_uri = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
         mlflow.set_tracking_uri(mlflow_uri)
@@ -90,6 +91,21 @@ class PipelineModelTrainer:
         except json.JSONDecodeError as e:
             self.logger.error(f"FATAL: corrupt metadata JSON at {meta_path}: {e}")
             raise
+
+    def _read_existing_accuracy(self, asset, interval, asset_class):
+        try:
+            meta = self._read_metadata(asset, interval, asset_class)
+        except (json.JSONDecodeError, OSError, TypeError, ValueError) as e:
+            self.logger.warning(
+                f"  Could not read existing metadata for {asset}/{interval}: {e}"
+            )
+            return None
+        if not meta or meta.get("test_accuracy") is None:
+            return None
+        try:
+            return float(meta["test_accuracy"])
+        except (TypeError, ValueError):
+            return None
 
     def _get_gold_max_date(self, asset, interval, table_name):
         try:
@@ -231,6 +247,25 @@ class PipelineModelTrainer:
                 self.logger.warning(f"  MLflow log failed: {e}")
 
         meta_path, model_path = self._get_metadata_path(asset, interval, asset_class)
+        previous_accuracy = self._read_existing_accuracy(asset, interval, asset_class)
+        if previous_accuracy is not None and test_acc <= previous_accuracy:
+            self.logger.info(
+                f"  KEPT existing model for {asset}/{interval}: "
+                f"new acc={test_acc:.4f} <= saved acc={previous_accuracy:.4f}"
+            )
+            if mlflow_enabled:
+                try:
+                    mlflow.end_run()
+                except Exception:
+                    pass
+            return {
+                "asset": asset,
+                "interval": interval,
+                "accuracy": round(test_acc, 4),
+                "previous_accuracy": round(previous_accuracy, 4),
+                "decision": "kept_existing",
+            }
+
         model.save_model(model_path)
 
         best_params = dict(grid.best_params_)
@@ -275,7 +310,15 @@ class PipelineModelTrainer:
 
         self.logger.info(f"  Saved {asset}/{interval}: acc={test_acc:.4f}, train_rows={len(train_df)}")
         self.last_retrained_models.append(f"{asset}_{interval}")
-        return {"asset": asset, "interval": interval, "accuracy": round(test_acc, 4)}
+        return {
+            "asset": asset,
+            "interval": interval,
+            "accuracy": round(test_acc, 4),
+            "previous_accuracy": (
+                None if previous_accuracy is None else round(previous_accuracy, 4)
+            ),
+            "decision": "replaced" if previous_accuracy is not None else "created",
+        }
 
     def run(self):
         self.logger.info("*" * 60)
@@ -286,6 +329,7 @@ class PipelineModelTrainer:
         self.logger.info(f"Checking {len(combos)} asset×interval combos...")
 
         trained = 0
+        kept = 0
         skipped = 0
         up_to_date = 0
 
@@ -301,12 +345,18 @@ class PipelineModelTrainer:
 
             self.logger.info(f"[RETRAIN] {asset}/{interval}: {reason}")
             result = self._train_one(asset, interval, asset_class, table_name)
-            if result:
-                trained += 1
-            else:
+            if not result:
                 skipped += 1
+            elif result.get("decision") == "kept_existing":
+                kept += 1
+                self.last_kept_models.append(f"{asset}_{interval}")
+            else:
+                trained += 1
 
-        self.logger.info(f"Step 8 complete: {trained} trained, {up_to_date} up-to-date, {skipped} skipped")
+        self.logger.info(
+            f"Step 8 complete: {trained} trained, {kept} kept existing, "
+            f"{up_to_date} up-to-date, {skipped} skipped"
+        )
         self.logger.info("*" * 60)
 
     def close(self):

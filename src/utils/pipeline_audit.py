@@ -232,6 +232,14 @@ def backfill_pipeline_runs(audit_db_path, prefect_runs):
     return inserted
 
 
+def _ensure_models_kept_column(conn):
+    existing = {
+        row[1] for row in conn.execute("PRAGMA table_info(pipeline_runs)").fetchall()
+    }
+    if "models_kept" not in existing:
+        conn.execute("ALTER TABLE pipeline_runs ADD COLUMN models_kept TEXT")
+
+
 def connect_audit_db(db_path):
     parent = os.path.dirname(db_path)
     if parent:
@@ -250,6 +258,7 @@ def connect_audit_db(db_path):
             trigger TEXT,
             error_message TEXT,
             models_retrained TEXT,
+            models_kept TEXT,
             rows_fetched INTEGER,
             rows_cleaned INTEGER,
             validator_failures INTEGER,
@@ -257,6 +266,7 @@ def connect_audit_db(db_path):
         )
         """
     )
+    _ensure_models_kept_column(conn)
     conn.commit()
     return conn
 
@@ -280,13 +290,15 @@ def update_pipeline_run(db_path, run_id, status, error_message, stats, run_start
         duration = time.time() - run_start
     models = stats.get("models_retrained") or []
     models_str = ",".join(models) if models else None
+    kept = stats.get("models_kept") or []
+    kept_str = ",".join(kept) if kept else None
     with closing(connect_audit_db(db_path)) as conn:
         conn.execute(
             """
             UPDATE pipeline_runs
             SET end_time = ?, duration_seconds = ?, status = ?,
-                error_message = ?, models_retrained = ?, rows_fetched = ?,
-                rows_cleaned = ?, validator_failures = ?
+                error_message = ?, models_retrained = ?, models_kept = ?,
+                rows_fetched = ?, rows_cleaned = ?, validator_failures = ?
             WHERE run_id = ?
             """,
             (
@@ -295,6 +307,7 @@ def update_pipeline_run(db_path, run_id, status, error_message, stats, run_start
                 status,
                 error_message,
                 models_str,
+                kept_str,
                 stats.get("rows_fetched"),
                 stats.get("rows_cleaned"),
                 stats.get("validator_failures", 0),

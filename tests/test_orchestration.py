@@ -449,3 +449,68 @@ class TestReconcileStaleRunningRuns:
 
         assert calls[0] == "reconcile"
         assert calls[1] == "lock"
+
+
+class TestModelsKeptAudit:
+    def _trainer(self, retrained, kept):
+        trainer = MagicMock()
+        trainer.last_retrained_models = retrained
+        trainer.last_kept_models = kept
+        return trainer
+
+    def test_records_kept_models_and_logs_them(self):
+        trainer = self._trainer([], ["ETH_1h", "SOL_4h"])
+        logger = MagicMock()
+        with patch.object(orch, "PipelineModelTrainer", return_value=trainer):
+            with patch.object(orch, "get_run_logger", return_value=logger):
+                result = orch.train_models.fn()
+
+        assert result == []
+        assert orch.LAST_KEPT_MODELS == ["ETH_1h", "SOL_4h"]
+        logger.info.assert_any_call(
+            "Kept existing models (new accuracy not better): ETH_1h, SOL_4h"
+        )
+
+    def test_does_not_log_kept_line_when_nothing_was_kept(self):
+        trainer = self._trainer(["BTC_1h"], [])
+        logger = MagicMock()
+        with patch.object(orch, "PipelineModelTrainer", return_value=trainer):
+            with patch.object(orch, "get_run_logger", return_value=logger):
+                with patch.object(orch, "refresh_feature_ablation"):
+                    with patch.object(orch, "refresh_comparison"):
+                        with patch.object(orch, "refresh_multitimeframe_comparison"):
+                            result = orch.train_models.fn()
+
+        assert result == ["BTC_1h"]
+        assert orch.LAST_KEPT_MODELS == []
+        kept_messages = [
+            call for call in logger.info.call_args_list
+            if "Kept existing models" in str(call)
+        ]
+        assert kept_messages == []
+
+    def test_run_pipeline_impl_reports_kept_models_and_drops_stale_entries(self):
+        def fake_train_models():
+            orch.LAST_KEPT_MODELS.extend(["ETH_1h"])
+            return []
+
+        with (
+            patch.object(orch, "LAST_KEPT_MODELS", ["STALE_1h"]),
+            patch.object(orch, "_run_concurrent_extract", return_value={}),
+            patch.object(orch, "load_to_duckdb"),
+            patch.object(orch, "transform_clean"),
+            patch.object(orch, "build_dimensions"),
+            patch.object(orch, "load_facts"),
+            patch.object(orch, "build_gold_layer"),
+            patch.object(orch, "build_technical_indicators"),
+            patch.object(orch, "train_models", side_effect=fake_train_models),
+            patch.object(orch, "_should_run", return_value=True),
+            patch.object(orch, "_mark_done"),
+            patch.object(orch, "_clear_checkpoint"),
+            patch.object(orch, "STEP_VALIDATORS", {}),
+            patch.object(orch, "_count_rows", return_value=0),
+        ):
+            result = orch._run_pipeline_impl(MagicMock(), "run_1")
+
+        assert result["models_retrained"] == []
+        assert result["models_kept"] == ["ETH_1h"]

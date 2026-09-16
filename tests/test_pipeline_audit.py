@@ -655,3 +655,109 @@ class TestFetchPrefectFlowRuns:
         assert first_body["offset"] == 0
         second_body = post.call_args_list[1].kwargs["json"]
         assert second_body["offset"] == 200
+
+
+def test_update_pipeline_run_saves_models_kept_and_nulls_when_empty(tmp_path):
+    db_path = str(tmp_path / "pipeline_history.sqlite3")
+    insert_pipeline_run(
+        db_path,
+        (
+            "run_kept",
+            datetime(2026, 9, 16, 8, 0, 0),
+            None,
+            None,
+            "running",
+            "cron",
+            None,
+            None,
+            None,
+            None,
+            0,
+            False,
+        ),
+    )
+    update_pipeline_run(
+        db_path,
+        "run_kept",
+        "success",
+        None,
+        {
+            "models_retrained": ["BTC_1h"],
+            "models_kept": ["ETH_4h", "SOL_1h"],
+            "rows_fetched": 10,
+            "rows_cleaned": 10,
+            "validator_failures": 0,
+        },
+        datetime.now() - timedelta(seconds=5),
+    )
+    insert_pipeline_run(
+        db_path,
+        (
+            "run_none",
+            datetime(2026, 9, 16, 9, 0, 0),
+            None,
+            None,
+            "running",
+            "cron",
+            None,
+            None,
+            None,
+            None,
+            0,
+            False,
+        ),
+    )
+    update_pipeline_run(
+        db_path,
+        "run_none",
+        "success",
+        None,
+        {
+            "models_retrained": [],
+            "models_kept": [],
+            "rows_fetched": 1,
+            "rows_cleaned": 1,
+            "validator_failures": 0,
+        },
+        datetime.now() - timedelta(seconds=2),
+    )
+
+    conn = sqlite3.connect(db_path)
+    rows = {
+        run_id: (retrained, kept)
+        for run_id, retrained, kept in conn.execute(
+            "SELECT run_id, models_retrained, models_kept FROM pipeline_runs"
+        ).fetchall()
+    }
+    conn.close()
+
+    assert rows["run_kept"] == ("BTC_1h", "ETH_4h,SOL_1h")
+    assert rows["run_none"] == (None, None)
+
+
+def test_connect_audit_db_adds_models_kept_to_existing_table(tmp_path):
+    db_path = str(tmp_path / "pipeline_history.sqlite3")
+    conn = sqlite3.connect(db_path)
+    conn.execute(PIPELINE_RUN_SCHEMA)
+    conn.execute(
+        """
+        INSERT INTO pipeline_runs VALUES
+        ('run_old', '2026-09-01 08:00:00', '2026-09-01 08:20:00', 1200.0,
+         'success', 'cron', NULL, 'ETH_1h', 100, 99, 0, 0)
+        """
+    )
+    conn.commit()
+    conn.close()
+
+    conn = connect_audit_db(db_path)
+    columns = [
+        row[1]
+        for row in conn.execute("PRAGMA table_info(pipeline_runs)").fetchall()
+    ]
+    row = conn.execute(
+        "SELECT models_retrained, models_kept FROM pipeline_runs WHERE run_id = 'run_old'"
+    ).fetchone()
+    conn.close()
+
+    assert "models_kept" in columns
+    assert row == ("ETH_1h", None)

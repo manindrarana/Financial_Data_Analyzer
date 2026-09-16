@@ -11,6 +11,7 @@ AUDIT_DB_PATH = os.path.join(
 _EMPTY_COLUMNS = [
     "run_id", "start_time", "end_time", "duration_seconds",
     "status", "trigger", "error_message", "models_retrained",
+    "models_kept",
     "rows_fetched", "rows_cleaned", "validator_failures",
     "checkpoint_resumed",
 ]
@@ -23,12 +24,9 @@ def get_pipeline_runs(limit: int = 50) -> pd.DataFrame:
     conn = sqlite3.connect(AUDIT_DB_PATH)
     try:
         try:
-            return pd.read_sql_query(
+            runs = pd.read_sql_query(
                 """
-                SELECT run_id, start_time, end_time, duration_seconds,
-                       status, trigger, error_message, models_retrained,
-                       rows_fetched, rows_cleaned, validator_failures,
-                       checkpoint_resumed
+                SELECT *
                 FROM pipeline_runs
                 ORDER BY start_time DESC
                 LIMIT ?
@@ -38,6 +36,7 @@ def get_pipeline_runs(limit: int = 50) -> pd.DataFrame:
             )
         except Exception:
             return pd.DataFrame(columns=_EMPTY_COLUMNS)
+        return runs.reindex(columns=_EMPTY_COLUMNS)
     finally:
         conn.close()
 

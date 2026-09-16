@@ -3234,6 +3234,8 @@ def render_pipeline_history():
             display_df = display_df.rename(columns={"duration_seconds": "duration_mins"})
         if "models_retrained" in display_df.columns:
             display_df["models_retrained"] = display_df["models_retrained"].fillna("").astype(str)
+        if "models_kept" in display_df.columns:
+            display_df["models_kept"] = display_df["models_kept"].fillna("").astype(str)
 
         table_block = dash_table.DataTable(
             columns=[{"name": c, "id": c} for c in display_df.columns],

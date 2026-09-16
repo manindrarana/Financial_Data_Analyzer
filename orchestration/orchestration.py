@@ -202,6 +202,9 @@ def _count_rows(table_names):
 
 
 FORCE_FLAG = "--force" in sys.argv
+LAST_KEPT_MODELS = []
+
+
 def _get_db_con():
     with open("configs/settings.yml", "r") as f:
         config = yaml.safe_load(f)
@@ -484,7 +487,13 @@ def train_models():
     trainer = PipelineModelTrainer()
     trainer.run()
     retrained = list(trainer.last_retrained_models)
+    kept = list(trainer.last_kept_models)
     trainer.close()
+
+    LAST_KEPT_MODELS.clear()
+    LAST_KEPT_MODELS.extend(kept)
+    if kept:
+        logger.info(f"Kept existing models (new accuracy not better): {', '.join(kept)}")
 
     if "BTC_1h" in retrained:
         try:
@@ -548,8 +557,8 @@ def run_pipeline():
         logger.exception("Pipeline failed — marking run as failed in pipeline_runs")
         _end_pipeline_run(
             run_id, "failed", str(e)[:500],
-            {"models_retrained": [], "rows_fetched": None, "rows_cleaned": None,
-             "validator_failures": 0},
+            {"models_retrained": [], "models_kept": [], "rows_fetched": None,
+             "rows_cleaned": None, "validator_failures": 0},
             run_start,
         )
         raise
@@ -582,6 +591,7 @@ def _run_pipeline_impl(logger, run_id):
 
     validator_failures = 0
     models_retrained = []
+    LAST_KEPT_MODELS.clear()
     for step_id, step_fn in steps:
         if _should_run(step_id, FORCE_FLAG):
             logger.info(f"[CHECKPOINT] Running {step_id}...")
@@ -612,6 +622,7 @@ def _run_pipeline_impl(logger, run_id):
 
     return {
         "models_retrained": models_retrained,
+        "models_kept": list(LAST_KEPT_MODELS),
         "rows_fetched": rows_fetched,
         "rows_cleaned": rows_cleaned,
         "validator_failures": validator_failures,
