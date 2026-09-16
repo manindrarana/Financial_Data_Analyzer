@@ -290,13 +290,15 @@ def update_pipeline_run(db_path, run_id, status, error_message, stats, run_start
         duration = time.time() - run_start
     models = stats.get("models_retrained") or []
     models_str = ",".join(models) if models else None
+    kept = stats.get("models_kept") or []
+    kept_str = ",".join(kept) if kept else None
     with closing(connect_audit_db(db_path)) as conn:
         conn.execute(
             """
             UPDATE pipeline_runs
             SET end_time = ?, duration_seconds = ?, status = ?,
-                error_message = ?, models_retrained = ?, rows_fetched = ?,
-                rows_cleaned = ?, validator_failures = ?
+                error_message = ?, models_retrained = ?, models_kept = ?,
+                rows_fetched = ?, rows_cleaned = ?, validator_failures = ?
             WHERE run_id = ?
             """,
             (
@@ -305,6 +307,7 @@ def update_pipeline_run(db_path, run_id, status, error_message, stats, run_start
                 status,
                 error_message,
                 models_str,
+                kept_str,
                 stats.get("rows_fetched"),
                 stats.get("rows_cleaned"),
                 stats.get("validator_failures", 0),
