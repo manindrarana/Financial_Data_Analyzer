@@ -107,6 +107,48 @@ class PipelineModelTrainer:
         except (TypeError, ValueError):
             return None
 
+    def _score_saved_model(self, asset, interval, asset_class, X_test, y_test):
+        try:
+            meta = self._read_metadata(asset, interval, asset_class)
+        except (json.JSONDecodeError, OSError, TypeError, ValueError) as e:
+            self.logger.warning(
+                f"  Could not read existing metadata for {asset}/{interval}: {e}"
+            )
+            return None
+        if not meta:
+            return None
+
+        features = meta.get("features")
+        calibration = meta.get("calibration") or {}
+        coefficient = calibration.get("coefficient")
+        intercept = calibration.get("intercept")
+        if not features or coefficient is None or intercept is None:
+            return None
+
+        missing = [f for f in features if f not in X_test.columns]
+        if missing:
+            self.logger.warning(
+                f"  Saved model for {asset}/{interval} needs missing features: {missing}"
+            )
+            return None
+
+        _, model_path = self._get_metadata_path(asset, interval, asset_class)
+        if not os.path.exists(model_path):
+            return None
+
+        try:
+            saved_model = xgb.XGBClassifier()
+            saved_model.load_model(model_path)
+            raw_up_prob = saved_model.predict_proba(X_test[features])[:, 1]
+            saved_up_prob = 1.0 / (1.0 + np.exp(-(coefficient * raw_up_prob + intercept)))
+            saved_pred = (saved_up_prob >= 0.5).astype(int)
+            return float(accuracy_score(y_test, saved_pred))
+        except Exception as e:
+            self.logger.warning(
+                f"  Could not score saved model for {asset}/{interval}: {e}"
+            )
+            return None
+
     def _get_gold_max_date(self, asset, interval, table_name):
         try:
             result = self.conn.execute(f"""
@@ -248,10 +290,18 @@ class PipelineModelTrainer:
 
         meta_path, model_path = self._get_metadata_path(asset, interval, asset_class)
         previous_accuracy = self._read_existing_accuracy(asset, interval, asset_class)
-        if previous_accuracy is not None and test_acc <= previous_accuracy:
+        saved_accuracy = None
+        if previous_accuracy is not None:
+            saved_accuracy = self._score_saved_model(
+                asset, interval, asset_class, X_test, y_test
+            )
+        comparison_accuracy = (
+            saved_accuracy if saved_accuracy is not None else previous_accuracy
+        )
+        if saved_accuracy is not None and test_acc <= saved_accuracy:
             self.logger.info(
                 f"  KEPT existing model for {asset}/{interval}: "
-                f"new acc={test_acc:.4f} <= saved acc={previous_accuracy:.4f}"
+                f"new acc={test_acc:.4f} <= saved acc={saved_accuracy:.4f} on the same test rows"
             )
             if mlflow_enabled:
                 try:
@@ -262,7 +312,7 @@ class PipelineModelTrainer:
                 "asset": asset,
                 "interval": interval,
                 "accuracy": round(test_acc, 4),
-                "previous_accuracy": round(previous_accuracy, 4),
+                "previous_accuracy": round(comparison_accuracy, 4),
                 "decision": "kept_existing",
             }
 
@@ -315,7 +365,7 @@ class PipelineModelTrainer:
             "interval": interval,
             "accuracy": round(test_acc, 4),
             "previous_accuracy": (
-                None if previous_accuracy is None else round(previous_accuracy, 4)
+                None if comparison_accuracy is None else round(comparison_accuracy, 4)
             ),
             "decision": "replaced" if previous_accuracy is not None else "created",
         }
