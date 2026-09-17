@@ -155,15 +155,58 @@ class _FakeGrid:
         return self
 
 
+class _FakeXgb:
+    def __init__(self, model_cls):
+        self.XGBClassifier = model_cls
+
+
+class _SavedModel:
+    probs = None
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def load_model(self, path):
+        return self
+
+    def predict_proba(self, X):
+        n = len(X)
+        if self.probs is None:
+            probs = np.array([0.9 if i < n - 1 else 0.1 for i in range(n)])
+        else:
+            probs = np.full(n, self.probs)
+        return np.column_stack([1 - probs, probs])
+
+
+class _WeakSavedModel(_SavedModel):
+    probs = 0.1
+
+
+class _UnloadableSavedModel(_SavedModel):
+    def load_model(self, path):
+        raise ValueError("cannot load saved model")
+
+
+def _saved_meta(test_accuracy=0.9, coefficient=1.0, intercept=0.0, features=None):
+    meta = {
+        "test_accuracy": test_accuracy,
+        "features": ["f1", "f2"] if features is None else features,
+    }
+    if coefficient is not None:
+        meta["calibration"] = {"coefficient": coefficient, "intercept": intercept}
+    return meta
+
+
 class TestModelPromotion:
-    def _prepare(self, monkeypatch, tmp_path, existing_meta=None, corrupt=False):
+    def _prepare(self, monkeypatch, tmp_path, existing_meta=None, corrupt=False,
+                 loaded_model_cls=_SavedModel):
         trainer = _promotion_trainer(monkeypatch, tmp_path)
         monkeypatch.setattr(trainer, "_fetch_data", lambda *a, **k: _fake_feature_frame())
         monkeypatch.setattr("src.models.trainer.make_stationary", lambda df: df)
         monkeypatch.setattr("src.models.trainer.MODEL_FEATURES", ["f1", "f2"])
         monkeypatch.setattr("src.models.trainer.GridSearchCV", _FakeGrid)
         monkeypatch.setattr("src.models.trainer.LogisticRegression", _FakeCalibrator)
-        monkeypatch.setattr("src.models.trainer.xgb", MagicMock())
+        monkeypatch.setattr("src.models.trainer.xgb", _FakeXgb(loaded_model_cls))
         monkeypatch.setattr("src.models.trainer.os.makedirs", MagicMock())
         monkeypatch.setattr("src.models.trainer.shutil.copy2", MagicMock())
         mlflow_mock = MagicMock()
