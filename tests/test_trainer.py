@@ -228,7 +228,7 @@ class TestModelPromotion:
 
     def test_equal_accuracy_keeps_existing_model_files(self, monkeypatch, tmp_path):
         trainer, meta_path, model_path = self._prepare(
-            monkeypatch, tmp_path, existing_meta={"test_accuracy": 1.0, "trained_at": "old"}
+            monkeypatch, tmp_path, existing_meta=_saved_meta(test_accuracy=1.0)
         )
         before_meta = open(meta_path).read()
         result = trainer._train_one("BTC", "1h", "crypto", "gold_crypto_features")
@@ -242,32 +242,82 @@ class TestModelPromotion:
 
     def test_lower_new_accuracy_keeps_existing_model_files(self, monkeypatch, tmp_path):
         trainer, meta_path, model_path = self._prepare(
-            monkeypatch, tmp_path, existing_meta={"test_accuracy": 0.9}
+            monkeypatch, tmp_path, existing_meta=_saved_meta(test_accuracy=0.9)
         )
-        monkeypatch.setattr("src.models.trainer.accuracy_score", lambda y_t, y_p: 0.4123)
+        monkeypatch.setattr(
+            "src.models.trainer.accuracy_score", MagicMock(side_effect=[0.4123, 1.0])
+        )
         result = trainer._train_one("BTC", "1h", "crypto", "gold_crypto_features")
 
         assert result["decision"] == "kept_existing"
         assert result["accuracy"] == pytest.approx(0.4123)
-        assert result["previous_accuracy"] == pytest.approx(0.9)
+        assert result["previous_accuracy"] == pytest.approx(1.0)
         assert open(model_path).read() == "old-model"
         assert json.load(open(meta_path))["test_accuracy"] == pytest.approx(0.9)
 
-    def test_better_new_accuracy_replaces_both_files(self, monkeypatch, tmp_path):
+    def test_saved_model_winning_on_the_same_rows_keeps_files(self, monkeypatch, tmp_path):
         trainer, meta_path, model_path = self._prepare(
-            monkeypatch, tmp_path, existing_meta={"test_accuracy": 0.9, "trained_at": "old"}
+            monkeypatch, tmp_path, existing_meta=_saved_meta(test_accuracy=0.5)
+        )
+        result = trainer._train_one("BTC", "1h", "crypto", "gold_crypto_features")
+
+        assert result["decision"] == "kept_existing"
+        assert result["accuracy"] == pytest.approx(1.0)
+        assert result["previous_accuracy"] == pytest.approx(1.0)
+        assert open(model_path).read() == "old-model"
+        assert json.load(open(meta_path))["test_accuracy"] == pytest.approx(0.5)
+
+    def test_better_new_accuracy_replaces_both_files(self, monkeypatch, tmp_path):
+        meta = _saved_meta(test_accuracy=0.9, intercept=-0.5)
+        meta["trained_at"] = "old"
+        trainer, meta_path, model_path = self._prepare(
+            monkeypatch, tmp_path, existing_meta=meta, loaded_model_cls=_WeakSavedModel
         )
         result = trainer._train_one("BTC", "1h", "crypto", "gold_crypto_features")
 
         assert result["decision"] == "replaced"
         assert result["accuracy"] == pytest.approx(1.0)
-        assert result["previous_accuracy"] == pytest.approx(0.9)
+        assert result["previous_accuracy"] == pytest.approx(1 / 60, abs=1e-4)
         saved = json.load(open(meta_path))
         assert saved["test_accuracy"] == pytest.approx(1.0)
         assert saved["trained_at"] != "old"
         assert saved["mlflow_run_id"] == "run-123"
         assert open(model_path).read() == "new-model"
         assert trainer.last_retrained_models == ["BTC_1h"]
+
+    def test_unloadable_saved_model_saves_candidate(self, monkeypatch, tmp_path):
+        trainer, meta_path, model_path = self._prepare(
+            monkeypatch, tmp_path, existing_meta=_saved_meta(test_accuracy=0.9),
+            loaded_model_cls=_UnloadableSavedModel,
+        )
+        result = trainer._train_one("BTC", "1h", "crypto", "gold_crypto_features")
+
+        assert result["decision"] == "replaced"
+        assert result["previous_accuracy"] == pytest.approx(0.9)
+        assert open(model_path).read() == "new-model"
+        assert json.load(open(meta_path))["test_accuracy"] == pytest.approx(1.0)
+
+    def test_metadata_without_calibration_saves_candidate(self, monkeypatch, tmp_path):
+        trainer, meta_path, model_path = self._prepare(
+            monkeypatch, tmp_path,
+            existing_meta=_saved_meta(test_accuracy=0.9, coefficient=None),
+        )
+        result = trainer._train_one("BTC", "1h", "crypto", "gold_crypto_features")
+
+        assert result["decision"] == "replaced"
+        assert result["previous_accuracy"] == pytest.approx(0.9)
+        assert open(model_path).read() == "new-model"
+
+    def test_metadata_with_missing_features_saves_candidate(self, monkeypatch, tmp_path):
+        trainer, meta_path, model_path = self._prepare(
+            monkeypatch, tmp_path,
+            existing_meta=_saved_meta(test_accuracy=0.9, features=["f1", "f_missing"]),
+        )
+        result = trainer._train_one("BTC", "1h", "crypto", "gold_crypto_features")
+
+        assert result["decision"] == "replaced"
+        assert result["previous_accuracy"] == pytest.approx(0.9)
+        assert open(model_path).read() == "new-model"
 
     def test_first_train_without_saved_model_is_created(self, monkeypatch, tmp_path):
         trainer, meta_path, model_path = self._prepare(monkeypatch, tmp_path)
