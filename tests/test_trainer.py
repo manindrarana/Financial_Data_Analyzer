@@ -228,7 +228,8 @@ class TestModelPromotion:
 
     def test_equal_accuracy_keeps_existing_model_files(self, monkeypatch, tmp_path):
         trainer, meta_path, model_path = self._prepare(
-            monkeypatch, tmp_path, existing_meta=_saved_meta(test_accuracy=1.0)
+            monkeypatch, tmp_path,
+            existing_meta=_saved_meta(test_accuracy=1.0, intercept=-0.5),
         )
         before_meta = open(meta_path).read()
         result = trainer._train_one("BTC", "1h", "crypto", "gold_crypto_features")
@@ -257,7 +258,8 @@ class TestModelPromotion:
 
     def test_saved_model_winning_on_the_same_rows_keeps_files(self, monkeypatch, tmp_path):
         trainer, meta_path, model_path = self._prepare(
-            monkeypatch, tmp_path, existing_meta=_saved_meta(test_accuracy=0.5)
+            monkeypatch, tmp_path,
+            existing_meta=_saved_meta(test_accuracy=0.5, intercept=-0.5),
         )
         result = trainer._train_one("BTC", "1h", "crypto", "gold_crypto_features")
 
