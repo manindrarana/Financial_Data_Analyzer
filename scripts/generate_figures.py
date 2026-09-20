@@ -5,6 +5,7 @@ Outputs PNGs to obsidian_notes/latex/images/
 import glob
 import json
 import os
+import sqlite3
 import sys
 
 import duckdb
@@ -27,6 +28,7 @@ from dashboard.predictor import run_prediction
 DB_PATH = os.path.join(PROJECT_ROOT, "database", "financial_data.duckdb")
 MODELS_DIR = os.path.join(PROJECT_ROOT, "src", "models")
 OUTPUT_DIR = os.path.join(PROJECT_ROOT, "obsidian_notes", "latex", "images")
+AUDIT_DB = os.path.join(PROJECT_ROOT, "database", "pipeline_history.sqlite3")
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -423,6 +425,84 @@ def chart_backtest_equity_curve():
 
     plt.tight_layout()
     save_fig(fig, "backtest_equity_curve.png")
+
+
+def chart_pipeline_history():
+    conn = sqlite3.connect(AUDIT_DB)
+    df = pd.read_sql_query(
+        "SELECT start_time, duration_seconds, status, models_retrained, models_kept "
+        "FROM pipeline_runs WHERE start_time IS NOT NULL ORDER BY start_time",
+        conn,
+    )
+    conn.close()
+
+    df["start_time"] = pd.to_datetime(df["start_time"])
+    df = df[df["status"].isin(["success", "failed"])].copy()
+    df["duration_min"] = df["duration_seconds"] / 60.0
+
+    def count_models(value):
+        if not isinstance(value, str) or not value.strip():
+            return 0
+        return value.count(",") + 1
+
+    df["retrained"] = df["models_retrained"].map(count_models)
+    df["kept"] = df["models_kept"].map(count_models)
+
+    success = df[df["status"] == "success"]
+    failures = df[df["status"] == "failed"]
+    mean_minutes = success.loc[success["duration_min"] > 0, "duration_min"].mean()
+
+    fig, axes = plt.subplots(2, 1, figsize=(14, 8), sharex=True)
+
+    ax1 = axes[0]
+    ax1.plot(success["start_time"], success["duration_min"], color="#3498db", linewidth=1.0, label="Successful run")
+    ax1.scatter(failures["start_time"], failures["duration_min"], color="#ef5350", s=28, zorder=3, label="Failed run")
+    ax1.axhline(y=mean_minutes, color="#ffc107", linestyle="--", linewidth=1.2,
+                label=f"Mean success ({mean_minutes:.1f} min)")
+    ax1.set_ylabel("Duration (minutes)")
+    ax1.set_title("Pipeline History - Run Duration and Model Promotion")
+    ax1.legend(loc="upper left")
+
+    ax2 = axes[1]
+    ax2.bar(success["start_time"], success["retrained"], width=0.8, color="#26a69a", label="Retrained")
+    ax2.bar(success["start_time"], success["kept"], width=0.8, bottom=success["retrained"],
+            color="#e67e22", label="Kept by promotion gate")
+    ax2.set_ylabel("Models")
+    ax2.set_xlabel("Run date")
+    ax2.legend(loc="upper left")
+
+    plt.tight_layout()
+    save_fig(fig, "pipeline_history.png")
+
+
+def chart_feature_ablation():
+    path = os.path.join(PROJECT_ROOT, "reports", "feature_ablation_results.csv")
+    df = pd.read_csv(path)
+
+    labels = [name.replace("_", " ") for name in df["experiment"]]
+    accuracy = (df["accuracy"] * 100).tolist()
+    balanced = (df["balanced_accuracy"] * 100).tolist()
+    baseline = df.loc[df["experiment"] == "baseline", "accuracy"].iloc[0] * 100
+
+    positions = list(range(len(labels)))
+    width = 0.38
+    offset = width / 2.0
+
+    fig, ax = plt.subplots(figsize=(12, 5))
+    ax.bar([p - offset for p in positions], accuracy, width, color="#3498db",
+           edgecolor="#1a1a2e", label="Accuracy")
+    ax.bar([p + offset for p in positions], balanced, width, color="#26a69a",
+           edgecolor="#1a1a2e", label="Balanced accuracy")
+    ax.axhline(y=baseline, color="#ffc107", linestyle="--", linewidth=1.5,
+               label=f"Baseline ({baseline:.2f}%)")
+    ax.set_xticks(positions)
+    ax.set_xticklabels(labels, rotation=20, ha="right", fontsize=9)
+    ax.set_ylabel("Test accuracy (%)")
+    ax.set_title("Feature Group Ablation on BTC 1h")
+    ax.set_ylim(50, 54)
+    ax.legend(loc="upper right")
+    plt.tight_layout()
+    save_fig(fig, "feature_ablation.png")
 
 
 if __name__ == "__main__":
