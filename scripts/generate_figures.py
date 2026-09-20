@@ -427,7 +427,7 @@ def chart_backtest_equity_curve():
     save_fig(fig, "backtest_equity_curve.png")
 
 
-def chart_pipeline_history():
+def load_pipeline_runs():
     conn = sqlite3.connect(AUDIT_DB)
     df = pd.read_sql_query(
         "SELECT start_time, duration_seconds, status, models_retrained, models_kept "
@@ -447,56 +447,78 @@ def chart_pipeline_history():
 
     df["retrained"] = df["models_retrained"].map(count_models)
     df["kept"] = df["models_kept"].map(count_models)
+    return df
 
-    success = df[df["status"] == "success"].sort_values("start_time")
-    failures = df[df["status"] == "failed"].sort_values("start_time")
-    trained = success[(success["retrained"] + success["kept"]) > 0]
-    gate_date = pd.Timestamp("2026-09-16")
 
-    daily = success.groupby(success["start_time"].dt.normalize())["duration_min"].mean()
-    full_range = pd.date_range(daily.index.min(), daily.index.max(), freq="D")
-    daily = daily.reindex(full_range)
-    daily_avg = daily.rolling(7, min_periods=1).mean()
+def chart_pipeline_duration():
+    df = load_pipeline_runs()
+    success = df[df["status"] == "success"]
+    durations = success["duration_min"]
+    mean_minutes = durations.mean()
+    median_minutes = durations.median()
+    total_hours = durations.sum() / 60.0
 
-    fig, axes = plt.subplots(
-        2, 1, figsize=(14, 8.5), sharex=True,
-        gridspec_kw={"height_ratios": [1.0, 0.85]},
+    fig, ax = plt.subplots(figsize=(10, 5))
+    _, _, patches = ax.hist(
+        durations, bins=list(range(0, 55, 5)),
+        color="#3498db", alpha=0.8, edgecolor="#1a1a2e",
     )
+    ax.bar_label(patches, fontsize=9, color="#e0e0e0", padding=2)
+    ax.axvline(mean_minutes, color="#ffc107", linestyle="--", linewidth=2.0,
+               label=f"Average run = {mean_minutes:.1f} min")
+    ax.axvline(median_minutes, color="#e67e22", linestyle=":", linewidth=2.0,
+               label=f"Median run = {median_minutes:.1f} min")
+    ax.set_xlabel("Time taken by one run (minutes)")
+    ax.set_ylabel("Number of runs")
+    ax.set_title("How long one pipeline run takes", loc="left", fontsize=12)
+    ax.legend(loc="upper left", framealpha=0.9)
+    stats = (
+        f"Successful runs: {len(durations)}\n"
+        f"Average run: {mean_minutes:.1f} min\n"
+        f"Median run: {median_minutes:.1f} min\n"
+        f"Fastest: {durations.min():.1f} min\n"
+        f"Slowest: {durations.max():.1f} min\n"
+        f"Total compute time: {total_hours:.1f} hours"
+    )
+    ax.text(0.985, 0.97, stats, transform=ax.transAxes, ha="right", va="top",
+            fontsize=9.5, color="#e0e0e0",
+            bbox={"boxstyle": "round", "facecolor": "#0f3460", "alpha": 0.9,
+                  "edgecolor": "#3498db"})
+    plt.tight_layout()
+    save_fig(fig, "pipeline_duration.png")
 
-    ax1 = axes[0]
-    ax1.bar(daily.index, daily.values, width=0.9, color="#3498db", alpha=0.55,
-            label="Daily run duration")
-    ax1.plot(daily_avg.index, daily_avg.values, color="#ffc107", linewidth=2.2,
-             label="7-day average")
-    ax1.scatter(failures["start_time"], failures["duration_min"], color="#ef5350",
-                marker="x", s=40, linewidths=1.4, zorder=3, label="Failed run")
-    ax1.axvline(gate_date, color="#7f8fa6", linestyle="--", linewidth=1.1, zorder=0)
-    ax1.set_ylabel("Run duration (minutes)")
-    ax1.set_title("Daily pipeline run duration", loc="left", fontsize=11)
-    ax1.set_ylim(bottom=0)
-    ax1.annotate("Promotion gate\n16 Sep 2026", xy=(gate_date, 0.95),
-                 xycoords=("data", "axes fraction"), ha="right", va="top",
-                 fontsize=9, color="#e0e0e0")
-    ax1.legend(loc="upper left", framealpha=0.9)
 
-    ax2 = axes[1]
-    ax2.step(trained["start_time"], trained["retrained"], where="post",
-             color="#26a69a", linewidth=1.8, marker="o", markersize=3.5,
-             label="Retrained")
-    ax2.step(trained["start_time"], trained["kept"], where="post",
-             color="#e67e22", linewidth=1.8, marker="o", markersize=3.5,
-             label="Kept existing model (candidate not better)")
-    ax2.axvline(gate_date, color="#7f8fa6", linestyle="--", linewidth=1.1, zorder=0)
-    ax2.set_ylabel("Models per run")
-    ax2.set_xlabel("Run date")
-    ax2.set_title("Models retrained or kept", loc="left", fontsize=11)
-    ax2.set_ylim(0, 50)
-    ax2.legend(loc="center left", framealpha=0.9)
+def chart_model_promotion():
+    df = load_pipeline_runs()
+    success = df[df["status"] == "success"].sort_values("start_time")
+    trained = success[(success["retrained"] + success["kept"]) > 0].copy()
+    gate_date = pd.Timestamp("2026-09-16")
+    trained["after_gate"] = trained["start_time"] >= gate_date
 
-    fig.suptitle("Pipeline Run History and Model Promotion", fontsize=13)
-    fig.autofmt_xdate()
-    plt.tight_layout(rect=[0, 0, 1, 0.97])
-    save_fig(fig, "pipeline_history.png")
+    before = trained[~trained["after_gate"]]
+    after = trained[trained["after_gate"]]
+
+    groups = ["Before 16 Sep", "From 16 Sep"]
+    retrained = [before["retrained"].mean(), after["retrained"].mean()]
+    kept = [before["kept"].mean(), after["kept"].mean()]
+
+    positions = [0, 1]
+    width = 0.36
+    fig, ax = plt.subplots(figsize=(8.5, 4.8))
+    bars1 = ax.bar([p - width / 2 for p in positions], retrained, width,
+                   color="#26a69a", edgecolor="#1a1a2e", label="New model used")
+    bars2 = ax.bar([p + width / 2 for p in positions], kept, width,
+                   color="#e67e22", edgecolor="#1a1a2e", label="Old model kept")
+    ax.bar_label(bars1, fmt="%.1f", fontsize=10, color="#e0e0e0", padding=2)
+    ax.bar_label(bars2, fmt="%.1f", fontsize=10, color="#e0e0e0", padding=2)
+    ax.set_xticks(positions)
+    ax.set_xticklabels(groups, fontsize=10)
+    ax.set_ylabel("Models per run (average)")
+    ax.set_title("Models replaced by the new one only if it is not worse", loc="left", fontsize=11)
+    ax.set_ylim(0, 50)
+    ax.legend(loc="upper right", framealpha=0.9)
+    plt.tight_layout()
+    save_fig(fig, "model_promotion.png")
 
 
 def chart_feature_ablation():
@@ -545,7 +567,8 @@ if __name__ == "__main__":
         ("Feature importance (BTC 1h)", chart_feature_importance),
         ("Confidence distribution (BTC 1h)", chart_confidence_distribution),
         ("Backtest equity curve (BTC 1h)", chart_backtest_equity_curve),
-        ("Pipeline history", chart_pipeline_history),
+        ("Pipeline duration", chart_pipeline_duration),
+        ("Model promotion", chart_model_promotion),
         ("Feature ablation (BTC 1h)", chart_feature_ablation),
     ]
 
