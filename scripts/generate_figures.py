@@ -451,8 +451,12 @@ def chart_pipeline_history():
     success = df[df["status"] == "success"].sort_values("start_time")
     failures = df[df["status"] == "failed"].sort_values("start_time")
     trained = success[(success["retrained"] + success["kept"]) > 0]
-    mean_minutes = success["duration_min"].mean()
     gate_date = pd.Timestamp("2026-09-16")
+
+    daily = success.groupby(success["start_time"].dt.normalize())["duration_min"].mean()
+    full_range = pd.date_range(daily.index.min(), daily.index.max(), freq="D")
+    daily = daily.reindex(full_range)
+    daily_avg = daily.rolling(7, min_periods=1).mean()
 
     fig, axes = plt.subplots(
         2, 1, figsize=(14, 8.5), sharex=True,
@@ -460,12 +464,12 @@ def chart_pipeline_history():
     )
 
     ax1 = axes[0]
-    ax1.plot(success["start_time"], success["duration_min"], color="#3498db",
-             linewidth=1.1, marker="o", markersize=2.5, label="Successful run")
+    ax1.bar(daily.index, daily.values, width=0.9, color="#3498db", alpha=0.55,
+            label="Daily run duration")
+    ax1.plot(daily_avg.index, daily_avg.values, color="#ffc107", linewidth=2.2,
+             label="7-day average")
     ax1.scatter(failures["start_time"], failures["duration_min"], color="#ef5350",
-                marker="x", s=45, linewidths=1.5, zorder=3, label="Failed run")
-    ax1.axhline(mean_minutes, color="#ffc107", linestyle="--", linewidth=1.3,
-                label=f"Mean successful run ({mean_minutes:.1f} min)")
+                marker="x", s=40, linewidths=1.4, zorder=3, label="Failed run")
     ax1.axvline(gate_date, color="#7f8fa6", linestyle="--", linewidth=1.1, zorder=0)
     ax1.set_ylabel("Run duration (minutes)")
     ax1.set_title("Daily pipeline run duration", loc="left", fontsize=11)
@@ -476,17 +480,18 @@ def chart_pipeline_history():
     ax1.legend(loc="upper left", framealpha=0.9)
 
     ax2 = axes[1]
-    ax2.bar(trained["start_time"], trained["retrained"], width=0.85,
-            color="#26a69a", label="Retrained")
-    ax2.bar(trained["start_time"], trained["kept"], width=0.85,
-            bottom=trained["retrained"], color="#e67e22",
-            label="Kept existing model (candidate not better)")
+    ax2.step(trained["start_time"], trained["retrained"], where="post",
+             color="#26a69a", linewidth=1.8, marker="o", markersize=3.5,
+             label="Retrained")
+    ax2.step(trained["start_time"], trained["kept"], where="post",
+             color="#e67e22", linewidth=1.8, marker="o", markersize=3.5,
+             label="Kept existing model (candidate not better)")
     ax2.axvline(gate_date, color="#7f8fa6", linestyle="--", linewidth=1.1, zorder=0)
     ax2.set_ylabel("Models per run")
     ax2.set_xlabel("Run date")
     ax2.set_title("Models retrained or kept", loc="left", fontsize=11)
     ax2.set_ylim(0, 50)
-    ax2.legend(loc="upper left", framealpha=0.9)
+    ax2.legend(loc="center left", framealpha=0.9)
 
     fig.suptitle("Pipeline Run History and Model Promotion", fontsize=13)
     fig.autofmt_xdate()
