@@ -521,6 +521,8 @@ if __name__ == "__main__":
         ("Feature importance (BTC 1h)", chart_feature_importance),
         ("Confidence distribution (BTC 1h)", chart_confidence_distribution),
         ("Backtest equity curve (BTC 1h)", chart_backtest_equity_curve),
+        ("Pipeline history", chart_pipeline_history),
+        ("Feature ablation (BTC 1h)", chart_feature_ablation),
     ]
 
     for name, func in charts:
