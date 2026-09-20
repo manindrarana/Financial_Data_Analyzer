@@ -9,7 +9,6 @@ import sys
 
 import duckdb
 import matplotlib
-import numpy as np
 import pandas as pd
 import xgboost as xgb
 from matplotlib.patches import Patch
@@ -23,7 +22,7 @@ if PROJECT_ROOT not in sys.path:
 
 from backtesting.strategy import simulate_trades
 from backtesting.walk_forward import run_walk_forward
-from src.models.feature_engineering import MODEL_FEATURES, make_stationary
+from dashboard.predictor import run_prediction
 
 DB_PATH = os.path.join(PROJECT_ROOT, "database", "financial_data.duckdb")
 MODELS_DIR = os.path.join(PROJECT_ROOT, "src", "models")
@@ -364,30 +363,21 @@ def chart_feature_importance():
 
 
 def chart_confidence_distribution():
-    conn = duckdb.connect(DB_PATH, read_only=True)
-    df = conn.execute("""
-        SELECT * FROM gold_crypto_features
-        WHERE asset_symbol = 'BTC' AND interval = '1h'
-        ORDER BY date
-    """).df()
-    conn.close()
+    results = run_prediction(asset="BTC", interval="1h", asset_class="crypto")
+    if results is None or results.empty:
+        raise RuntimeError("No predictions available for BTC 1h")
 
-    df = make_stationary(df)
-    available = [f for f in MODEL_FEATURES if f in df.columns]
-    X = df[available].fillna(0).values
-
-    model_path = os.path.join(MODELS_DIR, "crypto", "BTC_1h_xgboost_model.json")
-    model = xgb.XGBClassifier()
-    model.load_model(model_path)
-    probas = model.predict_proba(X)[:, 1]
-    confidences = np.maximum(probas, 1 - probas)
+    oos = results[results["is_oos"] & results["actual_direction"].notna()]
+    if oos.empty:
+        raise RuntimeError("No out-of-sample predictions with a known outcome")
+    confidences = oos["confidence"].values
 
     fig, ax = plt.subplots(figsize=(9, 5))
     ax.hist(confidences, bins=40, color="#3498db", edgecolor="#1a5276", alpha=0.8)
     ax.axvline(x=0.5, color="#ef5350", linestyle="--", linewidth=2, label="Random (0.50)")
     ax.set_xlabel("Prediction Confidence")
     ax.set_ylabel("Count")
-    ax.set_title("Confidence Distribution - BTC 1h XGBoost")
+    ax.set_title("Out-of-Sample Confidence Distribution - BTC 1h XGBoost")
     ax.legend(loc="upper right")
     plt.tight_layout()
     save_fig(fig, "confidence_distribution_btc_1h.png")
