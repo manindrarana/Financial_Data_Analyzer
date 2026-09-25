@@ -21,7 +21,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from backtesting.strategy import simulate_trades
+from backtesting.strategy import simulate_portfolio_trades
 from backtesting.walk_forward import run_walk_forward
 from dashboard.predictor import run_prediction
 
@@ -398,13 +398,14 @@ def chart_backtest_equity_curve():
         asset_class="crypto",
     )
 
-    _, equity_df = simulate_trades(
-        predictions_df,
+    _, equity_df = simulate_portfolio_trades(
+        {"BTC": predictions_df},
         confidence_threshold=0.52,
         stop_loss_pct=0.02,
         take_profit_pct=0.04,
         max_hold_bars=24,
         initial_capital=10000,
+        max_positions=1,
     )
 
     if equity_df.empty:
