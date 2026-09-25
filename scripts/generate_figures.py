@@ -29,6 +29,8 @@ DB_PATH = os.path.join(PROJECT_ROOT, "database", "financial_data.duckdb")
 MODELS_DIR = os.path.join(PROJECT_ROOT, "src", "models")
 OUTPUT_DIR = os.path.join(PROJECT_ROOT, "obsidian_notes", "latex", "images")
 AUDIT_DB = os.path.join(PROJECT_ROOT, "database", "pipeline_history.sqlite3")
+REPORT_SNAPSHOT_END = "2026-09-19 09:12:00"
+MIN_FULL_RUN_SECONDS = 60
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -453,7 +455,10 @@ def load_pipeline_runs():
 def chart_pipeline_duration():
     df = load_pipeline_runs()
     success = df[df["status"] == "success"]
-    durations = success["duration_min"]
+    snapshot = success[success["start_time"] <= pd.Timestamp(REPORT_SNAPSHOT_END)]
+    full_runs = snapshot[snapshot["duration_seconds"] >= MIN_FULL_RUN_SECONDS]
+    bookkeeping = len(snapshot) - len(full_runs)
+    durations = full_runs["duration_min"]
     mean_minutes = durations.mean()
     median_minutes = durations.median()
     total_hours = durations.sum() / 60.0
@@ -478,7 +483,8 @@ def chart_pipeline_duration():
         f"Median run: {median_minutes:.1f} min\n"
         f"Fastest: {durations.min():.1f} min\n"
         f"Slowest: {durations.max():.1f} min\n"
-        f"Total compute time: {total_hours:.1f} hours"
+        f"Total compute time: {total_hours:.1f} hours\n"
+        f"Bookkeeping rows excluded: {bookkeeping}"
     )
     ax.text(0.985, 0.97, stats, transform=ax.transAxes, ha="right", va="top",
             fontsize=9.5, color="#e0e0e0",
