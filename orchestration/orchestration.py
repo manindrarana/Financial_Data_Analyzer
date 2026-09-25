@@ -77,6 +77,13 @@ def _migrate_pipeline_run_history():
 
 def _reconcile_stale_running_runs():
     try:
+        if LOCK_FILE.exists():
+            try:
+                lock_pid = int(LOCK_FILE.read_text().strip())
+            except ValueError:
+                lock_pid = 0
+            if _is_process_running(lock_pid):
+                return
         audit_db_path = _get_audit_db_path()
         conn = sqlite3.connect(audit_db_path)
         running_count = conn.execute(
