@@ -2128,24 +2128,24 @@ def render_model_health():
     summary_cards = dbc.Row(
         [
             dbc.Col(dbc.Card(dbc.CardBody([
-                html.H5(str(counts["total"]), className="card-title text-info text-center"),
-                html.P("Total Models", className="card-text text-muted small text-center"),
+                html.H5(str(counts["total"]), className="card-title text-info text-center", title="Every model discovered in src/models/crypto and src/models/stocks."),
+                html.P("Total Models", className="card-text text-muted small text-center", title="Every model discovered in src/models/crypto and src/models/stocks."),
             ]), color="dark", outline=True), width=2),
             dbc.Col(dbc.Card(dbc.CardBody([
-                html.H5(str(counts["healthy"]), className="card-title text-success text-center"),
-                html.P("Healthy", className="card-text text-muted small text-center"),
+                html.H5(str(counts["healthy"]), className="card-title text-success text-center", title="Model and metadata files both exist and were trained within the last 30 days."),
+                html.P("Healthy", className="card-text text-muted small text-center", title="Model and metadata files both exist and were trained within the last 30 days."),
             ]), color="dark", outline=True), width=2),
             dbc.Col(dbc.Card(dbc.CardBody([
-                html.H5(str(counts["stale"]), className="card-title text-warning text-center"),
-                html.P("Stale", className="card-text text-muted small text-center"),
+                html.H5(str(counts["stale"]), className="card-title text-warning text-center", title="Model exists but was last trained more than 30 days ago."),
+                html.P("Stale", className="card-text text-muted small text-center", title="Model exists but was last trained more than 30 days ago."),
             ]), color="dark", outline=True), width=2),
             dbc.Col(dbc.Card(dbc.CardBody([
-                html.H5(str(counts["missing_model"]), className="card-title text-danger text-center"),
-                html.P("Missing Model", className="card-text text-muted small text-center"),
+                html.H5(str(counts["missing_model"]), className="card-title text-danger text-center", title="Metadata JSON exists but the trained model file is missing."),
+                html.P("Missing Model", className="card-text text-muted small text-center", title="Metadata JSON exists but the trained model file is missing."),
             ]), color="dark", outline=True), width=2),
             dbc.Col(dbc.Card(dbc.CardBody([
-                html.H5(str(counts["missing_metadata"]), className="card-text text-warning-emphasis text-center"),
-                html.P("Missing Metadata", className="card-text text-muted small text-center"),
+                html.H5(str(counts["missing_metadata"]), className="card-title text-warning-emphasis text-center", title="Trained model file exists but its metadata JSON is missing."),
+                html.P("Missing Metadata", className="card-text text-muted small text-center", title="Trained model file exists but its metadata JSON is missing."),
             ]), color="dark", outline=True), width=2),
         ],
         className="mb-3",
