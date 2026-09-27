@@ -144,7 +144,7 @@ app.layout = dbc.Container(
     children=[
         dbc.Row(
             dbc.Col(
-                html.H1(" Financial Data Analyzer", className="text-center text-info my-3"),
+                html.H1(" ", className="text-center text-info my-3"),
                 width=12,
             )
         ),
@@ -2019,6 +2019,16 @@ def build_model_ranking_table(models, objective="oos_accuracy"):
 
     ranked_models = rank_models(ranked_models, objective)
     objective_label = RANKING_OBJECTIVES[objective]["label"]
+    objective_tooltips = {
+        "oos_accuracy": "Out-of-sample accuracy: share of correct next-candle direction predictions on unseen rows.",
+        "baseline_gap": "Accuracy improvement over the strongest simple baseline rule (Always Up, Always Down, Last Candle, or SMA 20/50).",
+        "balanced_accuracy": "Average of UP and DOWN recall, so class imbalance cannot inflate the score.",
+        "brier_score": "Mean squared error of predicted probabilities. Lower is better.",
+        "total_return_pct": "Total simulated return over the shared evaluation period.",
+        "max_drawdown_pct": "Largest peak-to-trough equity drop. Lower is better.",
+        "sharpe_ratio": "Risk-adjusted return: mean return divided by return volatility.",
+        "return_volatility": "Standard deviation of equity returns. Lower means steadier equity.",
+    }
 
     def format_percent(value):
         return f"{value:.1%}" if value is not None else "N/A"
