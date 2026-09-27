@@ -2051,48 +2051,56 @@ def build_model_ranking_table(models, objective="oos_accuracy"):
     table_data = []
     for model in ranked_models:
         selected_score = model["ranking_score"]
-        table_data.append({
+        row = {
             "Rank": model["rank"] if model["rank"] is not None else "N/A",
             "Class": model["asset_class"].capitalize(),
             "Asset": model["asset"],
             "Interval": model["interval"],
-            objective_label: format_ranking_score(selected_score),
             "OOS Accuracy": format_percent(model.get("oos_accuracy")),
             "Baseline Gap": format_percent(model.get("baseline_gap")),
             "Balanced Accuracy": format_percent(model.get("balanced_accuracy")),
             "Brier Score": format_score(model.get("brier_score")),
             "OOS Rows": model.get("oos_rows") or "N/A",
-        })
+        }
+        if objective not in CLASSIFICATION_RANKING_OBJECTIVES:
+            row[objective_label] = format_ranking_score(selected_score)
+        table_data.append(row)
 
     columns = [
         {"name": "Rank", "id": "Rank"},
         {"name": "Class", "id": "Class"},
         {"name": "Asset", "id": "Asset"},
         {"name": "Interval", "id": "Interval"},
-        {"name": objective_label, "id": objective_label},
+    ]
+    if objective not in CLASSIFICATION_RANKING_OBJECTIVES:
+        columns.append({"name": objective_label, "id": objective_label})
+    columns.extend([
         {"name": "OOS Accuracy", "id": "OOS Accuracy"},
         {"name": "Baseline Gap", "id": "Baseline Gap"},
         {"name": "Balanced Accuracy", "id": "Balanced Accuracy"},
         {"name": "Brier Score", "id": "Brier Score"},
         {"name": "OOS Rows", "id": "OOS Rows"},
-    ]
+    ])
+
+    header_tooltips = {
+        "Rank": "Position after sorting all models by the selected objective. Ties share a rank; models without a score rank last.",
+        "Class": "Asset class: crypto or stocks.",
+        "Asset": "Ticker symbol of the asset.",
+        "Interval": "Candle timeframe the model was trained on.",
+        "OOS Accuracy": "Share of correct next-candle direction predictions on unseen out-of-sample rows.",
+        "Baseline Gap": "Model OOS accuracy minus the strongest simple baseline rule accuracy.",
+        "Balanced Accuracy": "Average of UP and DOWN recall; removes class-imbalance effects.",
+        "Brier Score": "Mean squared error of predicted probabilities. Lower is better.",
+        "OOS Rows": "Number of out-of-sample rows used for evaluation.",
+    }
+    if objective not in CLASSIFICATION_RANKING_OBJECTIVES:
+        header_tooltips[objective_label] = objective_tooltips.get(objective, "Metric selected in the Rank By dropdown.")
 
     return dash_table.DataTable(
         id="model-ranking-table",
         data=table_data,
         columns=columns,
-        tooltip_header={
-            "Rank": "Position after sorting all models by the selected objective. Ties share a rank; models without a score rank last.",
-            "Class": "Asset class: crypto or stocks.",
-            "Asset": "Ticker symbol of the asset.",
-            "Interval": "Candle timeframe the model was trained on.",
-            objective_label: objective_tooltips.get(objective, "Metric selected in the Rank By dropdown."),
-            "OOS Accuracy": "Share of correct next-candle direction predictions on unseen out-of-sample rows.",
-            "Baseline Gap": "Model OOS accuracy minus the strongest simple baseline rule accuracy.",
-            "Balanced Accuracy": "Average of UP and DOWN recall; removes class-imbalance effects.",
-            "Brier Score": "Mean squared error of predicted probabilities. Lower is better.",
-            "OOS Rows": "Number of out-of-sample rows used for evaluation.",
-        },
+        tooltip_header=header_tooltips,
         page_size=50,
         sort_action="native",
         filter_action="native",
