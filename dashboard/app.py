@@ -2331,7 +2331,7 @@ def render_model_health():
         ),
         dbc.Row([
             dbc.Col([
-                html.Label("Rank By", className="text-muted small mb-1"),
+                html.Label("Rank By", className="text-muted small mb-1", title="Metric used to rank every model. Classification objectives use out-of-sample quality; trading objectives backtest all models over the same period with identical settings."),
                 dcc.Dropdown(
                     id="model-ranking-objective",
                     options=[
