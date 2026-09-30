@@ -2,6 +2,7 @@ services:
   minio:
     image: minio/minio:latest
     container_name: datalake
+    restart: unless-stopped
     env_file:
       - .env
     ports:
@@ -63,6 +64,7 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: prefect_postgres
+    restart: unless-stopped
     env_file:
       - .env
     volumes:
@@ -80,6 +82,7 @@ services:
       context: .
       dockerfile: prefect.dockerfile
     container_name: prefect_server
+    restart: unless-stopped
     ports:
       - "4200:4200"
     volumes:
@@ -105,6 +108,7 @@ services:
       context: .
       dockerfile: mlflow.dockerfile
     container_name: mlflow
+    restart: unless-stopped
     ports:
       - "5000:5000"
     volumes:
