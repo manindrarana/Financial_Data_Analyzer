@@ -35,16 +35,16 @@ MIN_FULL_RUN_SECONDS = 60
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 plt.rcParams.update({
-    "figure.facecolor": "#1a1a2e",
-    "axes.facecolor": "#16213e",
-    "axes.edgecolor": "#0f3460",
-    "axes.labelcolor": "#e0e0e0",
-    "xtick.color": "#e0e0e0",
-    "ytick.color": "#e0e0e0",
-    "text.color": "#e0e0e0",
+    "figure.facecolor": "#ffffff",
+    "axes.facecolor": "#ffffff",
+    "axes.edgecolor": "#cccccc",
+    "axes.labelcolor": "#222222",
+    "xtick.color": "#222222",
+    "ytick.color": "#222222",
+    "text.color": "#222222",
     "axes.grid": True,
-    "grid.color": "#0f3460",
-    "grid.alpha": 0.3,
+    "grid.color": "#dddddd",
+    "grid.alpha": 0.8,
     "font.size": 11,
     "font.family": "sans-serif",
 })
@@ -73,6 +73,7 @@ def chart_data_volume():
     crypto_df = conn.execute("""
         SELECT asset_symbol, COUNT(*) as row_count
         FROM gold_crypto_features
+        WHERE date <= TIMESTAMP '2026-09-19 09:12:00'
         GROUP BY asset_symbol
         ORDER BY row_count DESC
     """).df()
@@ -80,6 +81,7 @@ def chart_data_volume():
     stock_df = conn.execute("""
         SELECT asset_symbol, COUNT(*) as row_count
         FROM gold_stock_features
+        WHERE date <= TIMESTAMP '2026-09-19 09:12:00'
         GROUP BY asset_symbol
         ORDER BY row_count DESC
     """).df()
@@ -120,12 +122,14 @@ def chart_eda_price_trend():
     btc_df = conn.execute("""
         SELECT date, close FROM gold_crypto_features
         WHERE asset_symbol = 'BTC' AND interval = '1h'
+          AND date <= TIMESTAMP '2026-09-19 09:12:00'
         ORDER BY date
     """).df()
 
     aapl_df = conn.execute("""
         SELECT date, close FROM gold_stock_features
         WHERE asset_symbol = 'AAPL' AND interval = '1d'
+          AND date <= TIMESTAMP '2026-09-19 09:12:00'
         ORDER BY date
     """).df()
 
@@ -155,12 +159,14 @@ def chart_eda_return_distribution():
     btc_df = conn.execute("""
         SELECT date, close FROM gold_crypto_features
         WHERE asset_symbol = 'BTC' AND interval = '1h'
+          AND date <= TIMESTAMP '2026-09-19 09:12:00'
         ORDER BY date
     """).df()
 
     aapl_df = conn.execute("""
         SELECT date, close FROM gold_stock_features
         WHERE asset_symbol = 'AAPL' AND interval = '1d'
+          AND date <= TIMESTAMP '2026-09-19 09:12:00'
         ORDER BY date
     """).df()
 
@@ -201,6 +207,7 @@ def chart_eda_correlation_heatmap():
         df = conn.execute(f"""
             SELECT date, close FROM gold_crypto_features
             WHERE asset_symbol = '{asset}' AND interval = '1d'
+              AND date <= TIMESTAMP '2026-09-19 09:12:00'
             ORDER BY date
         """).df()
         if not df.empty:
@@ -211,6 +218,7 @@ def chart_eda_correlation_heatmap():
         df = conn.execute(f"""
             SELECT date, close FROM gold_stock_features
             WHERE asset_symbol = '{asset}' AND interval = '1d'
+              AND date <= TIMESTAMP '2026-09-19 09:12:00'
             ORDER BY date
         """).df()
         if not df.empty:
@@ -233,16 +241,16 @@ def chart_eda_correlation_heatmap():
     for i in range(len(corr_matrix.columns)):
         for j in range(len(corr_matrix.columns)):
             val = corr_matrix.values[i, j]
-            color = "white" if abs(val) > 0.5 else "#e0e0e0"
+            color = "white" if abs(val) > 0.7 else "#222222"
             ax.text(j, i, f"{val:.2f}", ha="center", va="center", fontsize=8, color=color)
 
     cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-    cbar.set_label("Correlation", color="#e0e0e0")
-    cbar.ax.tick_params(colors="#e0e0e0")
+    cbar.set_label("Correlation", color="#222222")
+    cbar.ax.tick_params(colors="#222222")
 
     n_crypto = len(crypto_assets)
-    ax.axhline(y=n_crypto - 0.5, color="#e0e0e0", linewidth=1.5, linestyle="--")
-    ax.axvline(x=n_crypto - 0.5, color="#e0e0e0", linewidth=1.5, linestyle="--")
+    ax.axhline(y=n_crypto - 0.5, color="#222222", linewidth=1.5, linestyle="--")
+    ax.axvline(x=n_crypto - 0.5, color="#222222", linewidth=1.5, linestyle="--")
 
     ax.set_title("Daily Return Correlation Matrix")
     plt.tight_layout()
@@ -255,7 +263,7 @@ def chart_model_comparison():
     colors = ["#26a69a", "#ef5350", "#ef5350"]
 
     fig, ax = plt.subplots(figsize=(8, 5))
-    bars = ax.bar(models, accuracies, color=colors, edgecolor="#1a1a2e", width=0.5)
+    bars = ax.bar(models, accuracies, color=colors, edgecolor="#cccccc", width=0.5)
     ax.axhline(y=50, color="#ffc107", linestyle="--", linewidth=1.5, label="Random (50%)")
     ax.set_ylabel("Accuracy (%)")
     ax.set_title("Model Comparison on BTC 1h")
@@ -283,7 +291,7 @@ def chart_ceiling_experiments():
     colors = [e[2] for e in experiments]
 
     fig, ax = plt.subplots(figsize=(12, 5))
-    bars = ax.bar(labels, values, color=colors, edgecolor="#1a1a2e", width=0.6)
+    bars = ax.bar(labels, values, color=colors, edgecolor="#cccccc", width=0.6)
     ax.axhline(y=50, color="#ffc107", linestyle="--", linewidth=1.5, label="Random (50%)")
     ax.axhline(y=52.6, color="#ef5350", linestyle=":", linewidth=1.5, label="Ceiling (~52.6%)")
     ax.set_ylabel("Accuracy (%)")
@@ -313,7 +321,7 @@ def chart_per_asset_accuracy():
         colors.append("#3498db" if m.get("asset_class") == "crypto" else "#e67e22")
 
     fig, ax = plt.subplots(figsize=(16, 6))
-    ax.bar(range(len(labels)), accuracies, color=colors, edgecolor="#1a1a2e")
+    ax.bar(range(len(labels)), accuracies, color=colors, edgecolor="#cccccc")
     ax.axhline(y=50, color="#ffc107", linestyle="--", linewidth=1, label="Random (50%)")
     ax.set_xticks(range(len(labels)))
     ax.set_xticklabels(labels, rotation=90, fontsize=7)
@@ -372,6 +380,8 @@ def chart_confidence_distribution():
         raise RuntimeError("No predictions available for BTC 1h")
 
     oos = results[results["is_oos"] & results["actual_direction"].notna()]
+    if "date" in oos.columns:
+        oos = oos[oos["date"] <= pd.Timestamp(REPORT_SNAPSHOT_END)]
     if oos.empty:
         raise RuntimeError("No out-of-sample predictions with a known outcome")
     confidences = oos["confidence"].values
@@ -394,6 +404,7 @@ def chart_backtest_equity_curve():
         train_months=6,
         test_months=1,
         step_months=1,
+        date_end="2026-09-19 09:12:00",
         return_data=True,
         asset_class="crypto",
     )
@@ -467,9 +478,9 @@ def chart_pipeline_duration():
     fig, ax = plt.subplots(figsize=(10, 5))
     _, _, patches = ax.hist(
         durations, bins=list(range(0, 55, 5)),
-        color="#3498db", alpha=0.8, edgecolor="#1a1a2e",
+        color="#3498db", alpha=0.8, edgecolor="#cccccc",
     )
-    ax.bar_label(patches, fontsize=9, color="#e0e0e0", padding=2)
+    ax.bar_label(patches, fontsize=9, color="#222222", padding=2)
     ax.axvline(mean_minutes, color="#ffc107", linestyle="--", linewidth=2.0,
                label=f"Average run = {mean_minutes:.1f} min")
     ax.axvline(median_minutes, color="#e67e22", linestyle=":", linewidth=2.0,
@@ -488,8 +499,8 @@ def chart_pipeline_duration():
         f"Bookkeeping rows excluded: {bookkeeping}"
     )
     ax.text(0.985, 0.97, stats, transform=ax.transAxes, ha="right", va="top",
-            fontsize=9.5, color="#e0e0e0",
-            bbox={"boxstyle": "round", "facecolor": "#0f3460", "alpha": 0.9,
+            fontsize=9.5, color="#222222",
+            bbox={"boxstyle": "round", "facecolor": "#f0f0f0", "alpha": 0.95,
                   "edgecolor": "#3498db"})
     plt.tight_layout()
     save_fig(fig, "pipeline_duration.png")
@@ -498,6 +509,7 @@ def chart_pipeline_duration():
 def chart_model_promotion():
     df = load_pipeline_runs()
     success = df[df["status"] == "success"].sort_values("start_time")
+    success = success[success["start_time"] <= pd.Timestamp(REPORT_SNAPSHOT_END)]
     trained = success[(success["retrained"] + success["kept"]) > 0].copy()
     gate_date = pd.Timestamp("2026-09-16")
     trained["after_gate"] = trained["start_time"] >= gate_date
@@ -513,11 +525,11 @@ def chart_model_promotion():
     width = 0.36
     fig, ax = plt.subplots(figsize=(8.5, 4.8))
     bars1 = ax.bar([p - width / 2 for p in positions], retrained, width,
-                   color="#26a69a", edgecolor="#1a1a2e", label="New model used")
+                   color="#26a69a", edgecolor="#cccccc", label="New model used")
     bars2 = ax.bar([p + width / 2 for p in positions], kept, width,
-                   color="#e67e22", edgecolor="#1a1a2e", label="Old model kept")
-    ax.bar_label(bars1, fmt="%.1f", fontsize=10, color="#e0e0e0", padding=2)
-    ax.bar_label(bars2, fmt="%.1f", fontsize=10, color="#e0e0e0", padding=2)
+                   color="#e67e22", edgecolor="#cccccc", label="Old model kept")
+    ax.bar_label(bars1, fmt="%.1f", fontsize=10, color="#222222", padding=2)
+    ax.bar_label(bars2, fmt="%.1f", fontsize=10, color="#222222", padding=2)
     ax.set_xticks(positions)
     ax.set_xticklabels(groups, fontsize=10)
     ax.set_ylabel("Models per run (average)")
@@ -543,9 +555,9 @@ def chart_feature_ablation():
 
     fig, ax = plt.subplots(figsize=(12, 5))
     ax.bar([p - offset for p in positions], accuracy, width, color="#3498db",
-           edgecolor="#1a1a2e", label="Accuracy")
+           edgecolor="#cccccc", label="Accuracy")
     ax.bar([p + offset for p in positions], balanced, width, color="#26a69a",
-           edgecolor="#1a1a2e", label="Balanced accuracy")
+           edgecolor="#cccccc", label="Balanced accuracy")
     ax.axhline(y=baseline, color="#ffc107", linestyle="--", linewidth=1.5,
                label=f"Baseline ({baseline:.2f}%)")
     ax.set_xticks(positions)
