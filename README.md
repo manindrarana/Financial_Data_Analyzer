@@ -1,126 +1,132 @@
 # Financial Data Analyzer
 
-Project involves both  **Data Engineering** and **Data Science** to analyze financial markets. The goal is to build a system that downloads stock/crypto data, cleans it, saves it securely, and then uses Machine Learning to predict future prices.
+A data pipeline and machine learning project for financial markets. It downloads stock and crypto data, cleans it, stores it in layers, and then trains models to predict the next price move.
 
-## How it Works (8-step ELT pipeline)
+The project mixes two areas: Data Engineering (moving and shaping the data) and Data Science (making and testing predictions).
 
-1. **Extract**: Yahoo Finance, Bybit, and the Fear & Greed Index (alternative.me) run concurrently, fetching historical OHLCV data plus Open Interest, Funding Rate, and daily crypto sentiment, saving to MinIO (S3) as Parquet files.
-2. **Load**: DuckDB reads raw Parquet files from MinIO into staging tables (`yahoo_stocks`, `bybit_crypto`).
-3. **Clean**: Removes duplicates, filters invalid prices, normalizes timestamps, enforces chronological ordering → `clean_*` tables.
-4. **Dimensions**: Builds a star schema (`dim_assets`, `dim_dates`) for analytical querying.
-5. **Facts**: Loads cleaned data into `fact_price_history` from the silver layer.
-6. **Gold Analytics**: Aggregates analytics (daily volatility, moving averages) → `gold_crypto_analytics`, `gold_stock_analytics`.
-7. **Technical Indicators**: Computes 30+ indicators (RSI, MACD, ATR, Bollinger Bands, VWAP, OBV, etc.) → `gold_crypto_features`, `gold_stock_features`.
-8. **Model Training**: `PipelineModelTrainer` auto-discovers all asset×interval combos from `settings.yml`, applies stationarity transformations (SMA/EMA distances, MACD/ATR as % of close) via `src/models/feature_engineering.py`, and trains one XGBoost model per combo. Saves to `src/models/crypto/` and `src/models/stocks/`.
+## What it does
 
-The pipeline uses **checkpoint/resume** — if it crashes mid-run, restarting skips completed steps. Use `--force` to clear checkpoints and run all steps fresh. Use `--once` for a single run (vs. the default hourly schedule).
+- Pulls data from three public sources: Yahoo Finance (stocks), Bybit (crypto), and the Fear & Greed Index (crypto sentiment).
+- Stores everything in MinIO, which works like Amazon S3.
+- Cleans the data and builds a star schema in DuckDB.
+- Computes 30+ technical indicators (RSI, MACD, ATR, Bollinger Bands, VWAP, OBV, and more).
+- Trains one XGBoost model per asset and time interval.
+- Tests the models with walk-forward backtesting against a buy-and-hold benchmark.
+- Shows everything in a Plotly Dash dashboard.
 
 ## Architecture
 
-The project uses a **Medallion Data Lake Architecture** with three layers stored in MinIO (S3-compatible storage):
+![System architecture](docs/images/architecture.svg)
 
-### Data Layers
+The data moves through three layers in MinIO. This pattern is called a Medallion architecture.
 
-1. **Bronze Layer** (`s3://raw-data/`)  
-   Raw JSON files from APIs, exactly as received then converted to the parquet and stored.
+### Data layers
 
-2. **Silver Layer** (`s3://processed-data/`)  
-   Cleaned and validated data stored as Parquet files. Duplicates removed, schemas enforced, timestamps normalized.
-
-3. **Gold Layer** (`s3://analytics-data/`)  
-   Separate analytics tables for crypto and stocks (`gold_crypto_analytics`, `gold_stock_analytics`) with calculated features including moving averages, RSI, MACD, Bollinger Bands, VWAP, and technical indicators. Also includes feature tables used for ML training. Ready for dashboards and ML.
+1. **Bronze layer** (`s3://raw-data/`) - raw JSON files from the APIs, exactly as received, then converted to Parquet.
+2. **Silver layer** (`s3://processed-data/`) - cleaned and validated data. Duplicates removed, schemas enforced, timestamps normalised, and rows kept in chronological order.
+3. **Gold layer** (`s3://analytics-data/`) - separate analytics tables for crypto and stocks, with moving averages and technical indicators, plus the feature tables used for ML. Ready for the dashboard and the models.
 
 ### Services
 
-- **MinIO**: S3-compatible object storage (Ports: 9000 for API, 9001 for web console)
-- **Prefect**: Flow orchestration with task-level retries and checkpoint/resume recovery, backed by PostgreSQL (Port: 4200)
-- **PostgreSQL**: Prefect server backend database with row-level locking, replacing the lock-prone SQLite backend
-- **Python Pipeline**: Automated ELT orchestration using Prefect (executes on startup + scheduled hourly), with run history audited to SQLite and visible in the dashboard
-- **Plotly Dash**: Interactive dashboard with 9 tabs — Overview, Price Dashboard, Predictions, Backtest, Technical Indicators, Data Explorer, Model Health, Model Insights, Pipeline History (Port: 8050)
-- **MLflow**: ML experiment tracking (Port: 5000)
-- **DuckDB**: In-process analytical database for SQL transformations
+| Service | What it does | Port |
+|---|---|---|
+| MinIO | S3-compatible object storage for the three layers | 9000 (API) / 9001 (console) |
+| Prefect | Runs the pipeline with task-level retries and checkpoint/resume | 4200 |
+| PostgreSQL | Prefect server backend, replacing the lock-prone SQLite backend | - |
+| Python pipeline | The ELT flow itself; runs on startup and then hourly | - |
+| Plotly Dash | Dashboard with nine tabs (Overview, Price Dashboard, Predictions, Backtest, Technical Indicators, Data Explorer, Model Health, Model Insights, Pipeline History) | 8050 |
+| MLflow | Model experiment tracking | 5000 |
+| DuckDB | In-process SQL engine for the transformations | - |
 
-### Model Training
+## Pipeline steps
 
-- **Per-asset, per-interval models**: Separate XGBoost models for each combination (e.g., BTC 1h, BTC 4h, AAPL 1h, AAPL 1d). `PipelineModelTrainer` reads `settings.yml` and auto-discovers all combos.
-- **Stationarity transforms**: Raw indicators (SMA, EMA, MACD) are non-stationary. `make_stationary()` in `src/models/feature_engineering.py` converts them to distance-from-close ratios, making features comparable across price levels.
-- **Walk-forward backtesting**: `backtesting/walk_forward.py` validates models by walking a 6-month training window forward month-by-month, retraining on each fold to mirror real-world periodic retraining. Also supports a pre-trained mode that loads the saved production JSON model per asset instead of retraining, single-asset and multi-asset portfolio modes, and optional short selling and transaction costs. Strategy results are compared against an equal-weight buy-and-hold benchmark using the same dates, capital, and costs.
+1. **Extract** - Yahoo Finance, Bybit, and Fear & Greed run at the same time, pulling historical OHLCV data plus Open Interest, Funding Rate, and daily crypto sentiment, and saving to MinIO as Parquet.
+2. **Load** - DuckDB reads the raw Parquet files from MinIO into staging tables (`yahoo_stocks`, `bybit_crypto`).
+3. **Clean** - removes duplicates, filters invalid prices, normalises timestamps, and enforces chronological ordering into the `clean_*` tables.
+4. **Dimensions** - builds the star schema (`dim_assets`, `dim_dates`) for analytical querying.
+5. **Facts** - loads the cleaned data into `fact_price_history` from the silver layer.
+6. **Gold analytics** - aggregates daily volatility and moving averages into `gold_crypto_analytics` and `gold_stock_analytics`.
+7. **Technical indicators** - computes 30+ indicators (RSI, MACD, ATR, Bollinger Bands, VWAP, OBV, and more) into `gold_crypto_features` and `gold_stock_features`.
+8. **Model training** - `PipelineModelTrainer` finds every asset and interval combo in `settings.yml`, applies the stationarity transforms from `src/models/feature_engineering.py`, and trains one XGBoost model per combo. Models are saved to `src/models/crypto/` and `src/models/stocks/`.
 
-## Project Structure
+Restarting skips finished steps. Use `--force` to run everything again from scratch, and `--once` for a single run instead of the hourly schedule.
 
-- **`backtesting/`**  
-  Walk-forward validation with trade simulation and performance metrics.
+## Models
 
-- **`configs/`**  
-  Settings for the project, like API keys and database paths.
+- **One model per combo** - for example, BTC 1h, BTC 4h, AAPL 1h, and AAPL 1d each get their own XGBoost model.
+- **Stationarity transforms** - raw indicators like SMA, EMA, and MACD change with the price level. `make_stationary()` converts them to distance-from-close ratios, so features can be compared across price levels.
+- **Walk-forward backtesting** - `backtesting/walk_forward.py` runs a 6-month training window and walks it forward month by month, retraining on each fold to copy real-world periodic retraining. It also supports a pre-trained mode that loads the saved production model per asset, single-asset and multi-asset portfolio modes, and optional short selling and transaction costs. Results are compared with an equal-weight buy-and-hold using the same dates, money, and costs.
 
-- **`dashboard/`**
-  Plotly Dash web application (`app.py`) with XGBoost predictor (`predictor.py`), model health monitoring (`model_health.py`), and pipeline run history (`pipeline_history.py`).
+## Project structure
 
-- **`notebooks/`**  
-  Jupyter notebooks where test ideas and visualize data before writing the final code.
+- **`backtesting/`** - Walk-forward validation with trade simulation and performance metrics.
+- **`configs/`** - Settings for the project, like API keys and database paths.
+- **`dashboard/`** - Plotly Dash web app (`app.py`) with the XGBoost predictor (`predictor.py`), model health monitoring (`model_health.py`), and pipeline run history (`pipeline_history.py`).
+- **`notebooks/`** - Jupyter notebooks for testing ideas and visualising data before writing the final code.
+- **`orchestration/`** - The main Prefect flow and the checkpoint/resume logic that runs the whole pipeline automatically.
+- **`scripts/`** - Manual and research scripts, not used by the main pipeline:
+  - `investigate_funding.py` - checks and backfills historical funding-rate coverage for all configured Bybit assets.
+  - `run_funding_rate_experiment.py` - leakage-safe funding feature experiment with accuracy significance tests and a cost-aware backtest comparison.
+  - `run_cross_asset_experiment.py` - leakage-safe cross-asset feature experiment comparing baseline and cross-asset variants.
+  - `run_regime_analysis.py` - BTC 1h regime analysis comparing per-regime accuracy against dynamic baselines.
+  - `run_feature_ablation.py` - controlled BTC 1h feature-ablation experiment (auto-refreshed after BTC 1h retraining).
+  - `compare_model_families.py` - BTC 1h comparison of XGBoost, Logistic Regression, and Random Forest (auto-refreshed after BTC 1h retraining).
+  - `compare_multitimeframe_models.py` - BTC 1h/4h multi-timeframe comparison with ensemble metrics (auto-refreshed after BTC 1h/4h retraining).
+  - `backfill_pipeline_history.py` - one-time backfill of the pipeline-run audit from existing DuckDB history.
+  - `backfill_prefect_history.py` - one-time backfill of run history into the PostgreSQL backend.
+  - `build_macro_table.py` - builds the macroeconomic table from FRED data.
+  - `data_health_check.py` - checks data quality and coverage per asset and interval.
+  - `data_profiler.py` - profiles raw market data for volume and readiness.
+  - `ml_profiler.py` - profiles the ML training data and feature distributions.
+  - `generate_figures.py` - generates the report figures from the backtest and model results.
+  - `inspect_bybit_api.py` - inspects raw Bybit API responses for debugging ingestion.
+  - Legacy training scripts, now superseded by `PipelineModelTrainer`: `train_all_models.py`, `train_btc_model.py`, `train_aapl_model.py`, `eda_ml.py`, `top15_feat.py`, `target_analysis.py`.
+- **`src/`** - The main source code:
+  - `ingestion/` - API clients for Yahoo Finance (`yahoo_finance.py`), Bybit (`bybit_client.py`), and the Fear & Greed Index (`fear_greed.py`).
+  - `database/` - DuckDB loading (`loader.py`), dimensional modelling (`dimensions.py`), and fact tables (`facts.py`).
+  - `processing/` - scaling, cleaning, and chronological transformation (`transformation.py`).
+  - `models/` - gold layer processor, technical indicators processor, feature analyzer, and shared feature engineering (`feature_engineering.py`).
+  - `utils/` - console logging (`logger.py`), S3 access setup (`s3.py`), and pipeline run auditing (`pipeline_audit.py`).
+- **`tests/`** - Pytest suite covering every module (extraction, database, processing, models, backtesting, dashboard, orchestration) with value-based assertions. It runs with zero infrastructure: no Docker, no S3, and no `.env`.
+- **`reports/`** - generated reports: market and ML profiles, funding coverage and experiment results, feature ablation, and model-family and multi-timeframe comparisons.
 
-- **`orchestration/`**  
-  Contains the main Prefect flow and checkpoint/resume logic that runs the whole pipeline automatically.
+## How to run
 
-- **`scripts/`**
-  Manual and research scripts (not used by the main pipeline):
-  - `investigate_funding.py`: Investigates and backfills historical funding-rate coverage for all configured Bybit assets.
-  - `run_funding_rate_experiment.py`: Leakage-safe funding feature experiment with accuracy significance tests and cost-aware backtest variant comparison.
-  - `run_cross_asset_experiment.py`: Leakage-safe cross-asset feature experiment comparing baseline and cross-asset variants.
-  - `run_regime_analysis.py`: BTC 1h regime analysis comparing per-regime accuracy against dynamic baselines.
-  - `run_feature_ablation.py`: Controlled BTC 1h feature-ablation experiment (auto-refreshed after BTC 1h retraining by orchestration).
-  - `compare_model_families.py`: BTC 1h model-family comparison across XGBoost, Logistic Regression, and Random Forest (auto-refreshed after BTC 1h retraining by orchestration).
-  - `compare_multitimeframe_models.py`: BTC 1h/4h multi-timeframe comparison with ensemble metrics (auto-refreshed after BTC 1h/4h retraining by orchestration).
-  - `backfill_pipeline_history.py`: One-time backfill of the SQLite pipeline-run audit from existing DuckDB history.
-  - `backfill_prefect_history.py`: One-time backfill of run history from the old Prefect SQLite backend into PostgreSQL.
-  - `build_macro_table.py`: Builds the macroeconomic table from FRED data.
-  - `data_health_check.py`: Checks data quality and coverage per asset and interval.
-  - `data_profiler.py`: Profiles raw market data for volume and readiness.
-  - `ml_profiler.py`: Profiles ML training data and feature distributions.
-  - `generate_figures.py`: Generates report figures from backtest and model results.
-  - `inspect_bybit_api.py`: Inspects raw Bybit API responses for debugging ingestion.
-  - Legacy training scripts (superseded by `PipelineModelTrainer`):
-    `train_all_models.py`, `train_btc_model.py`, `train_aapl_model.py`, `eda_ml.py`, `top15_feat.py`, `target_analysis.py`.
+### With Docker (recommended)
 
-- **`src/`**
-  The main source code for the project:
-  - `ingestion/`: API clients for Yahoo Finance (`yahoo_finance.py`), Bybit (`bybit_client.py`), and the Fear & Greed Index (`fear_greed.py`).
-  - `database/`: DuckDB loading (`loader.py`), dimensional modeling (`dimensions.py`), and fact tables (`facts.py`).
-  - `processing/`: Data scaling, cleaning, and chronological transformation (`transformation.py`).
-  - `models/`: Gold layer processor, technical indicators processor, feature analyzer, and shared feature engineering (`feature_engineering.py`).
-  - `utils/`: Console logging (`logger.py`), S3 access setup (`s3.py`), and pipeline run auditing (`pipeline_audit.py`).
+```bash
+docker-compose up --build -d                                                      # start all services (pipeline runs hourly)
+docker exec financial_data_pipeline python -m orchestration.orchestration --once   # single manual run
+docker exec financial_data_pipeline python -m orchestration.orchestration --force  # full re-run
+```
 
-- **`tests/`**
-  Pytest suite covering every module (extraction, database, processing, models, backtesting, dashboard, orchestration) with value-based assertions. Runs with zero infrastructure — no Docker, no S3, no `.env`.
+### Without Docker
 
-- **`reports/`**
-  Generated reports: market and ML profiles, funding coverage and experiment results, feature ablation, model-family and multi-timeframe comparisons.
+1. Install the dependencies:
 
-## how to Run
-
-1. **Install dependencies:**
    ```bash
    pip install -r requirements.txt
    ```
-2. **Set up virtual environment (optional but recommended):**
-    ```bash
-    python -m venv venv
-    source venv/bin/activate  # On Windows: venv\Scripts\activate
-    ```
-3.  **Configure Environment:**
-    Rename `.env.example` to `.env` and add API keys and the PostgreSQL credentials (user, password, database).
 
-4. **Run the pipeline:**
-    ```bash
-    python -m orchestration.orchestration             # Normal run (resumes from checkpoint)
-    python -m orchestration.orchestration --once       # Single run (no hourly schedule)
-    python -m orchestration.orchestration --force      # Force full re-run (clears checkpoint)
-    ```
+2. Optional but recommended, set up a virtual environment:
 
-### Running with Docker
+   ```bash
+   python -m venv venv
+   source venv/bin/activate    # On Windows: venv\Scripts\activate
+   ```
+
+3. Copy `.env.example` to `.env` and fill in your API keys and the PostgreSQL details (user, password, database).
+
+4. Run the pipeline:
+
+   ```bash
+   python -m orchestration.orchestration           # normal run (resumes from checkpoint)
+   python -m orchestration.orchestration --once     # single run (no hourly schedule)
+   python -m orchestration.orchestration --force    # force full re-run (clears checkpoint)
+   ```
+
+## Tests
+
 ```bash
-docker-compose up --build -d                           # Start all services (pipeline runs hourly)
-docker exec financial_data_pipeline python -m orchestration.orchestration --once   # Single manual run
-docker exec financial_data_pipeline python -m orchestration.orchestration --force  # Force full re-run
+pytest
 ```
